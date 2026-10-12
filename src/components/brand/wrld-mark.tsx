@@ -1,47 +1,65 @@
-/**
- * The WRLD mark: an eight-point compass rose on a diamond tile.
- * North is the longest point; each cardinal point is split light/shade
- * in the classic compass-rose style. Solid shapes only, so it stays
- * crisp down to 16px.
- */
+import {
+  COMPASS_FULL,
+  SMALL_CARD_LIT,
+  SMALL_CARD_SHADE,
+  SMALL_DIAG_LIT,
+  SMALL_DIAG_SHADE,
+} from "./wrld-mark-paths";
 
-const CARD_LIT = "M50 50 L50.0 13.0 L56.72 43.28 Z M50 50 L79.0 50.0 L56.72 56.72 Z M50 50 L50.0 79.0 L43.28 56.72 Z M50 50 L21.0 50.0 L43.28 43.28 Z";
-const CARD_SHADE = "M50 50 L50.0 13.0 L43.28 43.28 Z M50 50 L79.0 50.0 L56.72 43.28 Z M50 50 L50.0 79.0 L56.72 56.72 Z M50 50 L21.0 50.0 L43.28 56.72 Z";
-const DIAG_LIT = "M50 50 L62.02 37.98 L56.5 50.0 Z M50 50 L62.02 62.02 L50.0 56.5 Z M50 50 L37.98 62.02 L43.5 50.0 Z M50 50 L37.98 37.98 L50.0 43.5 Z";
-const DIAG_SHADE = "M50 50 L62.02 37.98 L50.0 43.5 Z M50 50 L62.02 62.02 L56.5 50.0 Z M50 50 L37.98 62.02 L50.0 56.5 Z M50 50 L37.98 37.98 L43.5 50.0 Z";
+/**
+ * The WRLD mark: the compass rose on a diamond tile.
+ *
+ *  detail="full"  – the original symbol with both rings. Use at 40px and larger.
+ *  detail="small" – the star alone, for 32px and below (header, favicon),
+ *                   where the rings would blur.
+ */
 
 type Variant = "tile" | "dark" | "plain";
 
-const COLORS: Record<Variant, { tile: string | null; lit: string; shade: string; diagLit: string; diagShade: string; hole: string }> = {
-  tile: { tile: "#5E7F73", lit: "#FBE8D8", shade: "#C9CDBE", diagLit: "#E4DCCB", diagShade: "#B3BCAD", hole: "#5E7F73" },
-  dark: { tile: "#253A33", lit: "#FBE8D8", shade: "#8E9C93", diagLit: "#C9C2B2", diagShade: "#6F8279", hole: "#253A33" },
-  plain: { tile: null, lit: "#5E7F73", shade: "#9DB3AA", diagLit: "#7F978D", diagShade: "#BFCDC6", hole: "#FDF6F0" },
+const COLORS: Record<Variant, { tile: string | null; ink: string; shade: string }> = {
+  tile: { tile: "#5E7F73", ink: "#FBE8D8", shade: "#AEBBAF" },
+  dark: { tile: "#253A33", ink: "#FBE8D8", shade: "#7E8F86" },
+  plain: { tile: null, ink: "#5E7F73", shade: "#A9BCB4" },
 };
 
+const FULL_SIZE = 66; // symbol diameter inside the 100-unit tile
+const FULL_OFFSET = (100 - FULL_SIZE) / 2;
+
 export function WrldMark({
-  className = "size-8",
+  className = "size-10",
   variant = "tile",
+  detail = "full",
   title,
 }: {
   className?: string;
   variant?: Variant;
+  detail?: "full" | "small";
   title?: string;
 }) {
   const c = COLORS[variant];
+  const viewBox =
+    variant === "plain"
+      ? detail === "full"
+        ? `${FULL_OFFSET} ${FULL_OFFSET} ${FULL_SIZE} ${FULL_SIZE}`
+        : "15 15 70 70"
+      : "0 0 100 100";
+
   return (
-    <svg
-      viewBox={variant === "plain" ? "10 10 80 80" : "0 0 100 100"}
-      className={className}
-      role={title ? "img" : undefined}
-      aria-hidden={title ? undefined : true}
-    >
+    <svg viewBox={viewBox} className={className} role={title ? "img" : undefined} aria-hidden={title ? undefined : true}>
       {title && <title>{title}</title>}
       {c.tile && <path d="M50 4 96 50 50 96 4 50Z" fill={c.tile} stroke={c.tile} strokeWidth="6" strokeLinejoin="round" />}
-      <path d={DIAG_SHADE} fill={c.diagShade} />
-      <path d={DIAG_LIT} fill={c.diagLit} />
-      <path d={CARD_SHADE} fill={c.shade} />
-      <path d={CARD_LIT} fill={c.lit} />
-      <circle cx="50" cy="50" r="2.8" fill={c.hole} />
+      {detail === "full" ? (
+        <g transform={`translate(${FULL_OFFSET} ${FULL_OFFSET}) scale(${FULL_SIZE / 1024})`}>
+          <path d={COMPASS_FULL} fill={c.ink} fillRule="evenodd" />
+        </g>
+      ) : (
+        <>
+          <path d={SMALL_DIAG_SHADE} fill={c.shade} />
+          <path d={SMALL_DIAG_LIT} fill={c.ink} />
+          <path d={SMALL_CARD_SHADE} fill={c.shade} />
+          <path d={SMALL_CARD_LIT} fill={c.ink} />
+        </>
+      )}
     </svg>
   );
 }

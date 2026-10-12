@@ -4,7 +4,7 @@ import { WrldMark } from "@/components/brand/wrld-mark";
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <WrldMark className="size-8 shrink-0" />
+      <WrldMark className="size-8 shrink-0" detail="small" />
       <span className="font-display text-xl font-bold tracking-[0.18em]">WRLD</span>
     </span>
   );
