@@ -1,4 +1,6 @@
-import { MapPin, Plane, TrainFront } from "lucide-react";
+import { MapPin, Plane } from "lucide-react";
+
+import { MODE, placeLabel } from "@/features/transit/modes";
 
 import type { DayPlan } from "@/features/trips/queries";
 import { formatDay, formatDuration, formatTime } from "@/lib/format";
@@ -129,7 +131,7 @@ function BlockCell({
       <TravelPass label={label} block={block} timezone={trip.timezone}>
         <PassLine leg={leg} verb="Depart" time={leg?.depart_at} timezone={trip.timezone} />
         <p className="text-sm">
-          {leg ? `Leave for the ${leg.mode === "flight" ? "airport" : "station"} by ${formatTime(new Date(new Date(leg.depart_at).getTime() - leg.buffer_before_minutes * 60000).toISOString(), trip.timezone)}` : "Heading home"}
+          {leg ? `${leg.mode === "car" ? "Set off" : `Be at the ${MODE[leg.mode].terminal}`} by ${formatTime(new Date(new Date(leg.depart_at).getTime() - leg.buffer_before_minutes * 60000).toISOString(), trip.timezone)}` : "Heading home"}
         </p>
       </TravelPass>
     );
@@ -139,7 +141,7 @@ function BlockCell({
     const leg = transit.find((t) => t.depart_at < block.ends_at && t.arrive_at > block.starts_at);
     return (
       <TravelPass label={label} block={block} timezone={trip.timezone}>
-        <PassLine leg={leg} verb="In transit" time={undefined} timezone={trip.timezone} />
+        <PassLine leg={leg} verb={leg ? ON_BOARD[leg.mode] : "In transit"} time={undefined} timezone={trip.timezone} />
         {block.available_minutes >= 45 && (
           <p className="text-sm">{formatDuration(block.available_minutes)} free</p>
         )}
@@ -176,6 +178,8 @@ function BlockCell({
   );
 }
 
+const ON_BOARD = { flight: "In the air", train: "On the train", bus: "On the bus", ferry: "On the ferry", car: "On the road" } as const;
+
 function TravelPass({
   label,
   block,
@@ -209,10 +213,12 @@ function PassLine({
   time: string | undefined;
   timezone: string;
 }) {
-  const Icon = leg?.mode === "train" ? TrainFront : Plane;
+  const Icon = leg ? MODE[leg.mode].icon : Plane;
   // Flight numbers already include the airline code ("TP 212"), so prefer them.
   const name = leg?.service_number ?? leg?.carrier ?? "";
-  const route = leg?.origin_code && leg?.destination_code ? `${leg.origin_code} to ${leg.destination_code}` : null;
+  const fromPlace = leg ? placeLabel(leg.origin_code, leg.origin_name) : null;
+  const toPlace = leg ? placeLabel(leg.destination_code, leg.destination_name) : null;
+  const route = fromPlace && toPlace ? `${fromPlace} to ${toPlace}` : null;
   return (
     <p className="flex items-center gap-2 font-display text-lg leading-tight font-semibold">
       <Icon className="size-4 shrink-0" aria-hidden="true" />

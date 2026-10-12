@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { Plane, TrainFront, Trash2 } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,10 @@ import { deleteTransit } from "@/features/trips/actions";
 import { getItinerary, getTrip } from "@/features/trips/queries";
 import { allTimezones } from "@/features/trips/timezones";
 import { TransitForm } from "@/features/trips/transit-form";
+import { findTicketsLinks, MODE, placeLabel } from "@/features/transit/modes";
 import { formatMoney, formatPoints } from "@/lib/format";
 
-export const metadata = { title: "Flights & trains" };
+export const metadata = { title: "Getting around" };
 
 const DIRECTION = {
   outbound: "Getting there",
@@ -57,13 +58,18 @@ async function TransitPageContent({
         </h2>
         {!transit.length ? (
           <p className="rounded-xl border border-dashed bg-card p-6 text-muted-foreground">
-            No flights or trains yet. Add the one that gets you there, and the
-            itinerary will block out the time before you land.
+            Nothing yet. Add the flight that gets you there, plus any trains,
+            buses, ferries or drives between stops. The itinerary blocks out
+            the travel time and the time you need to get to the terminal.
           </p>
         ) : (
           <ul className="grid gap-3">
             {transit.map((leg) => {
-              const Icon = leg.mode === "train" ? TrainFront : Plane;
+              const mode = MODE[leg.mode];
+              const Icon = mode.icon;
+              const fromPlace = placeLabel(leg.origin_code, leg.origin_name);
+              const toPlace = placeLabel(leg.destination_code, leg.destination_name);
+              const links = mode.usesCodes || leg.mode === "car" ? [] : findTicketsLinks(leg.mode, fromPlace, toPlace).slice(0, 1);
               return (
                 <li
                   key={leg.id}
@@ -72,8 +78,9 @@ async function TransitPageContent({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Icon className="size-4" aria-hidden="true" />
+                      <span className="sr-only">{mode.label}:</span>
                       <span className="font-display text-lg font-semibold">
-                        {leg.service_number ?? leg.carrier ?? leg.mode}
+                        {leg.service_number ?? leg.carrier ?? mode.label}
                       </span>
                       <Badge variant="secondary">
                         {DIRECTION[leg.direction]}
@@ -96,19 +103,24 @@ async function TransitPageContent({
                     <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
                       <div>
                         <dt className="text-muted-foreground">
-                          Departs {leg.origin_code}
+                          Departs {fromPlace}
                         </dt>
                         <dd>{localTime(leg.depart_at, leg.origin_timezone)}</dd>
                       </div>
                       <div>
                         <dt className="text-muted-foreground">
-                          Arrives {leg.destination_code}
+                          Arrives {toPlace}
                         </dt>
                         <dd>
                           {localTime(leg.arrive_at, leg.destination_timezone)}
                         </dd>
                       </div>
                     </dl>
+                    {links.map((l) => (
+                      <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2">
+                        {l.label} <ExternalLink className="size-3" aria-hidden="true" />
+                      </a>
+                    ))}
                   </div>
                   <div className="flex items-start gap-3 sm:flex-col sm:items-end">
                     <span className="text-sm">
@@ -130,7 +142,7 @@ async function TransitPageContent({
                           variant="ghost"
                           size="sm"
                           aria-label={`Remove ${
-                            leg.service_number ?? leg.mode
+                            leg.service_number ?? mode.label
                           }`}
                         >
                           <Trash2 aria-hidden="true" /> Remove

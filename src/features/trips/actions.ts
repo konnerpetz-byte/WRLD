@@ -7,6 +7,7 @@ import { geocode } from "@/features/places/geocode";
 import { zonedTimeToUtc } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 import { BOOKING_STATUSES, EXPENSE_CATEGORIES, TRANSIT_DIRECTIONS, TRANSIT_MODES } from "@/types/database";
+import { MODE } from "@/features/transit/modes";
 
 export type ActionState = { error?: string; ok?: boolean; note?: string; needsConfirm?: boolean };
 
@@ -85,7 +86,7 @@ export async function deleteItem(tripId: string, itemId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Flights & trains — times are typed in local time at each end
+// Getting around (flights, trains, buses, ferries, drives) — times are typed in local time at each end
 // ---------------------------------------------------------------------------
 const transitSchema = z.object({
   mode: z.enum(TRANSIT_MODES),
@@ -94,6 +95,8 @@ const transitSchema = z.object({
   service_number: optionalText,
   origin_code: optionalText,
   destination_code: optionalText,
+  origin_name: optionalText,
+  destination_name: optionalText,
   depart_local: z.string().min(1, "When does it leave?"),
   origin_timezone: z.string().min(1),
   arrive_local: z.string().min(1, "When does it arrive?"),
@@ -114,11 +117,16 @@ export async function addTransit(tripId: string, _: ActionState, formData: FormD
   if (arrive_at < depart_at) return { error: "Arrival is before departure. Check the times and time zones." };
 
   const { supabase, userId } = await requireUserId();
-  const station = rest.mode === "flight" ? "airport" : "station";
-  const [from, to] = await Promise.all([
-    rest.origin_code ? geocode(`${rest.origin_code} ${station}`) : null,
-    rest.destination_code ? geocode(`${rest.destination_code} ${station}`) : null,
-  ]);
+  // Find each end on the map: "LIS airport", "Piraeus ferry terminal", "Lisboa Oriente bus station".
+  const hint = MODE[rest.mode].geocodeHint;
+  const lookup = (code: string | null | undefined, name: string | null | undefined) => {
+    const place = code ?? name;
+    if (!place) return null;
+    const words = hint.split(" ").at(-1) ?? "";
+    const query = hint && !place.toLowerCase().includes(words) ? `${place} ${hint}` : place;
+    return geocode(query).then((hit) => hit ?? (query !== place ? geocode(place) : null));
+  };
+  const [from, to] = await Promise.all([lookup(rest.origin_code, rest.origin_name), lookup(rest.destination_code, rest.destination_name)]);
   const { error } = await supabase.from("transit_segments").insert({
     ...rest,
     origin_latitude: from?.latitude ?? null,

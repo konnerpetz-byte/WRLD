@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/select";
+import { findTicketsLinks, MODE } from "@/features/transit/modes";
+import type { TransitMode } from "@/types/database";
 import { addTransit, type ActionState } from "./actions";
 
 export function TransitForm({
@@ -27,9 +29,17 @@ export function TransitForm({
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
     () => "America/New_York",
   );
+  const [mode, setMode] = useState<TransitMode>("flight");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const m = MODE[mode];
   const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    if (state.ok) formRef.current?.reset();
+    if (!state.ok) return;
+    formRef.current?.reset();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the controlled fields after a save
+    setFrom("");
+    setTo("");
   }, [state]);
 
   const originTz = direction === "outbound" ? homeTz : tripTimezone;
@@ -37,7 +47,7 @@ export function TransitForm({
 
   return (
     <form ref={formRef} action={action} className="grid gap-5 rounded-xl border bg-card p-5">
-      <h2 className="text-xl font-semibold">Add a flight or train</h2>
+      <h2 className="text-xl font-semibold">Add a flight, train, bus, ferry or drive</h2>
 
       <fieldset className="grid gap-2">
         <legend className="mb-2 text-sm font-medium">This leg is</legend>
@@ -63,29 +73,34 @@ export function TransitForm({
       <div className="grid items-end gap-4 sm:grid-cols-3">
         <div className="grid gap-2">
           <Label htmlFor="mode">Type</Label>
-          <NativeSelect id="mode" name="mode" defaultValue="flight">
-            <option value="flight">Flight</option>
-            <option value="train">Train</option>
-            <option value="bus">Bus</option>
-            <option value="ferry">Ferry</option>
-            <option value="car">Car</option>
+          <NativeSelect id="mode" name="mode" value={mode} onChange={(e) => setMode(e.target.value as TransitMode)}>
+            {(Object.keys(MODE) as TransitMode[]).map((k) => (
+              <option key={k} value={k}>{MODE[k].label}</option>
+            ))}
           </NativeSelect>
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="carrier">Airline</Label>
-          <Input id="carrier" name="carrier" placeholder="TAP" />
+          <Label htmlFor="carrier">{m.carrier}</Label>
+          <Input id="carrier" name="carrier" placeholder={m.carrierPlaceholder} />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="service_number">Number</Label>
-          <Input id="service_number" name="service_number" placeholder="TP 212" />
+          <Label htmlFor="service_number">{m.number}</Label>
+          <Input id="service_number" name="service_number" placeholder={m.numberPlaceholder} />
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <fieldset className="grid gap-2 rounded-lg border p-3">
           <legend className="px-1 text-sm font-medium">Departs</legend>
-          <Label htmlFor="origin_code" className="text-xs">From (airport code)</Label>
-          <Input id="origin_code" name="origin_code" placeholder="DTW" maxLength={8} />
+          <Label htmlFor="origin_place" className="text-xs">{m.from}</Label>
+          <Input
+            id="origin_place"
+            name={m.usesCodes ? "origin_code" : "origin_name"}
+            placeholder={m.fromPlaceholder}
+            maxLength={m.usesCodes ? 8 : 120}
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
           <Label htmlFor="depart_local" className="text-xs">Local time</Label>
           <Input id="depart_local" name="depart_local" type="datetime-local" required />
           <Label htmlFor="origin_timezone" className="text-xs">Time zone</Label>
@@ -97,8 +112,15 @@ export function TransitForm({
         </fieldset>
         <fieldset className="grid gap-2 rounded-lg border p-3">
           <legend className="px-1 text-sm font-medium">Arrives</legend>
-          <Label htmlFor="destination_code" className="text-xs">To (airport code)</Label>
-          <Input id="destination_code" name="destination_code" placeholder="LIS" maxLength={8} />
+          <Label htmlFor="destination_place" className="text-xs">{m.to}</Label>
+          <Input
+            id="destination_place"
+            name={m.usesCodes ? "destination_code" : "destination_name"}
+            placeholder={m.toPlaceholder}
+            maxLength={m.usesCodes ? 8 : 120}
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
           <Label htmlFor="arrive_local" className="text-xs">Local time</Label>
           <Input id="arrive_local" name="arrive_local" type="datetime-local" required />
           <Label htmlFor="destination_timezone" className="text-xs">Time zone</Label>
@@ -109,6 +131,18 @@ export function TransitForm({
           </NativeSelect>
         </fieldset>
       </div>
+
+      {!m.usesCodes && mode !== "car" && (
+        <p className="text-xs text-muted-foreground">
+          Need times or tickets?{" "}
+          {findTicketsLinks(mode, from || null, to || null).map((l, i) => (
+            <span key={l.label}>
+              {i > 0 && " · "}
+              <a href={l.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">{l.label}</a>
+            </span>
+          ))}
+        </p>
+      )}
 
       <div className="grid items-end gap-4 sm:grid-cols-3">
         <div className="grid gap-2">
