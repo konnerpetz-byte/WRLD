@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { ChecklistCard } from "@/features/checklist/checklist";
 import { getMembers } from "@/features/group/queries";
 import { requireUserId } from "@/lib/supabase/server";
@@ -5,15 +7,35 @@ import type { ChecklistItem } from "@/types/database";
 
 export const metadata = { title: "Checklist" };
 
-export default async function ChecklistPage({ params }: PageProps<"/trips/[tripId]/checklist">) {
+export default function ChecklistPage(
+  props: PageProps<"/trips/[tripId]/checklist">
+) {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <ChecklistPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function ChecklistPageContent({
+  params,
+}: PageProps<"/trips/[tripId]/checklist">) {
   const { tripId } = await params;
   const { supabase } = await requireUserId();
   const [{ members }, { data }] = await Promise.all([
     getMembers(tripId),
-    supabase.from("checklist_items").select("*").eq("trip_id", tripId).order("position"),
+    supabase
+      .from("checklist_items")
+      .select("*")
+      .eq("trip_id", tripId)
+      .order("position"),
   ]);
   const items = (data ?? []) as ChecklistItem[];
-  const people = members.map((m) => ({ user_id: m.user_id, name: m.name, avatar_url: m.avatar_url }));
+  const people = members.map((m) => ({
+    user_id: m.user_id,
+    name: m.name,
+    avatar_url: m.avatar_url,
+  }));
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start">

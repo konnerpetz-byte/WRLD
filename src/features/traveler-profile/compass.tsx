@@ -1,4 +1,5 @@
 import { ARCHETYPES, WILDCARD_RADIUS } from "./quiz";
+import { TYPE_PATHS } from "./travel-type-icon";
 import type { TravelArchetype } from "@/types/database";
 
 /**
@@ -56,20 +57,49 @@ export function TravelCompass({
             ["sunset_collector", half + half / 2, size - 22],
           ] as const
         ).map(([id, tx, ty]) => (
-          <text
-            key={id}
-            x={tx}
-            y={ty}
-            textAnchor="middle"
-            className="font-display"
-            fontSize={15}
-            fontWeight={archetype === id ? 700 : 500}
-            fill="var(--foreground)"
-          >
-            {ARCHETYPES[id].name}
-          </text>
+          <g key={id}>
+            {/* icon above (top row) or below (bottom row) the name */}
+            <g
+              transform={`translate(${tx - 12}, ${ty < half ? ty + 10 : ty - 46})`}
+              fill="none"
+              stroke="var(--foreground)"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={archetype === id ? 1 : 0.55}
+              aria-hidden="true"
+            >
+              {TYPE_PATHS[id].map((d) => (
+                <path key={d} d={d} />
+              ))}
+            </g>
+            <text
+              x={tx}
+              y={ty}
+              textAnchor="middle"
+              className="font-display"
+              fontSize={15}
+              fontWeight={archetype === id ? 700 : 500}
+              fill="var(--foreground)"
+            >
+              {ARCHETYPES[id].name}
+            </text>
+          </g>
         ))}
-        <text x={half} y={half + 4} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">Wildcard</text>
+        <g
+          transform={`translate(${half - 9}, ${half - 26}) scale(0.75)`}
+          fill="none"
+          stroke="var(--muted-foreground)"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          {TYPE_PATHS.wildcard.map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </g>
+        <text x={half} y={half + 10} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">Wildcard</text>
 
         <text x={-8} y={half + 4} textAnchor="end" fontSize={13} fill="var(--muted-foreground)">Culture</text>
         <text x={size + 8} y={half + 4} textAnchor="start" fontSize={13} fill="var(--muted-foreground)">Nature</text>

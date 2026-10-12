@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { notFound } from "next/navigation";
 
 import { DeleteTripForm } from "@/features/trips/delete-trip-form";
@@ -8,12 +10,29 @@ import { requireUserId } from "@/lib/supabase/server";
 
 export const metadata = { title: "Edit trip" };
 
-export default async function EditTripPage({ params }: PageProps<"/trips/[tripId]/edit">) {
+export default function EditTripPage(props: PageProps<"/trips/[tripId]/edit">) {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <EditTripPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function EditTripPageContent({
+  params,
+}: PageProps<"/trips/[tripId]/edit">) {
   const { tripId } = await params;
   const { supabase } = await requireUserId();
-  const [{ trip, stops, canEdit, role }, { data: countries }, { data: currencies }] = await Promise.all([
+  const [
+    { trip, stops, canEdit, role },
+    { data: countries },
+    { data: currencies },
+  ] = await Promise.all([
     getTrip(tripId),
-    supabase.from("countries").select("code, name, currency_code").order("name"),
+    supabase
+      .from("countries")
+      .select("code, name, currency_code")
+      .order("name"),
     supabase.from("currencies").select("*").order("code"),
   ]);
   if (!canEdit) notFound();
@@ -28,7 +47,12 @@ export default async function EditTripPage({ params }: PageProps<"/trips/[tripId
           action={updateTrip.bind(null, tripId)}
           countries={countries ?? []}
           currencies={currencies ?? []}
-          initial={{ title: trip.title, party_size: trip.party_size, budget: trip.budget, currency: trip.currency }}
+          initial={{
+            title: trip.title,
+            party_size: trip.party_size,
+            budget: trip.budget,
+            currency: trip.currency,
+          }}
           initialStops={stops.map((s) => ({
             id: s.id,
             city: s.city,
@@ -41,7 +65,9 @@ export default async function EditTripPage({ params }: PageProps<"/trips/[tripId
           submitLabel="Save changes"
         />
       </section>
-      {role === "owner" && <DeleteTripForm tripId={tripId} title={trip.title} />}
+      {role === "owner" && (
+        <DeleteTripForm tripId={tripId} title={trip.title} />
+      )}
     </div>
   );
 }

@@ -19,9 +19,9 @@ export type DayOption = {
 };
 
 /** "Add a place": type Sintra, and WRLD picks the day, time and official tickets. */
-export function AddPlaceBar({ tripId, days }: { tripId: string; days: DayOption[] }) {
+export function AddPlaceBar({ tripId, days, initialQuery = "" }: { tripId: string; days: DayOption[]; initialQuery?: string }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(addPlace.bind(null, tripId), {});
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialQuery);
   const [picked, setPicked] = useState<PlaceSuggestion | null>(null);
   const [dayId, setDayId] = useState("");
 
@@ -48,7 +48,7 @@ export function AddPlaceBar({ tripId, days }: { tripId: string; days: DayOption[
           <Label htmlFor="add-place" className="sr-only">
             Place
           </Label>
-          <PlaceSearch id="add-place" value={title} onValueChange={setTitle} picked={picked} onPick={setPicked} near={near} />
+          <PlaceSearch id="add-place" value={title} onValueChange={setTitle} picked={picked} onPick={setPicked} near={near} autoFocus={Boolean(initialQuery)} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="add-place-day" className="sr-only">

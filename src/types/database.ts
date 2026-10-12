@@ -280,6 +280,10 @@ export type Attraction = {
   currency: CurrencyCode | null;
   price_note: string | null;
   verified_on: ISODate | null;
+  /** Interest tags (public.interest_tags slugs) and compass lean, for recommendations (16) */
+  tags: string[];
+  lean_x: number;
+  lean_y: number;
   created_at: ISODateTime;
 };
 

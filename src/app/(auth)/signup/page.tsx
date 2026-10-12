@@ -1,8 +1,18 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { AuthForm } from "@/features/auth/auth-form";
 
 export const metadata = { title: "Create your account" };
 
-export default async function SignupPage({ searchParams }: PageProps<"/signup">) {
+export default function SignupPage(props: PageProps<"/signup">) {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <SignupPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function SignupPageContent({ searchParams }: PageProps<"/signup">) {
   const { next } = await searchParams;
   const joining = typeof next === "string" && next.startsWith("/invite/");
   return (
@@ -13,7 +23,10 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
           ? "Create a free account to join the trip you were invited to."
           : "Next you\u2019ll take a 10-question quiz to find your travel type."}
       </p>
-      <AuthForm mode="signup" next={typeof next === "string" ? next : undefined} />
+      <AuthForm
+        mode="signup"
+        next={typeof next === "string" ? next : undefined}
+      />
     </>
   );
 }

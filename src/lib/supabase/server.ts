@@ -2,12 +2,17 @@ import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 
 import type { Database } from "@/types/database";
 
 /** Supabase client for Server Components, Server Actions and Route Handlers. */
 export async function createClient() {
+  // Signed-in data is always per request. Saying so up front also keeps
+  // Next.js from prerendering past the auth client, which reads the clock
+  // (Date.now) to check token expiry.
+  await connection();
   const cookieStore = await cookies();
 
   return createServerClient<Database>(

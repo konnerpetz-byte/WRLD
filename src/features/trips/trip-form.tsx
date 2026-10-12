@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, MapPin, Plus, X } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { Autocomplete } from "@/components/autocomplete";
 import { Button } from "@/components/ui/button";
@@ -33,8 +33,6 @@ const addDays = (iso: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 const nights = (a: string, b: string) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000) : 0);
-let counter = 0;
-const newKey = () => `stop-${++counter}`;
 
 export function TripForm({
   action,
@@ -54,10 +52,12 @@ export function TripForm({
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
   const [stops, setStops] = useState<StopDraft[]>(() =>
     initialStops?.length
-      ? initialStops.map((s) => ({ ...s, key: newKey() }))
-      : [{ key: newKey(), city: "", country_code: "", latitude: null, longitude: null, arrive_date: "", leave_date: "" }],
+      ? initialStops.map((s, i) => ({ ...s, key: `stop-${i}` }))
+      : [{ key: "stop-0", city: "", country_code: "", latitude: null, longitude: null, arrive_date: "", leave_date: "" }],
   );
   const [currency, setCurrency] = useState(initial?.currency ?? "");
+  // Same keys on the server and in the browser; new stops count up from here.
+  const nextKey = useRef(Math.max(1, initialStops?.length ?? 0));
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const update = (key: string, patch: Partial<StopDraft>) =>
@@ -197,7 +197,7 @@ export function TripForm({
               setStops((all) => [
                 ...all,
                 {
-                  key: newKey(),
+                  key: `stop-${nextKey.current++}`,
                   city: "",
                   country_code: last.country_code,
                   latitude: null,
