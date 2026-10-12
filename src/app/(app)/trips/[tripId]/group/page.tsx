@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { Chat, type ChatMessage } from "@/features/group/chat";
+import { GroupFitSection } from "@/features/group/group-fit-section";
 import { MembersPanel } from "@/features/group/members-panel";
 import { getMembers } from "@/features/group/queries";
 import { getTrip } from "@/features/trips/queries";
@@ -58,16 +59,21 @@ async function GroupPageContent({
   );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
-      <Chat tripId={tripId} me={me} people={people} initial={initial} />
-      <MembersPanel
-        tripId={tripId}
-        tripTitle={trip.title}
-        me={me}
-        myRole={role}
-        members={members}
-        invites={(invites ?? []) as TripInvite[]}
-      />
+    <div className="grid gap-10">
+      <div className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
+        <Chat tripId={tripId} me={me} people={people} initial={initial} />
+        <MembersPanel
+          tripId={tripId}
+          tripTitle={trip.title}
+          me={me}
+          myRole={role}
+          members={members}
+          invites={(invites ?? []) as TripInvite[]}
+        />
+      </div>
+      <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
+        <GroupFitSection tripId={tripId} />
+      </Suspense>
     </div>
   );
 }
