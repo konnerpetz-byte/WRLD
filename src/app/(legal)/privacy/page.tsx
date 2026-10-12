@@ -5,7 +5,7 @@ export const metadata = { title: "Privacy policy" };
 // DRAFT — have a lawyer review this before launch, and fill in the
 // contact address and effective date. Keep it in sync with the App Store
 // privacy labels and the Google Play Data safety form.
-const CONTACT = process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@wrld.example";
+const CONTACT = process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@wrldtrips.com";
 
 export default function PrivacyPage() {
   return (

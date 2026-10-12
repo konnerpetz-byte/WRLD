@@ -26,7 +26,7 @@ export type LinkPreview = {
   longitude: number | null;
 };
 
-const USER_AGENT = "Mozilla/5.0 (compatible; WRLDLinkPreview/1.0; +https://wrld.example/bot)";
+const USER_AGENT = "Mozilla/5.0 (compatible; WRLDLinkPreview/1.0; +https://wrldtrips.com)";
 
 export function sourceOf(url: string): SpotSource {
   const host = hostname(url);

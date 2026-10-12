@@ -22,7 +22,7 @@ import type { PlaceSuggestion } from "./types";
 type Client = SupabaseClient<Database>;
 type Point = { latitude: number; longitude: number };
 
-const USER_AGENT = process.env.WIKIMEDIA_USER_AGENT ?? "WRLD trip planner (wrld app)";
+const USER_AGENT = process.env.WIKIMEDIA_USER_AGENT ?? "WRLD trip planner (https://wrldtrips.com)";
 const WIKIDATA = "https://www.wikidata.org/w/api.php";
 const WIKIPEDIA = "https://en.wikipedia.org/w/api.php";
 

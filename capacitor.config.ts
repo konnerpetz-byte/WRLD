@@ -5,12 +5,12 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *
  * The apps load the hosted WRLD site, so sign-in, saving and server features
  * work exactly as on the web. Set WRLD_APP_URL to the deployed address
- * (e.g. https://app.wrld.travel) before running `npm run mobile:sync`.
+ * (https://wrldtrips.com by default) before running `npm run mobile:sync`.
  *
- * appId is permanent once the app is published. Change it to a reverse-domain
- * name you own (e.g. travel.wrld.app) before the first store upload.
+ * appId is permanent once the app is published. com.wrldtrips.app matches
+ * the wrldtrips.com domain you own.
  */
-const appUrl = process.env.WRLD_APP_URL ?? "https://wrld.example.com";
+const appUrl = process.env.WRLD_APP_URL ?? "https://wrldtrips.com";
 
 const config: CapacitorConfig = {
   appId: "com.wrldtrips.app",

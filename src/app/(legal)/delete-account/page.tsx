@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = { title: "Delete your WRLD account" };
 
-const CONTACT = process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@wrld.example";
+const CONTACT = process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@wrldtrips.com";
 
 /** Public page Google Play requires: how to delete a WRLD account, and what happens to the data. */
 export default function DeleteAccountInfoPage() {

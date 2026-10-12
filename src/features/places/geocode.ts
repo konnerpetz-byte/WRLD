@@ -42,7 +42,7 @@ type PhotonFeature = {
 
 const PHOTON = process.env.GEOCODER_URL ?? "https://photon.komoot.io/api/";
 const NOMINATIM = process.env.NOMINATIM_URL ?? "https://nominatim.openstreetmap.org/search";
-const USER_AGENT = process.env.GEOCODER_USER_AGENT ?? "WRLD trip planner (wrld app)";
+const USER_AGENT = process.env.GEOCODER_USER_AGENT ?? "WRLD trip planner (https://wrldtrips.com)";
 
 /** Default: a sight on a Lisbon day shouldn't land in another country. */
 const DEFAULT_MAX_KM = 150;
