@@ -60,7 +60,7 @@ export function TransitForm({
         </div>
       </fieldset>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid items-end gap-4 sm:grid-cols-3">
         <div className="grid gap-2">
           <Label htmlFor="mode">Type</Label>
           <NativeSelect id="mode" name="mode" defaultValue="flight">
@@ -72,11 +72,11 @@ export function TransitForm({
           </NativeSelect>
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="carrier">Airline or rail line</Label>
+          <Label htmlFor="carrier">Airline</Label>
           <Input id="carrier" name="carrier" placeholder="TAP" />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="service_number">Flight or train number</Label>
+          <Label htmlFor="service_number">Number</Label>
           <Input id="service_number" name="service_number" placeholder="TP 212" />
         </div>
       </div>
@@ -84,7 +84,7 @@ export function TransitForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <fieldset className="grid gap-2 rounded-lg border p-3">
           <legend className="px-1 text-sm font-medium">Departs</legend>
-          <Label htmlFor="origin_code" className="text-xs">From (airport or station code)</Label>
+          <Label htmlFor="origin_code" className="text-xs">From (airport code)</Label>
           <Input id="origin_code" name="origin_code" placeholder="DTW" maxLength={8} />
           <Label htmlFor="depart_local" className="text-xs">Local time</Label>
           <Input id="depart_local" name="depart_local" type="datetime-local" required />
@@ -97,7 +97,7 @@ export function TransitForm({
         </fieldset>
         <fieldset className="grid gap-2 rounded-lg border p-3">
           <legend className="px-1 text-sm font-medium">Arrives</legend>
-          <Label htmlFor="destination_code" className="text-xs">To (airport or station code)</Label>
+          <Label htmlFor="destination_code" className="text-xs">To (airport code)</Label>
           <Input id="destination_code" name="destination_code" placeholder="LIS" maxLength={8} />
           <Label htmlFor="arrive_local" className="text-xs">Local time</Label>
           <Input id="arrive_local" name="arrive_local" type="datetime-local" required />
@@ -110,14 +110,14 @@ export function TransitForm({
         </fieldset>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid items-end gap-4 sm:grid-cols-3">
         <div className="grid gap-2">
-          <Label htmlFor="t-cost">Cash price ({tripCurrency})</Label>
-          <Input id="t-cost" name="cost" type="number" min={0} step="0.01" placeholder="Taxes only if using points" />
+          <Label htmlFor="t-cost">Cash ({tripCurrency})</Label>
+          <Input id="t-cost" name="cost" type="number" min={0} step="0.01" placeholder="0.00" />
           <input type="hidden" name="currency" value={tripCurrency} />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="t-points">Points used</Label>
+          <Label htmlFor="t-points">Points</Label>
           <Input id="t-points" name="points_used" type="number" min={0} step="1" placeholder="Optional" />
         </div>
         <div className="grid gap-2">

@@ -58,7 +58,7 @@ export default async function WalletPage() {
             <>
               <Badge className="bg-lagoon text-lagoon-foreground">Connected</Badge>
               <p className="text-sm text-muted-foreground">
-                {connection.last_synced_at ? `Last updated ${new Date(connection.last_synced_at).toLocaleString("en-US")}` : "First sync in progress"}
+                {connection.last_synced_at ? `Last updated ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(connection.last_synced_at))}` : "First sync in progress"}
               </p>
               <form action={disconnectWallet.bind(null, connection.id)}>
                 <Button type="submit" variant="outline" size="sm">Disconnect</Button>

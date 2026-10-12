@@ -13,7 +13,7 @@ import { requireUserId } from "@/lib/supabase/server";
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
+    <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr] lg:bg-[linear-gradient(to_right,var(--sidebar)_15rem,var(--background)_15rem)]">
       <aside className="sticky top-0 z-20 flex items-center justify-between gap-4 bg-sidebar px-4 py-3 text-sidebar-foreground lg:h-dvh lg:flex-col lg:items-stretch lg:justify-start lg:px-4 lg:py-6">
         <Link href="/trips" className="px-2 text-white lg:mb-8">
           <Wordmark />

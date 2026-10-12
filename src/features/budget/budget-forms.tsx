@@ -15,7 +15,7 @@ import { CATEGORY_LABEL } from "./labels";
 export function BudgetSettingsForm({ tripId, budget, partySize, currency }: { tripId: string; budget: number | null; partySize: number; currency: string }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(updateTripMoney.bind(null, tripId), {});
   return (
-    <form action={action} className="grid grid-cols-[1fr_6rem_auto] items-end gap-3">
+    <form action={action} className="grid grid-cols-[1fr_5rem] items-end gap-3 sm:grid-cols-[1fr_6rem_auto]">
       <div className="grid gap-2">
         <Label htmlFor="budget">Budget ({currency})</Label>
         <Input id="budget" name="budget" type="number" min={0} step="0.01" defaultValue={budget ?? ""} placeholder="No limit set" />
@@ -24,8 +24,8 @@ export function BudgetSettingsForm({ tripId, budget, partySize, currency }: { tr
         <Label htmlFor="party_size">Travelers</Label>
         <Input id="party_size" name="party_size" type="number" min={1} max={50} defaultValue={partySize} />
       </div>
-      <Button type="submit" variant="outline" disabled={pending}>Save</Button>
-      {state.error && <p role="alert" className="col-span-3 text-sm text-destructive">{state.error}</p>}
+      <Button type="submit" variant="outline" disabled={pending} className="col-span-2 sm:col-span-1">Save</Button>
+      {state.error && <p role="alert" className="col-span-2 text-sm text-destructive sm:col-span-3">{state.error}</p>}
     </form>
   );
 }
