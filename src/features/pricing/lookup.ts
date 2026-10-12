@@ -1,5 +1,6 @@
 import "server-only";
 import { env } from "@/lib/env";
+import { viatorPost } from "@/features/experiences/viator-client";
 
 /**
  * Finds a ticket price for an activity the user typed in by name
@@ -70,21 +71,16 @@ type ViatorProduct = {
 };
 
 async function viatorLookup({ title, destination, currency }: { title: string; destination: string | null; currency: string }) {
-  const response = await fetch("https://api.viator.com/partner/search/freetext", {
-    method: "POST",
-    headers: {
-      "exp-api-key": env("VIATOR_API_KEY") ?? "",
-      Accept: "application/json;version=2.0",
-      "Accept-Language": "en-US",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  const response = await viatorPost(
+    "/search/freetext",
+    {
       searchTerm: [title, destination].filter(Boolean).join(" "),
       currency,
       searchTypes: [{ searchType: "PRODUCTS", pagination: { start: 1, count: 5 } }],
-    }),
-    signal: AbortSignal.timeout(6000),
-  });
+    },
+    6000,
+  );
+  if (!response) throw new Error("No Viator key");
   if (!response.ok) throw new Error(`Viator search returned ${response.status}`);
 
   const data = (await response.json()) as { products?: { results?: ViatorProduct[] } };

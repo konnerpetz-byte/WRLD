@@ -15,6 +15,7 @@ import { useActionState, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { addOfferToTrip } from "@/features/itinerary/place-actions";
+import { AddNamedPlaceRow, AddSightButton } from "@/features/itinerary/quick-add";
 import type { ActionState } from "@/features/trips/actions";
 import { formatDuration, formatMoney } from "@/lib/format";
 import { providerOf, track as trackEvent } from "@/lib/track";
@@ -213,9 +214,20 @@ function Card({ r }: { r: Recommendation }) {
               {r.kind === "bookable" ? "person" : "adult"}
             </p>
           )}
+          {r.places?.length && r.tripId ? (
+            <ul className="grid gap-2 border-t pt-2">
+              {r.places.map((p) => (
+                <AddNamedPlaceRow key={`${p.name}-${p.latitude}`} tripId={r.tripId!} place={p} />
+              ))}
+            </ul>
+          ) : r.places?.length ? (
+            <p className="text-sm">Try {r.places.map((p) => p.name).join(", ")}.</p>
+          ) : null}
           {r.addToTrip ? (
             <AddOffer {...r.addToTrip} />
-          ) : (
+          ) : r.attractionId && r.tripId ? (
+            <AddSightButton tripId={r.tripId} attractionId={r.attractionId} title={r.title} />
+          ) : r.places?.length && r.tripId ? null : (
             <Button asChild size="sm">
               <Link href={r.href}>{r.action}</Link>
             </Button>

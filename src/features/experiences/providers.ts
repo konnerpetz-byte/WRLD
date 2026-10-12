@@ -2,6 +2,7 @@ import "server-only";
 
 import { cacheLife } from "next/cache";
 import { env } from "@/lib/env";
+import { viatorPost } from "./viator-client";
 
 /**
  * Bookable experiences from booking sites.
@@ -52,22 +53,12 @@ export async function viatorSearch(city: string, term: string, currency: string)
   const key = env("VIATOR_API_KEY");
   if (!key) return [];
   try {
-    const base = env("VIATOR_API_BASE") ?? "https://api.viator.com/partner";
-    const response = await fetch(`${base}/search/freetext`, {
-      method: "POST",
-      headers: {
-        "exp-api-key": key,
-        Accept: "application/json;version=2.0",
-        "Accept-Language": "en-US",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        searchTerm: `${city} ${term}`,
-        currency,
-        searchTypes: [{ searchType: "PRODUCTS", pagination: { start: 1, count: 6 } }],
-      }),
-      signal: AbortSignal.timeout(7000),
+    const response = await viatorPost("/search/freetext", {
+      searchTerm: `${city} ${term}`,
+      currency,
+      searchTypes: [{ searchType: "PRODUCTS", pagination: { start: 1, count: 6 } }],
     });
+    if (!response) return [];
     if (!response.ok) {
       console.error("Viator search", response.status, (await response.text()).slice(0, 300));
       return [];

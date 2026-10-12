@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type GroupFit, groupFit, type Traveler } from "@/features/group/compatibility";
 import { groupRecommendations } from "@/features/group/group-recommendations";
+import { AddNamedPlaceRow, AddSightButton } from "@/features/itinerary/quick-add";
 import { ARCHETYPES } from "@/features/traveler-profile/quiz";
 import { TravelTypeIcon } from "@/features/traveler-profile/travel-type-icon";
 import { getTrip } from "@/features/trips/queries";
@@ -108,10 +109,21 @@ export async function GroupFitSection({ tripId }: { tripId: string }) {
                 {p.blurb && <p className="line-clamp-3 text-sm text-muted-foreground">{p.blurb}</p>}
                 <p className="text-sm font-medium text-primary">{p.why}</p>
                 {p.price && <p className="text-xs text-muted-foreground">From {p.price}</p>}
+                {p.places?.length ? (
+                  <ul className="grid gap-2 border-t pt-2">
+                    {p.places.map((pl) => (
+                      <AddNamedPlaceRow key={`${pl.name}-${pl.latitude}`} tripId={tripId} place={pl} />
+                    ))}
+                  </ul>
+                ) : null}
                 <div className="mt-auto flex flex-wrap items-center gap-3">
-                  <Button asChild size="sm">
-                    <Link href={p.href}>{p.action}</Link>
-                  </Button>
+                  {p.attractionId ? (
+                    <AddSightButton tripId={tripId} attractionId={p.attractionId} title={p.title} />
+                  ) : p.places?.length ? null : (
+                    <Button asChild size="sm">
+                      <Link href={p.href}>{p.action}</Link>
+                    </Button>
+                  )}
                   {p.externalHref && (
                     <a
                       href={p.externalHref}

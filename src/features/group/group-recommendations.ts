@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { suggestExperiences } from "@/features/experiences/suggest";
-import { IDEA_PLACES, namedPlaces } from "@/features/places/named-places";
+import { IDEA_PLACES, type NamedPlace, namedPlaces } from "@/features/places/named-places";
 import { IDEAS } from "@/features/recommendations/ideas";
 import { distanceKm } from "@/lib/geo";
 import type { Attraction, Database } from "@/types/database";
@@ -31,6 +31,8 @@ export type GroupPick = {
   action: string;
   externalHref?: string;
   price?: string | null;
+  attractionId?: string;
+  places?: NamedPlace[];
 };
 
 type Stop = { city: string; latitude: number | null; longitude: number | null };
@@ -95,6 +97,7 @@ export async function groupRecommendations(
       ...r,
       href: `/trips/${tripId}/itinerary?add=${encodeURIComponent(a.name)}`,
       action: "Add to itinerary",
+      attractionId: a.id,
       externalHref: a.tickets_url ?? a.official_url,
     });
   }
@@ -124,7 +127,7 @@ export async function groupRecommendations(
           const id = p.key.slice(2);
           if (!IDEA_PLACES[id]) return p;
           const places = await namedPlaces(id, firstPoint.latitude, firstPoint.longitude, 3);
-          return places.length ? { ...p, blurb: `Try ${places.map((x) => x.name).join(", ")}.` } : p;
+          return places.length ? { ...p, places } : p;
         }),
       )
     : ideas;

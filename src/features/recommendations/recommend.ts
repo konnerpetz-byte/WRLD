@@ -5,7 +5,7 @@ import { requireUserId } from "@/lib/supabase/server";
 import type { Attraction } from "@/types/database";
 import { myInterests } from "@/features/experiences/for-trip";
 import { suggestExperiences } from "@/features/experiences/suggest";
-import { IDEA_PLACES, namedPlaces } from "@/features/places/named-places";
+import { IDEA_PLACES, type NamedPlace, namedPlaces } from "@/features/places/named-places";
 import { IDEAS } from "./ideas";
 
 /**
@@ -38,6 +38,10 @@ export type Recommendation = {
   imageUrl?: string | null;
   durationMinutes?: number | null;
   addToTrip?: { tripId: string; city: string; offerId: string; tripTitle: string };
+  /** One-tap add: an official sight, or real named places for an idea. */
+  tripId?: string;
+  attractionId?: string;
+  places?: NamedPlace[];
 };
 
 export async function getRecommendations(): Promise<{
@@ -92,6 +96,7 @@ export async function getRecommendations(): Promise<{
       why: nearStop ? `Near ${nearStop.city} on ${next!.title}` : whyFrom(t.hits, "Fits your travel type"),
       score,
       href: nearStop ? `/trips/${next!.id}/itinerary?add=${encodeURIComponent(a.name)}` : "/trips/new",
+      ...(nearStop ? { tripId: next!.id, attractionId: a.id } : {}),
       action: nearStop ? `Add to ${next!.title}` : `Plan a trip to ${a.city}`,
       externalHref: a.tickets_url ?? a.official_url,
       city: a.city,
@@ -127,7 +132,7 @@ export async function getRecommendations(): Promise<{
         const ideaId = r.kind === "idea" ? r.key.slice(2) : null;
         if (!ideaId || !IDEA_PLACES[ideaId]) return r;
         const places = await namedPlaces(ideaId, first.latitude!, first.longitude!, 3);
-        return places.length ? { ...r, blurb: `Try ${places.map((p) => p.name).join(", ")}.` } : r;
+        return places.length ? { ...r, places, tripId: next?.id } : r;
       }),
     );
   }

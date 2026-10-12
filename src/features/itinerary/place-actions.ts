@@ -526,6 +526,35 @@ const namedSchema = z.object({
   address: z.preprocess(blankToNull, z.string().trim().max(300).nullable()),
 });
 
+function namedSuggestion(p: { name: string; latitude: number; longitude: number; address: string | null }, bestSlot: TimeBlockSlot | null = null): PlaceSuggestion {
+  return {
+    source: "nearby", ref: "osm", name: p.name, detail: null, latitude: p.latitude, longitude: p.longitude, address: p.address,
+    officialUrl: null, ticketsUrl: null, timedEntry: false, bestSlot, suggestedStart: null, durationMinutes: null,
+    price: null, currency: null, priceNote: null, hoursNote: null, visitNote: null, km: null,
+  };
+}
+
+/** One-tap add from recommendation cards: picks the best day (nearest city) and part of the day. */
+export async function addNamedPlaceToTrip(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = namedSchema.extend({ slot: z.enum(["morning", "afternoon", "evening"]).nullable().catch(null) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Couldn't add that place." };
+  const { supabase, userId } = await requireUserId();
+  const loaded = await loadTrip(supabase, tripId);
+  if (!loaded) return { error: "Trip not found." };
+  const place = namedSuggestion(parsed.data, parsed.data.slot);
+  const block = chooseBlock(loaded, place, null);
+  if (!block) return { error: "Every part of the trip is taken by travel. Add more days on Edit trip." };
+  const result = await insertItem(supabase, userId, loaded, block, { title: place.name, place, address: place.address, unitPrice: null, startTime: null });
+  if (result.ok) {
+    const day = loaded.days.find((d) => d.id === block.day_id)!;
+    const [y, m, d] = day.date.split("-").map(Number);
+    const label = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+    result.note = `Added to ${label}, ${SLOT_LABEL[block.slot].toLowerCase()}.`;
+    refresh(tripId);
+  }
+  return result;
+}
+
 export async function addNamedPlace(tripId: string, blockId: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = namedSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Couldn't add that place." };
@@ -541,27 +570,7 @@ export async function addNamedPlace(tripId: string, blockId: string, _: ActionSt
 
   const result = await insertItem(supabase, userId, loaded, block, {
     title: p.name,
-    place: {
-      source: "nearby",
-      ref: "osm",
-      name: p.name,
-      detail: null,
-      latitude: p.latitude,
-      longitude: p.longitude,
-      address: p.address,
-      officialUrl: null,
-      ticketsUrl: null,
-      timedEntry: false,
-      bestSlot: null,
-      suggestedStart: null,
-      durationMinutes: null,
-      price: null,
-      currency: null,
-      priceNote: null,
-      hoursNote: null,
-      visitNote: null,
-      km: null,
-    },
+    place: namedSuggestion(p),
     address: p.address,
     unitPrice: null,
     startTime: null,
