@@ -5,6 +5,7 @@ import { requireUserId } from "@/lib/supabase/server";
 import type { Attraction } from "@/types/database";
 import { myInterests } from "@/features/experiences/for-trip";
 import { suggestExperiences } from "@/features/experiences/suggest";
+import { IDEA_PLACES, namedPlaces } from "@/features/places/named-places";
 import { IDEAS } from "./ideas";
 
 /**
@@ -117,6 +118,19 @@ export async function getRecommendations(): Promise<{
 
   out.sort((a, b) => b.score - a.score);
   let items = out.slice(0, 12);
+
+  // Name real places for the top ideas ("Café crawl" → three cafés in the trip's first city).
+  const first = stops?.find((s) => s.latitude != null && s.longitude != null);
+  if (first) {
+    items = await Promise.all(
+      items.map(async (r) => {
+        const ideaId = r.kind === "idea" ? r.key.slice(2) : null;
+        if (!ideaId || !IDEA_PLACES[ideaId]) return r;
+        const places = await namedPlaces(ideaId, first.latitude!, first.longitude!, 3);
+        return places.length ? { ...r, blurb: `Try ${places.map((p) => p.name).join(", ")}.` } : r;
+      }),
+    );
+  }
 
   // Bookable tours and classes in the next trip's first city, matched to the same interests.
   let bookingLinks: { label: string; url: string }[] = [];

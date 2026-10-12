@@ -515,3 +515,57 @@ export async function addOfferToTrip(tripId: string, city: string, offerId: stri
   const when = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
   return { ok: true, note: `Added to ${when}, ${SLOT_LABEL[block.slot].toLowerCase()}.` };
 }
+
+// ---------------------------------------------------------------------------
+// A named place from "Picked for your travel type" (cafés near your stay…)
+// ---------------------------------------------------------------------------
+const namedSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  latitude: z.coerce.number().min(-90).max(90),
+  longitude: z.coerce.number().min(-180).max(180),
+  address: z.preprocess(blankToNull, z.string().trim().max(300).nullable()),
+});
+
+export async function addNamedPlace(tripId: string, blockId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = namedSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Couldn't add that place." };
+  const { supabase, userId } = await requireUserId();
+  const loaded = await loadTrip(supabase, tripId);
+  if (!loaded) return { error: "Trip not found." };
+  const block = loaded.days.flatMap((d) => d.blocks).find((b) => b.id === blockId);
+  if (!block) return { error: "That part of the day no longer exists. Refresh and try again." };
+  const day = loaded.days.find((d) => d.id === block.day_id)!;
+  const p = parsed.data;
+  // Places come from a nearby search; refuse anything implausibly far from that day's city.
+  if (day.point && distanceKm(day.point, p) > 80) return { error: "That place is too far from this day's city." };
+
+  const result = await insertItem(supabase, userId, loaded, block, {
+    title: p.name,
+    place: {
+      source: "nearby",
+      ref: "osm",
+      name: p.name,
+      detail: null,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      address: p.address,
+      officialUrl: null,
+      ticketsUrl: null,
+      timedEntry: false,
+      bestSlot: null,
+      suggestedStart: null,
+      durationMinutes: null,
+      price: null,
+      currency: null,
+      priceNote: null,
+      hoursNote: null,
+      visitNote: null,
+      km: null,
+    },
+    address: p.address,
+    unitPrice: null,
+    startTime: null,
+  });
+  if (result.ok) refresh(tripId);
+  return result;
+}

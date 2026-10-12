@@ -1,10 +1,10 @@
 "use client";
 
-import { Clock, ExternalLink, Plus, Star } from "lucide-react";
+import { Clock, ExternalLink, MapPin, Plus, Sparkles, Star } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { addExperience } from "@/features/itinerary/place-actions";
+import { addExperience, addNamedPlace } from "@/features/itinerary/place-actions";
 import type { ActionState } from "@/features/trips/actions";
 import { formatDuration, formatMoney } from "@/lib/format";
 import { providerOf, track } from "@/lib/track";
@@ -22,7 +22,16 @@ type Offer = {
   durationMinutes: number | null;
   why: string;
 };
-type Result = { mode: "live" | "sample" | "links"; offers: Offer[]; links: { label: string; url: string }[]; city: string | null };
+type NamedPlace = { name: string; latitude: number; longitude: number; address: string | null; km: number };
+type Idea = { id: string; title: string; blurb: string; why: string; places: NamedPlace[] };
+type Result = {
+  mode: "live" | "sample" | "links";
+  offers: Offer[];
+  links: { label: string; url: string }[];
+  city: string | null;
+  ideas?: Idea[];
+  near?: string | null;
+};
 
 const PROVIDER = { viator: "Viator", sample: "Sample" } as const;
 
@@ -54,6 +63,29 @@ export function BookableSuggestions({ tripId, blockId }: { tripId: string; block
     );
 
   return (
+    <div className="grid gap-4">
+      {result.ideas && result.ideas.length > 0 && (
+        <section aria-label="Picked for your travel type" className="grid gap-2">
+          <h4 className="flex items-center gap-1.5 text-xs font-semibold">
+            <Sparkles className="size-3.5" aria-hidden="true" /> Picked for your travel type
+            {result.near ? <span className="font-normal text-muted-foreground">, near {result.near}</span> : result.city ? <span className="font-normal text-muted-foreground"> in {result.city}</span> : null}
+          </h4>
+          <ul className="grid gap-2">
+            {result.ideas.map((idea) => (
+              <li key={idea.id} className="grid gap-1.5 rounded-md border bg-card p-2 text-xs">
+                <span className="font-medium text-foreground">{idea.title}</span>
+                <span className="text-primary">{idea.why}</span>
+                <ul className="grid gap-1">
+                  {idea.places.map((p) => (
+                    <NamedPlaceRow key={`${p.name}-${p.latitude}`} place={p} tripId={tripId} blockId={blockId} />
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[10px] text-muted-foreground">Places from OpenStreetMap. Check hours before you go.</p>
+        </section>
+      )}
     <section aria-label="Bookable experiences" className="grid gap-2">
       <h4 className="text-xs font-semibold">
         Bookable for your travel type{result.city ? ` in ${result.city}` : ""}
@@ -81,6 +113,36 @@ export function BookableSuggestions({ tripId, blockId }: { tripId: string; block
         {result.mode === "sample" ? "Sample listings for testing. " : ""}WRLD may earn a commission when you book through these links.
       </p>
     </section>
+    </div>
+  );
+}
+
+function NamedPlaceRow({ place, tripId, blockId }: { place: NamedPlace; tripId: string; blockId: string }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(addNamedPlace.bind(null, tripId, blockId), {});
+  return (
+    <li className="flex items-center gap-2">
+      <MapPin className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{place.name}</span>
+        <span className="block truncate text-muted-foreground">
+          {[place.address, place.km < 1 ? `${Math.round(place.km * 1000)} m away` : `${place.km} km away`].filter(Boolean).join(" · ")}
+        </span>
+        {state.error && <span role="alert" className="block text-destructive">{state.error}</span>}
+      </span>
+      {state.ok ? (
+        <span role="status" className="font-medium text-primary">Added</span>
+      ) : (
+        <form action={action}>
+          <input type="hidden" name="name" value={place.name} />
+          <input type="hidden" name="latitude" value={place.latitude} />
+          <input type="hidden" name="longitude" value={place.longitude} />
+          <input type="hidden" name="address" value={place.address ?? ""} />
+          <Button type="submit" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={pending}>
+            <Plus aria-hidden="true" /> {pending ? "…" : "Add"}
+          </Button>
+        </form>
+      )}
+    </li>
   );
 }
 

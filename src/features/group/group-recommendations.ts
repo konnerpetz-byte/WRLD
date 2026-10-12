@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { suggestExperiences } from "@/features/experiences/suggest";
+import { IDEA_PLACES, namedPlaces } from "@/features/places/named-places";
 import { IDEAS } from "@/features/recommendations/ideas";
 import { distanceKm } from "@/lib/geo";
 import type { Attraction, Database } from "@/types/database";
@@ -116,7 +117,18 @@ export async function groupRecommendations(
   // Keep variety: at most 6 official sights, fill the rest with ideas.
   const official = picks.filter((p) => p.kind === "official").slice(0, 6);
   const ideas = picks.filter((p) => p.kind === "idea").slice(0, 9 - Math.min(official.length, 6));
-  const top = [...official, ...ideas].sort((a, b) => b.score - a.score);
+  const firstPoint = placed[0];
+  const named = firstPoint
+    ? await Promise.all(
+        ideas.map(async (p) => {
+          const id = p.key.slice(2);
+          if (!IDEA_PLACES[id]) return p;
+          const places = await namedPlaces(id, firstPoint.latitude, firstPoint.longitude, 3);
+          return places.length ? { ...p, blurb: `Try ${places.map((x) => x.name).join(", ")}.` } : p;
+        }),
+      )
+    : ideas;
+  const top = [...official, ...named].sort((a, b) => b.score - a.score);
 
   // Bookable tours matched to the group's combined interests.
   let bookingMode: "live" | "sample" | "links" | null = null;
