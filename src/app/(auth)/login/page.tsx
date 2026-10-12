@@ -10,7 +10,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <p className="mt-2 mb-8 text-muted-foreground">Sign in to pick up your trips where you left them.</p>
       {error === "link" && (
         <p role="alert" className="mb-6 text-sm text-destructive">
-          That sign-in link expired or was already used. Sign in below.
+          Your email is confirmed if you used the link from your inbox. Sign in below to continue.
         </p>
       )}
       <AuthForm mode="login" next={typeof next === "string" ? next : undefined} />
