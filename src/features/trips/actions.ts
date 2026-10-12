@@ -1,16 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { geocode } from "@/features/places/geocode";
-import { lookupActivityPrice } from "@/features/pricing/lookup";
 import { zonedTimeToUtc } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 import { BOOKING_STATUSES, EXPENSE_CATEGORIES, TRANSIT_DIRECTIONS, TRANSIT_MODES } from "@/types/database";
 
-export type ActionState = { error?: string; ok?: boolean; note?: string };
+export type ActionState = { error?: string; ok?: boolean; note?: string; needsConfirm?: boolean };
 
 const blankToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 const optionalMoney = z.preprocess(blankToNull, z.coerce.number().min(0, "Prices can't be negative.").nullable());
@@ -25,38 +23,8 @@ function firstIssue(error: z.ZodError) {
 const refresh = (tripId: string) => revalidatePath(`/trips/${tripId}`, "layout");
 
 // ---------------------------------------------------------------------------
-// Trips
+// Trips — create/edit/delete live in trip-actions.ts
 // ---------------------------------------------------------------------------
-const tripSchema = z
-  .object({
-    title: z.string().trim().min(1, "Give the trip a name.").max(120),
-    destination: optionalText,
-    destination_country: z.preprocess(blankToNull, z.string().length(2).nullable()),
-    start_date: z.iso.date("Pick a start date."),
-    end_date: z.iso.date("Pick an end date."),
-    timezone: z.string().min(1),
-    party_size: z.coerce.number().int().min(1).max(50),
-    budget: optionalMoney,
-  })
-  .refine((t) => t.end_date >= t.start_date, { message: "The trip can't end before it starts.", path: ["end_date"] });
-
-export async function createTrip(_: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = tripSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: firstIssue(parsed.error) };
-
-  const { supabase, userId } = await requireUserId();
-  const where = [parsed.data.destination, parsed.data.destination_country].filter(Boolean).join(", ");
-  const center = where ? await geocode(where) : null;
-  const { data, error } = await supabase
-    .from("trips")
-    .insert({ ...parsed.data, owner_id: userId, latitude: center?.latitude ?? null, longitude: center?.longitude ?? null })
-    .select("id")
-    .single();
-  if (error) return { error: "We couldn't create the trip. Try again." };
-
-  redirect(`/trips/${data.id}/itinerary`);
-}
-
 export async function updateTripMoney(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = z
     .object({ budget: optionalMoney, party_size: z.coerce.number().int().min(1, "At least 1 traveler.").max(50) })
@@ -71,83 +39,8 @@ export async function updateTripMoney(tripId: string, _: ActionState, formData: 
 }
 
 // ---------------------------------------------------------------------------
-// Activities — price is filled in automatically when the user leaves it blank
+// Activities — adding lives in features/itinerary/place-actions.ts
 // ---------------------------------------------------------------------------
-const activitySchema = z.object({
-  time_block_id: z.uuid(),
-  title: z.string().trim().min(1, "Name the activity.").max(200),
-  kind: z.enum(["activity", "tour", "meal", "sightseeing", "free_time", "note"]).default("activity"),
-  start_time: z.preprocess(blankToNull, z.string().regex(/^\d{2}:\d{2}$/).nullable()),
-  unit_price: optionalMoney,
-  currency: currencyCode,
-});
-
-export async function addActivity(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = activitySchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: firstIssue(parsed.error) };
-  const input = parsed.data;
-
-  const { supabase, userId } = await requireUserId();
-  const { data: trip } = await supabase
-    .from("trips")
-    .select("destination, currency, latitude, longitude")
-    .eq("id", tripId)
-    .single();
-  if (!trip) return { error: "Trip not found." };
-
-  const near = trip.latitude !== null && trip.longitude !== null ? { latitude: trip.latitude, longitude: trip.longitude } : null;
-  const placePromise =
-    input.kind === "note" || input.kind === "free_time"
-      ? Promise.resolve(null)
-      : geocode(input.title, { near, maxKmFromNear: near ? 80 : undefined });
-
-  let price: {
-    unit_price: number | null;
-    currency: string | null;
-    price_source: "manual" | "estimate" | null;
-    provider?: string;
-    provider_ref?: string;
-    booking_url?: string | null;
-  } = { unit_price: input.unit_price, currency: input.currency ?? trip.currency, price_source: input.unit_price === null ? null : "manual" };
-
-  let note: string | undefined;
-  if (input.unit_price === null && input.kind !== "note" && input.kind !== "free_time") {
-    const match = await lookupActivityPrice({ title: input.title, destination: trip.destination, currency: trip.currency });
-    if (match) {
-      price = {
-        unit_price: match.unitPrice,
-        currency: match.currency,
-        price_source: "estimate",
-        provider: match.provider,
-        provider_ref: match.providerRef,
-        booking_url: match.bookingUrl,
-      };
-      note = `Found a price: ${match.title}.`;
-    } else {
-      note = "No price found — add one so it counts in the budget.";
-    }
-  }
-
-  const place = await placePromise;
-  const { error } = await supabase.from("itinerary_items").insert({
-    latitude: place?.latitude ?? null,
-    longitude: place?.longitude ?? null,
-    address: place?.address ?? null,
-    trip_id: tripId,
-    time_block_id: input.time_block_id,
-    title: input.title,
-    kind: input.kind,
-    start_time: input.start_time,
-    created_by: userId,
-    price_checked_at: price.price_source ? new Date().toISOString() : null,
-    ...price,
-  });
-  if (error) return { error: "Only owners and editors can add to this trip." };
-
-  refresh(tripId);
-  return { ok: true, note };
-}
-
 export async function updateActivityPrice(tripId: string, itemId: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = z
     .object({ unit_price: optionalMoney, quantity: optionalInt, currency: currencyCode })
@@ -264,13 +157,29 @@ export async function addLodging(tripId: string, _: ActionState, formData: FormD
   const { check_in_local, check_out_local, ...rest } = parsed.data;
 
   const { supabase, userId } = await requireUserId();
-  const { data: trip } = await supabase.from("trips").select("timezone, latitude, longitude").eq("id", tripId).single();
+  const [{ data: trip }, { data: stops }] = await Promise.all([
+    supabase.from("trips").select("timezone, latitude, longitude").eq("id", tripId).single(),
+    supabase.from("trip_stops").select("city, latitude, longitude, timezone, arrive_date, leave_date").eq("trip_id", tripId).order("position"),
+  ]);
   if (!trip) return { error: "Trip not found." };
-  const near = trip.latitude !== null && trip.longitude !== null ? { latitude: trip.latitude, longitude: trip.longitude } : null;
-  const place = await geocode(rest.address ?? rest.name, { near, maxKmFromNear: near ? 80 : undefined });
+  // The stay belongs to the city you're in on the check-in date.
+  const checkInDate = check_in_local.slice(0, 10);
+  const stop =
+    (stops ?? []).find((s) => checkInDate >= s.arrive_date && checkInDate < s.leave_date) ??
+    (stops ?? []).find((s) => checkInDate >= s.arrive_date && checkInDate <= s.leave_date);
+  const timezone = stop?.timezone ?? trip.timezone;
+  const near =
+    stop?.latitude != null && stop.longitude != null
+      ? { latitude: stop.latitude, longitude: stop.longitude }
+      : trip.latitude !== null && trip.longitude !== null
+        ? { latitude: trip.latitude, longitude: trip.longitude }
+        : null;
+  const place =
+    (await geocode(rest.address ?? `${rest.name}${stop ? `, ${stop.city}` : ""}`, { near })) ??
+    (rest.address ? await geocode(`${rest.name}${stop ? `, ${stop.city}` : ""}`, { near }) : null);
 
-  const check_in_at = zonedTimeToUtc(check_in_local, trip.timezone);
-  const check_out_at = zonedTimeToUtc(check_out_local, trip.timezone);
+  const check_in_at = zonedTimeToUtc(check_in_local, timezone);
+  const check_out_at = zonedTimeToUtc(check_out_local, timezone);
   if (check_out_at <= check_in_at) return { error: "Check-out has to be after check-in." };
 
   const { error } = await supabase
@@ -321,30 +230,5 @@ export async function addExpense(tripId: string, _: ActionState, formData: FormD
 export async function deleteExpense(tripId: string, id: string) {
   const { supabase } = await requireUserId();
   await supabase.from("expenses").delete().eq("id", id);
-  refresh(tripId);
-}
-
-// ---------------------------------------------------------------------------
-// Map: find coordinates for something that doesn't have them yet
-// ---------------------------------------------------------------------------
-export async function locateItem(tripId: string, itemId: string, formData: FormData) {
-  const query = String(formData.get("query") ?? "").trim();
-  const { supabase } = await requireUserId();
-  const [{ data: trip }, { data: item }] = await Promise.all([
-    supabase.from("trips").select("latitude, longitude, destination").eq("id", tripId).single(),
-    supabase.from("itinerary_items").select("title").eq("id", itemId).single(),
-  ]);
-  if (!trip || !item) return;
-  const near = trip.latitude !== null && trip.longitude !== null ? { latitude: trip.latitude, longitude: trip.longitude } : null;
-  const place = await geocode(query || [item.title, trip.destination].filter(Boolean).join(", "), {
-    near,
-    maxKmFromNear: near ? 80 : undefined,
-  });
-  if (place) {
-    await supabase
-      .from("itinerary_items")
-      .update({ latitude: place.latitude, longitude: place.longitude, address: place.address })
-      .eq("id", itemId);
-  }
   refresh(tripId);
 }

@@ -1,26 +1,45 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addActivity, type ActionState } from "@/features/trips/actions";
+import { PlaceSearch } from "@/features/attractions/place-search";
+import type { PlaceSuggestion } from "@/features/attractions/types";
+import type { ActionState } from "@/features/trips/actions";
+import { addActivity } from "./place-actions";
 
-export function AddActivityForm({ tripId, timeBlockId }: { tripId: string; timeBlockId: string }) {
+type Point = { latitude: number; longitude: number } | null;
+
+export function AddActivityForm({ tripId, timeBlockId, near }: { tripId: string; timeBlockId: string; near: Point }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState<ActionState, FormData>(addActivity.bind(null, tripId), {});
-  const formRef = useRef<HTMLFormElement>(null);
+  const [title, setTitle] = useState("");
+  const [picked, setPicked] = useState<PlaceSuggestion | null>(null);
+  const [showAddress, setShowAddress] = useState(false);
 
-  useEffect(() => {
-    if (state.ok) formRef.current?.reset();
-  }, [state]);
+  // Reset after a successful add (adjusting state when the result changes).
+  const [handled, setHandled] = useState(state);
+  if (state !== handled) {
+    setHandled(state);
+    if (state.ok) {
+      setTitle("");
+      setPicked(null);
+      setShowAddress(false);
+      setOpen(false);
+    }
+  }
 
   if (!open) {
     return (
       <div className="mt-auto">
-        {state.note && <p className="mb-1 text-xs text-muted-foreground" role="status">{state.note}</p>}
+        {state.note && (
+          <p className="mb-1 text-xs text-muted-foreground" role="status">
+            {state.note}
+          </p>
+        )}
         <Button type="button" variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setOpen(true)}>
           <Plus aria-hidden="true" /> Add
         </Button>
@@ -30,29 +49,54 @@ export function AddActivityForm({ tripId, timeBlockId }: { tripId: string; timeB
 
   const id = (name: string) => `${name}-${timeBlockId}`;
   return (
-    <form
-      ref={formRef}
-      action={(fd) => {
-        action(fd);
-        setOpen(false);
-      }}
-      className="mt-auto grid gap-2 rounded-md bg-muted/60 p-2"
-    >
+    <form action={action} className="mt-auto grid gap-2 rounded-md bg-muted/60 p-2">
       <input type="hidden" name="time_block_id" value={timeBlockId} />
       <Label htmlFor={id("title")} className="sr-only">
-        Activity
+        Place or activity
       </Label>
-      <Input id={id("title")} name="title" placeholder="Art Institute of Chicago" required autoFocus />
+      <PlaceSearch id={id("title")} value={title} onValueChange={setTitle} picked={picked} onPick={setPicked} near={near} autoFocus />
+
+      {!picked &&
+        (showAddress ? (
+          <div className="grid gap-1">
+            <Label htmlFor={id("address")} className="text-xs">
+              Address (puts it on the map)
+            </Label>
+            <Input id={id("address")} name="address" placeholder="Street, number, city" className="h-8" />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowAddress(true)}
+            className="w-fit text-xs text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            Add an address
+          </button>
+        ))}
+
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <Label htmlFor={id("price")} className="sr-only">
           Ticket price per person
         </Label>
-        <Input id={id("price")} name="unit_price" type="number" min={0} step="0.01" placeholder="Price each (optional)" />
+        <Input
+          id={id("price")}
+          name="unit_price"
+          type="number"
+          min={0}
+          step="0.01"
+          placeholder={picked?.price != null ? "Using the official price" : "Price each (optional)"}
+          className="h-9"
+        />
         <Button type="submit" size="sm" className="h-9" disabled={pending}>
-          {pending ? "Finding price…" : "Add"}
+          {pending ? "Adding…" : "Add"}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">Leave the price blank and we&rsquo;ll look it up.</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">Pick a suggestion to fill in the time, place and official price.</p>
+        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
       {state.error && (
         <p role="alert" className="text-xs text-destructive">
           {state.error}

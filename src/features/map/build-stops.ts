@@ -19,6 +19,9 @@ export type UnplacedStop = { id: string; title: string; detail: string };
 export type MapDay = {
   dayId: string;
   label: string;
+  /** The city that day, used to frame the map when nothing is placed yet */
+  city: string | null;
+  center: [number, number] | null;
   stops: MapStop[];
   unplaced: UnplacedStop[];
   km: number;
@@ -27,10 +30,11 @@ export type MapDay = {
 const SLOT = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" } as const;
 
 /** Orders each day's route: arrive or wake up at the stay → activities in block order → back to the stay or off to the airport. */
-export function buildMapDays(days: DayPlan[], lodging: Lodging[], transit: TransitSegment[], timezone: string): MapDay[] {
+export function buildMapDays(days: DayPlan[], lodging: Lodging[], transit: TransitSegment[], tripTimezone: string): MapDay[] {
   const live = transit.filter((t) => t.booking_status !== "cancelled");
 
   return days.map((day) => {
+    const timezone = day.tz ?? tripTimezone;
     const dayStart = day.blocks[0]?.starts_at ?? `${day.date}T00:00:00Z`;
     const dayEnd = day.blocks.at(-1)?.ends_at ?? `${day.date}T23:59:59Z`;
     const within = (iso: string) => iso >= dayStart && iso < dayEnd;
@@ -96,7 +100,9 @@ export function buildMapDays(days: DayPlan[], lodging: Lodging[], transit: Trans
     let km = 0;
     for (let i = 1; i < stops.length; i++) km += distanceKm(stops[i - 1], stops[i]);
 
-    return { dayId: day.id, label: formatDay(day.date), stops, unplaced, km };
+    const center: [number, number] | null =
+      day.stop?.latitude != null && day.stop.longitude != null ? [day.stop.latitude, day.stop.longitude] : null;
+    return { dayId: day.id, label: formatDay(day.date), city: day.stop?.city ?? null, center, stops, unplaced, km };
   });
 }
 

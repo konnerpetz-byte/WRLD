@@ -1,4 +1,4 @@
-import { Plane, TrainFront } from "lucide-react";
+import { MapPin, Plane, TrainFront } from "lucide-react";
 
 import type { DayPlan } from "@/features/trips/queries";
 import { formatDay, formatDuration, formatTime } from "@/lib/format";
@@ -38,19 +38,35 @@ export function DayGrid({
         ))}
       </div>
 
-      {days.map((day) => (
+      {days.map((day, i) => {
+        const prev = days[i - 1];
+        const newCity = day.stop && (!prev || prev.stop?.id !== day.stop.id);
+        const near =
+          day.stop?.latitude != null && day.stop.longitude != null
+            ? { latitude: day.stop.latitude, longitude: day.stop.longitude }
+            : null;
+        return (
         <section
           key={day.id}
           aria-labelledby={`day-${day.id}`}
-          className="grid gap-3 border-t pt-3 lg:grid-cols-[8rem_repeat(3,minmax(0,1fr))]"
+          className={`grid gap-3 border-t pt-3 lg:grid-cols-[8rem_repeat(3,minmax(0,1fr))] ${newCity && i > 0 ? "border-t-2 border-primary" : ""}`}
         >
-          <h2 id={`day-${day.id}`} className="text-lg font-semibold lg:pt-2">
-            {formatDay(day.date)}
-          </h2>
+          <div className="lg:pt-2">
+            <h2 id={`day-${day.id}`} className="text-lg font-semibold">
+              {formatDay(day.date)}
+            </h2>
+            {day.stop && (
+              <p className={`flex items-center gap-1 text-sm ${newCity ? "font-medium text-primary" : "text-muted-foreground"}`}>
+                <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                {newCity && i > 0 ? `To ${day.stop.city}` : day.stop.city}
+              </p>
+            )}
+          </div>
           {day.blocks.map((block) => (
             <BlockCell
               key={block.id}
-              trip={trip}
+              near={near}
+              trip={{ ...trip, timezone: day.tz }}
               block={block}
               transit={live}
               lodging={lodging}
@@ -59,12 +75,14 @@ export function DayGrid({
             />
           ))}
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 function BlockCell({
+  near,
   trip,
   block,
   transit,
@@ -72,6 +90,7 @@ function BlockCell({
   beforeArrival,
   canEdit,
 }: {
+  near: { latitude: number; longitude: number } | null;
   trip: Trip;
   block: DayPlan["blocks"][number];
   transit: TransitSegment[];
@@ -147,7 +166,7 @@ function BlockCell({
           ))}
         </ul>
       )}
-      {canEdit && <AddActivityForm tripId={trip.id} timeBlockId={block.id} />}
+      {canEdit && <AddActivityForm tripId={trip.id} timeBlockId={block.id} near={near} />}
     </div>
   );
 }

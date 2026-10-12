@@ -1,12 +1,14 @@
 "use client";
 
-import { MapPin } from "lucide-react";
-import { useCallback, useState } from "react";
+import { LocateFixed, MapPin } from "lucide-react";
+import { useActionState, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { locateItem } from "@/features/trips/actions";
-import { formatDistance } from "@/lib/geo";
+import { setItemLocation } from "@/features/itinerary/place-actions";
+import type { ActionState } from "@/features/trips/actions";
+import { distanceKm, formatDistance } from "@/lib/geo";
+import { currentLocation } from "@/lib/native";
 import type { MapDay } from "./build-stops";
 import { TripMap } from "./trip-map";
 
@@ -27,6 +29,30 @@ export function MapPanel({
   const [selected, setSelected] = useState(firstWithStops);
   const [activeStopId, setActiveStopId] = useState<string | null>(null);
   const onSelectStop = useCallback((id: string) => setActiveStopId(id), []);
+  const [me, setMe] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locNote, setLocNote] = useState<string | null>(null);
+
+  async function locate() {
+    setLocating(true);
+    setLocNote(null);
+    const r = await currentLocation();
+    setLocating(false);
+    if (!r.ok) {
+      setLocNote(
+        r.reason === "denied"
+          ? "Location is off for WRLD. Turn it on in your phone's settings to see where you are."
+          : "Couldn't find your location. Try again outside or near a window.",
+      );
+      return;
+    }
+    setMe({ latitude: r.latitude, longitude: r.longitude });
+    const nearest = days[selected]?.stops.reduce<{ title: string; km: number } | null>((best, s) => {
+      const km = distanceKm(r, s);
+      return !best || km < best.km ? { title: s.title, km } : best;
+    }, null);
+    if (nearest) setLocNote(`${formatDistance(nearest.km, unit)} from ${nearest.title}`);
+  }
   const day = days[selected];
 
   return (
@@ -47,6 +73,7 @@ export function MapPanel({
             }`}
           >
             {d.label}
+            {d.city && <span className="ml-1 opacity-75">· {d.city}</span>}
           </button>
         ))}
       </div>
@@ -110,22 +137,22 @@ export function MapPanel({
                         <span className="text-sm">
                           {u.title} <span className="text-muted-foreground">({u.detail})</span>
                         </span>
-                        {canEdit && (
-                          <form action={locateItem.bind(null, tripId, u.id)} className="flex gap-2">
-                            <label htmlFor={`q-${u.id}`} className="sr-only">
-                              Place name or address for {u.title}
-                            </label>
-                            <Input id={`q-${u.id}`} name="query" placeholder="Name or address (optional)" className="h-8 bg-card" />
-                            <Button type="submit" size="sm" variant="outline">
-                              <MapPin aria-hidden="true" /> Find
-                            </Button>
-                          </form>
-                        )}
+                        {canEdit && <LocateForm tripId={tripId} itemId={u.id} title={u.title} />}
                       </li>
                     ))}
                   </ul>
                 </section>
               )}
+              <div className="grid gap-1.5">
+                <Button type="button" variant="outline" onClick={locate} disabled={locating}>
+                  <LocateFixed aria-hidden="true" /> {locating ? "Finding you…" : "Show where I am"}
+                </Button>
+                {locNote && (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    {locNote}
+                  </p>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 Distances are straight lines between stops, not walking or driving routes.
               </p>
@@ -141,9 +168,33 @@ export function MapPanel({
             onSelectStop={onSelectStop}
             center={center}
             label={`Map of ${day?.label ?? "the trip"}`}
+            dayCenter={day?.center ?? null}
+            me={me}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+function LocateForm({ tripId, itemId, title }: { tripId: string; itemId: string; title: string }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(setItemLocation.bind(null, tripId, itemId), {});
+  return (
+    <form action={action} className="grid gap-1">
+      <div className="flex gap-2">
+        <label htmlFor={`q-${itemId}`} className="sr-only">
+          Place name or address for {title}
+        </label>
+        <Input id={`q-${itemId}`} name="query" placeholder="Address or name (optional)" className="h-8 bg-card" />
+        <Button type="submit" size="sm" variant="outline" disabled={pending}>
+          <MapPin aria-hidden="true" /> {pending ? "Finding…" : "Find"}
+        </Button>
+      </div>
+      {state.error && (
+        <p role="alert" className="text-xs text-destructive">
+          {state.error}
+        </p>
+      )}
+    </form>
   );
 }

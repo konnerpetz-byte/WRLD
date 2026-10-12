@@ -20,6 +20,8 @@ export function TripMap({
   onSelectStop,
   center,
   label,
+  me = null,
+  dayCenter = null,
 }: {
   days: MapDay[];
   selected: number;
@@ -27,11 +29,16 @@ export function TripMap({
   onSelectStop: (id: string) => void;
   center: [number, number] | null;
   label: string;
+  /** The traveler's current position, shown as a pulsing dot. */
+  me?: { latitude: number; longitude: number } | null;
+  /** The day's city [lat, lng], used when nothing is placed yet. */
+  dayCenter?: [number, number] | null;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const markers = useRef<Marker[]>([]);
   const lib = useRef<typeof import("maplibre-gl") | null>(null);
+  const meMarker = useRef<Marker | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   // Create the map once.
@@ -75,6 +82,7 @@ export function TripMap({
     return () => {
       cancelled = true;
       markers.current.forEach((mk) => mk.remove());
+      meMarker.current?.remove();
       map.current?.remove();
       map.current = null;
     };
@@ -123,9 +131,27 @@ export function TripMap({
         const bounds = new ml.LngLatBounds();
         stops.forEach((s) => bounds.extend([s.longitude, s.latitude]));
         mm.fitBounds(bounds, { padding: 64, maxZoom: 14, duration: 600 });
+      } else if (dayCenter) {
+        mm.flyTo({ center: [dayCenter[1], dayCenter[0]], zoom: 11, duration: 600 });
       }
     }
-  }, [loaded, days, selected, activeStopId, onSelectStop]);
+  }, [loaded, days, selected, activeStopId, onSelectStop, dayCenter]);
+
+  // "You are here" dot.
+  useEffect(() => {
+    const mm = map.current;
+    const ml = lib.current;
+    if (!loaded || !mm || !ml) return;
+    meMarker.current?.remove();
+    meMarker.current = null;
+    if (!me) return;
+    const el = document.createElement("span");
+    el.className = "wrld-me";
+    el.setAttribute("aria-label", "You are here");
+    el.setAttribute("role", "img");
+    meMarker.current = new ml.Marker({ element: el }).setLngLat([me.longitude, me.latitude]).addTo(mm);
+    mm.flyTo({ center: [me.longitude, me.latitude], zoom: Math.max(mm.getZoom(), 13), duration: 700 });
+  }, [loaded, me]);
 
   return <div ref={container} role="region" aria-label={label} className="h-full min-h-[420px] w-full overflow-hidden rounded-xl" />;
 }

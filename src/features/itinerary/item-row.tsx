@@ -1,19 +1,24 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { BadgeCheck, ExternalLink, MapPin, Trash2 } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { hostOf } from "@/features/attractions/types";
 import { deleteItem, setItemStatus, updateActivityPrice, type ActionState } from "@/features/trips/actions";
 import { formatMoney } from "@/lib/format";
 import type { ItineraryItem } from "@/types/database";
+import { ExploreNearby } from "./explore-nearby";
+import { setItemLocation } from "./place-actions";
+import { formatClock } from "./schedule";
 
 const SOURCE_LABEL: Record<string, string> = {
   manual: "Your price",
   estimate: "Looked up",
   provider: "Listed price",
+  official: "Official price",
 };
 
 export function ItemRow({
@@ -38,11 +43,22 @@ export function ItemRow({
   const qty = item.quantity ?? partySize;
   const sourceLabel = item.provider === "sample" ? "Sample price" : item.price_source ? SOURCE_LABEL[item.price_source] : null;
   const cancelled = item.booking_status === "cancelled";
+  const [locState, locAction, locating] = useActionState<ActionState, FormData>(setItemLocation.bind(null, tripId, item.id), {});
+  const [fixingPlace, setFixingPlace] = useState(false);
+  const time = item.start_time ? `${formatClock(item.start_time.slice(0, 5))}${item.end_time ? `–${formatClock(item.end_time.slice(0, 5))}` : ""}` : null;
+  const ticketHost = hostOf(item.booking_url);
+  const officialHost = hostOf(item.official_url);
 
   return (
     <li className={`rounded-md border-l-2 bg-open-soft py-1.5 pr-1.5 pl-2.5 ${cancelled ? "border-muted-foreground opacity-60" : "border-open"}`}>
       <div className="flex items-start justify-between gap-2">
-        <p className={`text-sm font-medium ${cancelled ? "line-through" : ""}`}>{item.title}</p>
+        <div className="min-w-0">
+          {time && <p className="text-xs font-semibold text-primary">{time}</p>}
+          <p className={`flex items-center gap-1 text-sm font-medium ${cancelled ? "line-through" : ""}`}>
+            {item.attraction_id && <BadgeCheck className="size-3.5 shrink-0 text-primary" aria-label="Official listing" />}
+            {item.title}
+          </p>
+        </div>
         {canEdit && (
           <form action={deleteItem.bind(null, tripId, item.id)}>
             <Button type="submit" variant="ghost" size="icon-xs" aria-label={`Remove ${item.title}`}>
@@ -99,6 +115,74 @@ export function ItemRow({
           </form>
         )}
       </div>
+
+      {(item.booking_url || item.official_url) && (
+        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+          {item.booking_url && (
+            <a href={item.booking_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">
+              {item.attraction_id ? "Official tickets" : "Book"}
+              {ticketHost ? <span className="sr-only">on {ticketHost}</span> : null}
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
+          )}
+          {item.official_url && item.official_url !== item.booking_url && (
+            <a href={item.official_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-2">
+              {officialHost ?? "Official site"}
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
+          )}
+        </p>
+      )}
+      {item.description && (
+        <details className="mt-1 text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none">Visit details</summary>
+          <p className="mt-1 whitespace-pre-line">{item.description}</p>
+        </details>
+      )}
+
+      {item.latitude !== null && item.longitude !== null ? (
+        item.kind !== "note" && (
+          <ExploreNearby
+            tripId={tripId}
+            itemId={item.id}
+            title={item.title}
+            latitude={item.latitude}
+            longitude={item.longitude}
+            canEdit={canEdit}
+          />
+        )
+      ) : (
+        canEdit &&
+        item.kind !== "note" &&
+        item.kind !== "free_time" && (
+          <div className="mt-1">
+            {fixingPlace ? (
+              <form action={locAction} className="flex gap-1.5">
+                <Label htmlFor={`where-${item.id}`} className="sr-only">
+                  Address for {item.title}
+                </Label>
+                <Input id={`where-${item.id}`} name="query" placeholder="Address or place name" className="h-7 text-xs" autoFocus />
+                <Button type="submit" size="sm" variant="outline" className="h-7 text-xs" disabled={locating}>
+                  {locating ? "Finding…" : "Find"}
+                </Button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setFixingPlace(true)}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <MapPin className="size-3.5" aria-hidden="true" /> Not on the map — add an address
+              </button>
+            )}
+            {locState.error && (
+              <p role="alert" className="mt-1 text-xs text-destructive">
+                {locState.error}
+              </p>
+            )}
+          </div>
+        )
+      )}
 
       {editing && canEdit && (
         <form

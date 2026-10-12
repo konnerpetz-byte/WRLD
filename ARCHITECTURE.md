@@ -199,6 +199,30 @@ Everything with a price in the plan is added up automatically, in the trip's cur
 - **Source shown:** each price is labeled "listed price", "looked up", "your price" or "sample price", and any of them can be edited.
 - **Budget updates on its own:** the budget reads these totals directly, so adding a museum moves the trip total immediately.
 
+### Multi-city trips
+- A trip is a list of **stops** (`trip_stops`): city, country, coordinates, time zone, arrive and leave dates. Lisbon 4 nights, then Munich 2.
+- The trip's dates come from its stops, and `trips.destination` is a summary ("Lisbon · Munich").
+- Each day belongs to the city you sleep in that night (the last day goes to the final stop). Its morning, afternoon and evening blocks run on **that city's clock**.
+- Time zones are worked out from the city's coordinates, so you never pick one.
+- **Edit trip** changes the name, cities, dates, travelers, currency and budget. If shorter dates would drop days that have plans on them, the app lists them and asks before saving. Owners can delete a trip.
+- **Trips list** groups trips into Happening now, Upcoming and Past, using each trip's local date, and has All / Upcoming / Past filters.
+
+### Official attractions and automatic timeslots
+- Typing a place (for example "Sintra" or "Neuschwanstein") shows **official matches first**, from WRLD's hand-checked list (`attractions`). Each entry has the official ticket page, timed-entry rules, opening hours, best time of day, typical visit length and adult price, plus the date it was last checked.
+- Anything not on that list falls back to **Wikidata**, which supplies the place's official website and coordinates (but no hours or price).
+- **Choosing a match fills everything in:**
+  - **Map pin:** placed at the attraction's coordinates.
+  - **Time:** the start time is the attraction's suggested start when it fits the block, or the next free half hour after what's already planned. The end time comes from the visit length.
+  - **Links:** the official ticket link and official site are attached.
+  - **Price:** the official adult price goes into the budget (shown as "official price").
+- **Add a place** (top of the itinerary): leave the day on "Best day for it" and WRLD picks a day in that area and the attraction's best time of day, preferring empty blocks.
+- **Explore nearby** on any placed item lists WRLD's official sights within 50 km and notable places from Wikipedia within 10 km. Each can be added to the same day in one tap.
+- **Addresses always reach the map.**
+  - Lookups are biased to that day's city.
+  - Photon is tried first, then Nominatim, which handles full street addresses better.
+  - Anything still unplaced shows "Not on the map — add an address" right on the itinerary.
+- **Growing the list:** add rows to `public.attractions` with the service role or in the SQL editor. Keep `verified_on` current, because prices and hours change.
+
 ### Recommendations (to build next)
 For each trip and traveler, score candidate activities (Viator first) out of 100:
 
@@ -214,6 +238,7 @@ Each card shows plain reasons ("You rated a hike in Banff 5★", "Fits your free
 ---
 
 ## 4. Open items
+- Grow the official attractions list beyond the starter set, and re-check prices and hours on a schedule
 - Trip ownership transfer (plain updates to `owner_id` are blocked)
 - Expense splitting between members
 - Award search (AwardWallet / other providers) on the Explore pages

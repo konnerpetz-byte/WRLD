@@ -76,7 +76,7 @@ export type TravelArchetype = (typeof TRAVEL_ARCHETYPES)[number];
 export const INTEREST_SOURCES = ['quiz', 'manual', 'learned'] as const;
 export type InterestSource = (typeof INTEREST_SOURCES)[number];
 
-export const PRICE_SOURCES = ['provider', 'estimate', 'manual'] as const;
+export const PRICE_SOURCES = ['provider', 'estimate', 'manual', 'official'] as const;
 export type PriceSource = (typeof PRICE_SOURCES)[number];
 
 export const RECOMMENDATION_STATUSES = ['new', 'saved', 'added', 'dismissed'] as const;
@@ -152,6 +152,49 @@ export type TripDay = Timestamps & {
   date: ISODate;
   title: string | null;
   notes: string | null;
+  /** The stop (city) you sleep in that night; set by the database. */
+  stop_id: UUID | null;
+  /** That stop's IANA time zone; set by the database. */
+  timezone: string | null;
+};
+
+/** One city on a multi-city trip (12). */
+export type TripStop = Timestamps &
+  Geo & {
+    id: UUID;
+    trip_id: UUID;
+    position: number;
+    city: string;
+    country_code: CountryCode | null;
+    timezone: string;
+    arrive_date: ISODate;
+    leave_date: ISODate;
+  };
+
+/** A hand-checked official sight (13). */
+export type Attraction = {
+  id: UUID;
+  slug: string;
+  name: string;
+  aliases: string[];
+  city: string;
+  country_code: CountryCode | null;
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  official_url: string;
+  tickets_url: string | null;
+  timed_entry: boolean;
+  best_slot: TimeBlockSlot | null;
+  suggested_start: ISOTime | null;
+  duration_minutes: number | null;
+  hours_note: string | null;
+  visit_note: string | null;
+  adult_price: number | null;
+  currency: CurrencyCode | null;
+  price_note: string | null;
+  verified_on: ISODate | null;
+  created_at: ISODateTime;
 };
 
 /** Window + availability are calculated by the database from transit legs. */
@@ -192,6 +235,9 @@ export type ItineraryItem = Timestamps &
     quantity: number | null;
     price_source: PriceSource | null;
     price_checked_at: ISODateTime | null;
+    /** The official listing this came from, if any. */
+    attraction_id: UUID | null;
+    official_url: string | null;
   };
 
 export type Lodging = Timestamps &
@@ -500,6 +546,9 @@ export type TripMemberInsert = InsertOf<TripMember, 'trip_id' | 'user_id'>;
 export type TripMemberUpdate = Pick<Partial<TripMember>, 'role'>;
 
 /** Days and blocks are created by the database; only title/notes are editable. */
+export type TripStopInsert = InsertOf<TripStop, 'trip_id' | 'city' | 'arrive_date' | 'leave_date'>;
+export type TripStopUpdate = UpdateOf<TripStop>;
+
 export type TripDayUpdate = Pick<Partial<TripDay>, 'title' | 'notes'>;
 export type TimeBlockUpdate = Pick<Partial<TimeBlock>, 'notes'>;
 
@@ -546,6 +595,8 @@ export type Database = {
       profiles: TableDef<Profile, ProfileInsert, ProfileUpdate>;
       trips: TableDef<Trip, TripInsert, TripUpdate>;
       trip_members: TableDef<TripMember, TripMemberInsert, TripMemberUpdate>;
+      trip_stops: TableDef<TripStop, TripStopInsert, TripStopUpdate>;
+      attractions: ReadOnly<Attraction>;
       trip_days: TableDef<TripDay, never, TripDayUpdate>;
       time_blocks: TableDef<TimeBlock, never, TimeBlockUpdate>;
       itinerary_items: TableDef<ItineraryItem, ItineraryItemInsert, ItineraryItemUpdate>;
@@ -576,6 +627,14 @@ export type Database = {
       add_recommendation_to_trip: {
         Args: { p_recommendation_id: UUID; p_time_block_id?: UUID };
         Returns: UUID;
+      };
+      search_attractions: {
+        Args: { p_query: string; p_limit?: number };
+        Returns: Attraction[];
+      };
+      attractions_near: {
+        Args: { p_lat: number; p_lng: number; p_km?: number };
+        Returns: { attraction: Attraction; km: number }[];
       };
       convert_currency: {
         Args: { p_amount: number; p_from: CurrencyCode; p_to: CurrencyCode; p_on?: ISODate };

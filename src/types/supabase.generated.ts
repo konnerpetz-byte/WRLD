@@ -1,6 +1,3 @@
-// Generated from the live Supabase project (zzbbjhokowvmpuuzsbjq) on 2026-10-12.
-// Regenerate after schema changes. Friendly names and joined shapes live in database.ts.
-
 export type Json =
   | string
   | number
@@ -17,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      attractions: {
+        Row: {
+          address: string | null
+          adult_price: number | null
+          aliases: string[]
+          best_slot: Database["public"]["Enums"]["time_block_slot"] | null
+          city: string
+          country_code: string | null
+          created_at: string
+          currency: string | null
+          duration_minutes: number | null
+          hours_note: string | null
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          official_url: string
+          price_note: string | null
+          slug: string
+          suggested_start: string | null
+          tickets_url: string | null
+          timed_entry: boolean
+          verified_on: string | null
+          visit_note: string | null
+        }
+        Insert: {
+          address?: string | null
+          adult_price?: number | null
+          aliases?: string[]
+          best_slot?: Database["public"]["Enums"]["time_block_slot"] | null
+          city: string
+          country_code?: string | null
+          created_at?: string
+          currency?: string | null
+          duration_minutes?: number | null
+          hours_note?: string | null
+          id?: string
+          latitude: number
+          longitude: number
+          name: string
+          official_url: string
+          price_note?: string | null
+          slug: string
+          suggested_start?: string | null
+          tickets_url?: string | null
+          timed_entry?: boolean
+          verified_on?: string | null
+          visit_note?: string | null
+        }
+        Update: {
+          address?: string | null
+          adult_price?: number | null
+          aliases?: string[]
+          best_slot?: Database["public"]["Enums"]["time_block_slot"] | null
+          city?: string
+          country_code?: string | null
+          created_at?: string
+          currency?: string | null
+          duration_minutes?: number | null
+          hours_note?: string | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          official_url?: string
+          price_note?: string | null
+          slug?: string
+          suggested_start?: string | null
+          tickets_url?: string | null
+          timed_entry?: boolean
+          verified_on?: string | null
+          visit_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attractions_country_code_fkey"
+            columns: ["country_code"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "attractions_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       countries: {
         Row: {
           code: string
@@ -266,6 +353,7 @@ export type Database = {
       itinerary_items: {
         Row: {
           address: string | null
+          attraction_id: string | null
           booking_status: Database["public"]["Enums"]["booking_status"]
           booking_url: string | null
           cost: number | null
@@ -279,6 +367,7 @@ export type Database = {
           latitude: number | null
           location_name: string | null
           longitude: number | null
+          official_url: string | null
           position: number
           price_checked_at: string | null
           price_source: Database["public"]["Enums"]["price_source"] | null
@@ -295,6 +384,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          attraction_id?: string | null
           booking_status?: Database["public"]["Enums"]["booking_status"]
           booking_url?: string | null
           cost?: number | null
@@ -308,6 +398,7 @@ export type Database = {
           latitude?: number | null
           location_name?: string | null
           longitude?: number | null
+          official_url?: string | null
           position?: number
           price_checked_at?: string | null
           price_source?: Database["public"]["Enums"]["price_source"] | null
@@ -324,6 +415,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          attraction_id?: string | null
           booking_status?: Database["public"]["Enums"]["booking_status"]
           booking_url?: string | null
           cost?: number | null
@@ -337,6 +429,7 @@ export type Database = {
           latitude?: number | null
           location_name?: string | null
           longitude?: number | null
+          official_url?: string | null
           position?: number
           price_checked_at?: string | null
           price_source?: Database["public"]["Enums"]["price_source"] | null
@@ -352,6 +445,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "itinerary_items_attraction_id_fkey"
+            columns: ["attraction_id"]
+            isOneToOne: false
+            referencedRelation: "attractions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "itinerary_items_block_fk"
             columns: ["time_block_id", "trip_id"]
@@ -840,6 +940,8 @@ export type Database = {
           currency: string | null
           depart_at: string
           destination_code: string | null
+          destination_latitude: number | null
+          destination_longitude: number | null
           destination_name: string | null
           destination_timezone: string | null
           direction: Database["public"]["Enums"]["transit_direction"]
@@ -849,6 +951,8 @@ export type Database = {
           mode: Database["public"]["Enums"]["transit_mode"]
           notes: string | null
           origin_code: string | null
+          origin_latitude: number | null
+          origin_longitude: number | null
           origin_name: string | null
           origin_timezone: string | null
           points_used: number | null
@@ -874,6 +978,8 @@ export type Database = {
           currency?: string | null
           depart_at: string
           destination_code?: string | null
+          destination_latitude?: number | null
+          destination_longitude?: number | null
           destination_name?: string | null
           destination_timezone?: string | null
           direction?: Database["public"]["Enums"]["transit_direction"]
@@ -883,6 +989,8 @@ export type Database = {
           mode: Database["public"]["Enums"]["transit_mode"]
           notes?: string | null
           origin_code?: string | null
+          origin_latitude?: number | null
+          origin_longitude?: number | null
           origin_name?: string | null
           origin_timezone?: string | null
           points_used?: number | null
@@ -908,6 +1016,8 @@ export type Database = {
           currency?: string | null
           depart_at?: string
           destination_code?: string | null
+          destination_latitude?: number | null
+          destination_longitude?: number | null
           destination_name?: string | null
           destination_timezone?: string | null
           direction?: Database["public"]["Enums"]["transit_direction"]
@@ -917,6 +1027,8 @@ export type Database = {
           mode?: Database["public"]["Enums"]["transit_mode"]
           notes?: string | null
           origin_code?: string | null
+          origin_latitude?: number | null
+          origin_longitude?: number | null
           origin_name?: string | null
           origin_timezone?: string | null
           points_used?: number | null
@@ -1061,6 +1173,8 @@ export type Database = {
           date: string
           id: string
           notes: string | null
+          stop_id: string | null
+          timezone: string | null
           title: string | null
           trip_id: string
           updated_at: string
@@ -1070,6 +1184,8 @@ export type Database = {
           date: string
           id?: string
           notes?: string | null
+          stop_id?: string | null
+          timezone?: string | null
           title?: string | null
           trip_id: string
           updated_at?: string
@@ -1079,11 +1195,20 @@ export type Database = {
           date?: string
           id?: string
           notes?: string | null
+          stop_id?: string | null
+          timezone?: string | null
           title?: string | null
           trip_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "trip_days_stop_id_fkey"
+            columns: ["stop_id"]
+            isOneToOne: false
+            referencedRelation: "trip_stops"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trip_days_trip_id_fkey"
             columns: ["trip_id"]
@@ -1248,6 +1373,73 @@ export type Database = {
           },
         ]
       }
+      trip_stops: {
+        Row: {
+          arrive_date: string
+          city: string
+          country_code: string | null
+          created_at: string
+          id: string
+          latitude: number | null
+          leave_date: string
+          longitude: number | null
+          position: number
+          timezone: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          arrive_date: string
+          city: string
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          leave_date: string
+          longitude?: number | null
+          position?: number
+          timezone?: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          arrive_date?: string
+          city?: string
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          leave_date?: string
+          longitude?: number | null
+          position?: number
+          timezone?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_stops_country_code_fkey"
+            columns: ["country_code"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "trip_stops_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_budget_overview"
+            referencedColumns: ["trip_id"]
+          },
+          {
+            foreignKeyName: "trip_stops_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trips: {
         Row: {
           budget: number | null
@@ -1258,6 +1450,8 @@ export type Database = {
           destination_country: string | null
           end_date: string
           id: string
+          latitude: number | null
+          longitude: number | null
           notes: string | null
           owner_id: string
           party_size: number
@@ -1276,6 +1470,8 @@ export type Database = {
           destination_country?: string | null
           end_date: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           notes?: string | null
           owner_id: string
           party_size?: number
@@ -1294,6 +1490,8 @@ export type Database = {
           destination_country?: string | null
           end_date?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           notes?: string | null
           owner_id?: string
           party_size?: number
@@ -1482,9 +1680,49 @@ export type Database = {
         Args: { p_recommendation_id: string; p_time_block_id?: string }
         Returns: string
       }
+      attractions_near: {
+        Args: { p_km?: number; p_lat: number; p_lng: number }
+        Returns: {
+          attraction: Database["public"]["Tables"]["attractions"]["Row"]
+          km: number
+        }[]
+      }
       convert_currency: {
         Args: { p_amount: number; p_from: string; p_on?: string; p_to: string }
         Returns: number
+      }
+      search_attractions: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          address: string | null
+          adult_price: number | null
+          aliases: string[]
+          best_slot: Database["public"]["Enums"]["time_block_slot"] | null
+          city: string
+          country_code: string | null
+          created_at: string
+          currency: string | null
+          duration_minutes: number | null
+          hours_note: string | null
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          official_url: string
+          price_note: string | null
+          slug: string
+          suggested_start: string | null
+          tickets_url: string | null
+          timed_entry: boolean
+          verified_on: string | null
+          visit_note: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "attractions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
     }
     Enums: {
@@ -1520,7 +1758,7 @@ export type Database = {
         | "bank"
         | "car_rental"
         | "other"
-      price_source: "provider" | "estimate" | "manual"
+      price_source: "provider" | "estimate" | "manual" | "official"
       recommendation_status: "new" | "saved" | "added" | "dismissed"
       time_block_slot: "morning" | "afternoon" | "evening"
       transit_direction: "outbound" | "within" | "return"
@@ -1697,7 +1935,7 @@ export const Constants = {
         "note",
       ],
       loyalty_program_kind: ["airline", "hotel", "bank", "car_rental", "other"],
-      price_source: ["provider", "estimate", "manual"],
+      price_source: ["provider", "estimate", "manual", "official"],
       recommendation_status: ["new", "saved", "added", "dismissed"],
       time_block_slot: ["morning", "afternoon", "evening"],
       transit_direction: ["outbound", "within", "return"],

@@ -4,25 +4,35 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { requireUserId } from "@/lib/supabase/server";
-import type { ItineraryItem, Lodging, TimeBlock, TransitSegment, TripDay } from "@/types/database";
+import type { ItineraryItem, Lodging, TimeBlock, TransitSegment, TripDay, TripStop } from "@/types/database";
 
 /** The trip + its budget numbers. Cached per request, so layout and pages share one fetch. */
 export const getTrip = cache(async (tripId: string) => {
   const { supabase, userId } = await requireUserId();
-  const [{ data: trip }, { data: budget }, { data: member }] = await Promise.all([
+  const [{ data: trip }, { data: budget }, { data: member }, { data: stops }] = await Promise.all([
     supabase.from("trips").select("*").eq("id", tripId).maybeSingle(),
     supabase.from("trip_budget_overview").select("*").eq("trip_id", tripId).maybeSingle(),
     supabase.from("trip_members").select("role").eq("trip_id", tripId).eq("user_id", userId).maybeSingle(),
+    supabase.from("trip_stops").select("*").eq("trip_id", tripId).order("arrive_date").order("position"),
   ]);
   if (!trip) notFound();
-  return { trip, budget, role: member?.role ?? "viewer", canEdit: member?.role === "owner" || member?.role === "editor" };
+  return {
+    trip,
+    stops: (stops ?? []) as TripStop[],
+    budget, role: member?.role ?? "viewer", canEdit: member?.role === "owner" || member?.role === "editor" };
 });
 
-export type DayPlan = TripDay & { blocks: (TimeBlock & { items: ItineraryItem[] })[] };
+export type DayPlan = TripDay & {
+  blocks: (TimeBlock & { items: ItineraryItem[] })[];
+  /** The city you're in that day, and its clock */
+  stop: TripStop | null;
+  tz: string;
+};
 
 export const getItinerary = cache(async (tripId: string) => {
   const { supabase } = await requireUserId();
-  const [days, blocks, items, transit, lodging] = await Promise.all([
+  const [{ trip, stops }, days, blocks, items, transit, lodging] = await Promise.all([
+    getTrip(tripId),
     supabase.from("trip_days").select("*").eq("trip_id", tripId).order("date"),
     supabase.from("time_blocks").select("*").eq("trip_id", tripId).order("starts_at"),
     supabase.from("itinerary_items").select("*").eq("trip_id", tripId).order("position").order("created_at"),
@@ -40,7 +50,12 @@ export const getItinerary = cache(async (tripId: string) => {
   }
 
   return {
-    days: (days.data ?? []).map((d) => ({ ...d, blocks: blocksByDay.get(d.id) ?? [] })) as DayPlan[],
+    days: (days.data ?? []).map((d) => ({
+      ...d,
+      blocks: blocksByDay.get(d.id) ?? [],
+      stop: stops.find((s) => s.id === d.stop_id) ?? null,
+      tz: d.timezone ?? trip.timezone,
+    })) as DayPlan[],
     transit: (transit.data ?? []) as TransitSegment[],
     lodging: (lodging.data ?? []) as Lodging[],
   };

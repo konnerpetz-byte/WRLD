@@ -19,7 +19,8 @@ The database for project `zzbbjhokowvmpuuzsbjq` was set up through the Supabase 
 
 ## Map
 - Map tiles come from OpenFreeMap (free, no key). Change with `NEXT_PUBLIC_MAP_STYLE_URL`.
-- Places are found with Photon (OpenStreetMap). The public server is free but shared and rate-limited; before launch set `GEOCODER_URL` to a paid or self-hosted service.
+- Places are found with Photon, then Nominatim (both OpenStreetMap). The public servers are free but shared and rate-limited (Nominatim allows 1 request/second); before launch set `GEOCODER_URL` / `NOMINATIM_URL` to paid or self-hosted services.
+- Official matches come from WRLD's `attractions` table, then Wikidata (official website + coordinates). Explore nearby uses Wikipedia's geosearch. Both are free and keyless.
 - MapLibre's worker file is copied to `public/vendor/` on `npm install`.
 - Distances are straight lines between stops. Walking or driving directions would need a routing service.
 
@@ -52,9 +53,9 @@ Open http://localhost:3000, create an account, take the travel-type quiz, then a
 | Area | Status |
 |---|---|
 | Sign up / sign in | Email + password. New users get a home currency from their country. |
-| Trips | Create a trip; days and morning/afternoon/evening blocks are built automatically. |
+| Trips | One or more cities per trip, each on its own clock. Edit or delete a trip. Upcoming, happening now and past trips. |
 | Itinerary | Arrival-aware grid. Flights block out time before you land and after you leave. |
-| Activities | Add by name; the price is looked up automatically (Viator, or sample data), multiplied by travelers, and editable. |
+| Activities | Type "Sintra" or "Neuschwanstein": the official listing fills in the time, map pin, official ticket link and price. Explore nearby on each stop. Other activities: price looked up (Viator, or sample data) and placed by address. |
 | Flights & trains, stays | Add with local times and time zones; cash and points. |
 | Budget | Planned total (booked vs. ideas), spending outside the plan, budget left, per person, category breakdown. |
 | Travel type | 10-question quiz and the 4-quadrant compass. |

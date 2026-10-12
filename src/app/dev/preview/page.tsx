@@ -28,12 +28,13 @@ export default function PreviewPage() {
     location_name: null, address: null, latitude: null, longitude: null, tags: [], booking_status: "idea", booking_url: null,
     provider: null, provider_ref: null, cost: unit === null ? null : unit * 2, currency: "EUR", position: 0, created_by: null,
     unit_price: unit, quantity: null, price_source: unit === null ? null : "estimate", price_checked_at: null,
-    created_at: ts, updated_at: ts, ...extra,
+    attraction_id: null, official_url: null, created_at: ts, updated_at: ts, ...extra,
   });
 
   const days: DayPlan[] = [
     {
       id: "d1", trip_id: tripId, date: "2026-11-01", title: null, notes: null, created_at: ts, updated_at: ts,
+      stop_id: null, timezone: "Europe/Lisbon", stop: null, tz: "Europe/Lisbon",
       blocks: [
         { ...block("b1", "d1", "morning", "2026-11-01", { status: "unavailable", available_minutes: 0, available_from: null, available_until: null }), items: [] },
         { ...block("b2", "d1", "afternoon", "2026-11-01", { status: "unavailable", available_minutes: 0, available_from: null, available_until: null, travel_event: "in_transit" }), items: [] },
@@ -42,14 +43,16 @@ export default function PreviewPage() {
     },
     {
       id: "d2", trip_id: tripId, date: "2026-11-02", title: null, notes: null, created_at: ts, updated_at: ts,
+      stop_id: null, timezone: "Europe/Lisbon", stop: null, tz: "Europe/Lisbon",
       blocks: [
         { ...block("b4", "d2", "morning", "2026-11-02"), items: [item("i1", "b4", "Tram 28 and the Alfama", null, { kind: "sightseeing" })] },
-        { ...block("b5", "d2", "afternoon", "2026-11-02"), items: [item("i2", "b5", "Pena Palace, Sintra", 20, { booking_status: "booked", price_source: "provider" })] },
+        { ...block("b5", "d2", "afternoon", "2026-11-02"), items: [item("i2", "b5", "Park and National Palace of Pena", 45, { booking_status: "booked", price_source: "official", attraction_id: "a1", start_time: "14:00:00", end_time: "17:00:00", official_url: "https://www.parquesdesintra.pt/en/plan-your-visit/tickets-palace-of-pena/", booking_url: "https://bilheteira.parquesdesintra.pt/evento/parque-e-palacio-nacional-da-pena/263/en", description: "Palace entry is only at the time on your ticket.", latitude: 38.7876, longitude: -9.3906 })] },
         { ...block("b6", "d2", "evening", "2026-11-02"), items: [item("i3", "b6", "Fado show in Mouraria", 45, { quantity: 2 })] },
       ],
     },
     {
       id: "d3", trip_id: tripId, date: "2026-11-03", title: null, notes: null, created_at: ts, updated_at: ts,
+      stop_id: null, timezone: "Europe/Lisbon", stop: null, tz: "Europe/Lisbon",
       blocks: [
         { ...block("b7", "d3", "morning", "2026-11-03"), items: [item("i4", "b7", "Gulbenkian Museum", 25, { price_source: "manual" })] },
         { ...block("b8", "d3", "afternoon", "2026-11-03", { status: "unavailable", available_minutes: 0, available_from: null, available_until: null, travel_event: "departure" }), items: [] },

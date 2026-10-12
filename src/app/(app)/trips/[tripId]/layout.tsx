@@ -1,9 +1,12 @@
+import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { TripTabs } from "@/components/layout/trip-tabs";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getTrip } from "@/features/trips/queries";
+import { ShareTripButton } from "@/features/trips/share-trip-button";
 import { formatDateRange, formatMoney, toNumber } from "@/lib/format";
 
 export default function TripLayout({ children, params }: LayoutProps<"/trips/[tripId]">) {
@@ -25,7 +28,8 @@ export default function TripLayout({ children, params }: LayoutProps<"/trips/[tr
 
 async function TripHeader({ params }: { params: LayoutProps<"/trips/[tripId]">["params"] }) {
   const { tripId } = await params;
-  const { trip, budget } = await getTrip(tripId);
+  const { trip, budget, stops, canEdit } = await getTrip(tripId);
+  const route = stops.length ? stops.map((s) => s.city).join(" → ") : trip.destination;
 
   const projected = toNumber(budget?.projected_total) ?? 0;
   const limit = toNumber(trip.budget);
@@ -36,10 +40,20 @@ async function TripHeader({ params }: { params: LayoutProps<"/trips/[tripId]">["
       <div>
         <h1 className="text-4xl font-semibold">{trip.title}</h1>
         <p className="mt-1 text-muted-foreground">
-          {[trip.destination, formatDateRange(trip.start_date, trip.end_date), `${trip.party_size} traveler${trip.party_size > 1 ? "s" : ""}`]
+          {[route, formatDateRange(trip.start_date, trip.end_date), `${trip.party_size} traveler${trip.party_size > 1 ? "s" : ""}`]
             .filter(Boolean)
             .join(", ")}
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {canEdit && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/trips/${trip.id}/edit`}>
+                <Pencil aria-hidden="true" /> Edit trip
+              </Link>
+            </Button>
+          )}
+          <ShareTripButton tripId={trip.id} title={trip.title} dates={formatDateRange(trip.start_date, trip.end_date)} />
+        </div>
       </div>
       <Link
         href={`/trips/${trip.id}/budget`}
