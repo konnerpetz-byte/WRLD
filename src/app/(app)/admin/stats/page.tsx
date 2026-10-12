@@ -28,6 +28,11 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
   const { data: s, error } = await supabase.rpc("admin_stats", { p_days: days });
   if (error || !s) return <p role="alert">Couldn&apos;t load stats: {error?.message ?? "no data"}</p>;
   const stats = s as AdminStats;
+  const { data: links } = await supabase
+    .from("attractions")
+    .select("slug, name, city, official_url, link_status, link_checked_at")
+    .or("link_status.lt.200,link_status.gt.399")
+    .order("city");
 
   const clicks = Object.entries(stats.booking_clicks.by_provider).sort((a, b) => b[1] - a[1]);
 
@@ -150,6 +155,28 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
           <Tile label="Chat messages" value={stats.engagement.chat_messages} />
           <Tile label="Reels and links saved" value={stats.engagement.saved_spots} />
         </div>
+      </section>
+
+      <section aria-labelledby="links-h" className="grid gap-3">
+        <h2 id="links-h" className="text-xl font-semibold">Official links to look at</h2>
+        <p className="text-sm text-muted-foreground">
+          Checked every Monday. 400, 403 and 429 usually mean the site blocks automated checks but works for people; -1 means no answer.
+        </p>
+        {links && links.length > 0 ? (
+          <ul className="grid gap-1 text-sm">
+            {links.map((l) => (
+              <li key={l.slug} className="flex flex-wrap items-baseline gap-x-2">
+                <a href={l.official_url} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+                  {l.name}
+                </a>
+                <span className="text-muted-foreground">{l.city}</span>
+                <span className="rounded bg-muted px-1.5 text-xs tabular-nums">{l.link_status}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm">All official links answered at the last check.</p>
+        )}
       </section>
 
       <p className="text-sm text-muted-foreground">

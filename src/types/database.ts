@@ -284,6 +284,9 @@ export type Attraction = {
   tags: string[];
   lean_x: number;
   lean_y: number;
+  /** Last weekly link check (HTTP status, -1 = no answer). */
+  link_status: number | null;
+  link_checked_at: ISODateTime | null;
   created_at: ISODateTime;
 };
 

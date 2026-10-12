@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, CircleUserRound, Compass, Luggage, Wallet } from "lucide-react";
+import { Bookmark, CircleUserRound, Compass, Luggage, Plane, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/trips", label: "Trips", icon: Luggage },
   { href: "/saved", label: "Saved spots", icon: Bookmark },
   { href: "/wallet", label: "Points wallet", icon: Wallet },
+  { href: "/flights", label: "Points flights", icon: Plane },
   { href: "/profile", label: "Travel type", icon: Compass },
   { href: "/account", label: "Account", icon: CircleUserRound },
 ];

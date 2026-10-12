@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { Link2, ShieldCheck, Trash2 } from "lucide-react";
+import { Link2, Plane, ShieldCheck, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,12 +71,19 @@ async function WalletPageContent() {
 
   return (
     <div className="mx-auto grid max-w-5xl gap-10">
-      <header>
-        <h1 className="text-4xl font-semibold">Points wallet</h1>
-        <p className="mt-1 text-muted-foreground">
-          Every airline, hotel and credit card balance in one place, ready to
-          use for flights and stays.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-semibold">Points wallet</h1>
+          <p className="mt-1 text-muted-foreground">
+            Every airline, hotel and credit card balance in one place, ready to
+            use for flights and stays.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/flights">
+            <Plane aria-hidden="true" /> Find flights with your points
+          </Link>
+        </Button>
       </header>
 
       <section
