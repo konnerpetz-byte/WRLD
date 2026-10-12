@@ -131,7 +131,7 @@ export function TransitForm({
       </div>
 
       {state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
-      {state.ok && <p role="status" className="text-sm text-lagoon">Saved. Your day grid has been updated.</p>}
+      {state.ok && <p role="status" className="text-sm text-open">Saved. Your day grid has been updated.</p>}
       <div>
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save leg"}</Button>
       </div>

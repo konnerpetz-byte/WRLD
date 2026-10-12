@@ -1,21 +1,22 @@
 {
-  "name": "travel-app",
+  "name": "wrld",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "build:font": "python3 scripts/build-font.py"
   },
   "dependencies": {
-    "@fontsource-variable/bricolage-grotesque": "5.3.0",
-    "@fontsource-variable/public-sans": "5.3.0",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.3",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "lucide-react": "1.55.0",
+    "maplibre-gl": "6.14.0",
     "next": "16.4.0",
     "radix-ui": "1.8.0",
     "react": "19.3.0",
@@ -25,6 +26,7 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
+    "@fontsource/outfit": "5.3.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -165,7 +165,7 @@ function TravelPass({
   return (
     <div
       className={`perforated flex min-h-24 flex-col justify-center gap-1 rounded-lg px-4 py-3 ${
-        block.status === "unavailable" ? "bg-board text-board-foreground" : "border-2 border-board bg-board-soft"
+        block.travel_event === "arrival" || block.travel_event === "departure" ? "bg-travel text-travel-foreground" : "border border-travel bg-travel-soft"
       }`}
     >
       {label}

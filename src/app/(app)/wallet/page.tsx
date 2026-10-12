@@ -41,7 +41,7 @@ export default async function WalletPage() {
           <ul className="mt-4 grid max-w-prose gap-2.5 text-sm">
             {AWARDWALLET_DISCLOSURE.body.map((line) => (
               <li key={line} className="flex gap-2.5">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-lagoon" aria-hidden="true" />
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-open" aria-hidden="true" />
                 <span>{line}</span>
               </li>
             ))}
@@ -56,7 +56,7 @@ export default async function WalletPage() {
         <div className="grid gap-2 md:min-w-56">
           {connection ? (
             <>
-              <Badge className="bg-lagoon text-lagoon-foreground">Connected</Badge>
+              <Badge className="bg-open text-open-foreground">Connected</Badge>
               <p className="text-sm text-muted-foreground">
                 {connection.last_synced_at ? `Last updated ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(connection.last_synced_at))}` : "First sync in progress"}
               </p>
@@ -125,7 +125,7 @@ export default async function WalletPage() {
           </div>
         )}
         {!!reachable?.length && (
-          <div className="mt-6 rounded-xl border border-board bg-board-soft p-4 text-sm">
+          <div className="mt-6 rounded-xl border border-travel bg-travel-soft p-4 text-sm">
             <h3 className="mb-2 font-medium">Points you could transfer</h3>
             <ul className="grid gap-1">
               {reachable.map((r) => (

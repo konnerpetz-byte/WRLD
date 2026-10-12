@@ -1,15 +1,32 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 
 import "./globals.css";
 
+/** WRLD Sans: Outfit with diamond dots, built by scripts/build-font.py (SIL OFL 1.1). */
+const wrldSans = localFont({
+  variable: "--font-wrld",
+  display: "swap",
+  src: [
+    { path: "./fonts/wrld-sans-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/wrld-sans-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/wrld-sans-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/wrld-sans-700.woff2", weight: "700", style: "normal" },
+  ],
+});
+
 export const metadata: Metadata = {
-  title: { default: "Layover — trip planner", template: "%s · Layover" },
-  description: "Plan trips around real arrival times, use your points, and see the whole budget.",
+  title: { default: "WRLD — plan the trip you'll actually take", template: "%s · WRLD" },
+  description: "Plan days around real arrival times, map your route, use your points, and see the whole budget.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#253a33",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${wrldSans.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

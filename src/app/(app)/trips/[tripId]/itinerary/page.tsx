@@ -12,7 +12,7 @@ export default async function ItineraryPage({ params }: PageProps<"/trips/[tripI
   return (
     <>
       {!transit.some((t) => t.direction === "outbound") && (
-        <p className="mb-4 rounded-lg border border-board bg-board-soft px-4 py-3 text-sm">
+        <p className="mb-4 rounded-lg border border-travel bg-travel-soft px-4 py-3 text-sm">
           Add your flight or train there and the first day will start when you actually arrive.{" "}
           <Link href={`/trips/${tripId}/transit`} className="font-medium underline underline-offset-2">
             Add travel

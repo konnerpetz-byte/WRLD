@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { geocode } from "@/features/places/geocode";
 import { lookupActivityPrice } from "@/features/pricing/lookup";
 import { zonedTimeToUtc } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
@@ -44,9 +45,11 @@ export async function createTrip(_: ActionState, formData: FormData): Promise<Ac
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
   const { supabase, userId } = await requireUserId();
+  const where = [parsed.data.destination, parsed.data.destination_country].filter(Boolean).join(", ");
+  const center = where ? await geocode(where) : null;
   const { data, error } = await supabase
     .from("trips")
-    .insert({ ...parsed.data, owner_id: userId })
+    .insert({ ...parsed.data, owner_id: userId, latitude: center?.latitude ?? null, longitude: center?.longitude ?? null })
     .select("id")
     .single();
   if (error) return { error: "We couldn't create the trip. Try again." };
@@ -85,8 +88,18 @@ export async function addActivity(tripId: string, _: ActionState, formData: Form
   const input = parsed.data;
 
   const { supabase, userId } = await requireUserId();
-  const { data: trip } = await supabase.from("trips").select("destination, currency").eq("id", tripId).single();
+  const { data: trip } = await supabase
+    .from("trips")
+    .select("destination, currency, latitude, longitude")
+    .eq("id", tripId)
+    .single();
   if (!trip) return { error: "Trip not found." };
+
+  const near = trip.latitude !== null && trip.longitude !== null ? { latitude: trip.latitude, longitude: trip.longitude } : null;
+  const placePromise =
+    input.kind === "note" || input.kind === "free_time"
+      ? Promise.resolve(null)
+      : geocode(input.title, { near, maxKmFromNear: near ? 80 : undefined });
 
   let price: {
     unit_price: number | null;
@@ -115,7 +128,11 @@ export async function addActivity(tripId: string, _: ActionState, formData: Form
     }
   }
 
+  const place = await placePromise;
   const { error } = await supabase.from("itinerary_items").insert({
+    latitude: place?.latitude ?? null,
+    longitude: place?.longitude ?? null,
+    address: place?.address ?? null,
     trip_id: tripId,
     time_block_id: input.time_block_id,
     title: input.title,
@@ -197,8 +214,17 @@ export async function addTransit(tripId: string, _: ActionState, formData: FormD
   if (arrive_at < depart_at) return { error: "Arrival is before departure. Check the times and time zones." };
 
   const { supabase, userId } = await requireUserId();
+  const station = rest.mode === "flight" ? "airport" : "station";
+  const [from, to] = await Promise.all([
+    rest.origin_code ? geocode(`${rest.origin_code} ${station}`) : null,
+    rest.destination_code ? geocode(`${rest.destination_code} ${station}`) : null,
+  ]);
   const { error } = await supabase.from("transit_segments").insert({
     ...rest,
+    origin_latitude: from?.latitude ?? null,
+    origin_longitude: from?.longitude ?? null,
+    destination_latitude: to?.latitude ?? null,
+    destination_longitude: to?.longitude ?? null,
     origin_code: rest.origin_code?.toUpperCase() ?? null,
     destination_code: rest.destination_code?.toUpperCase() ?? null,
     trip_id: tripId,
@@ -238,8 +264,10 @@ export async function addLodging(tripId: string, _: ActionState, formData: FormD
   const { check_in_local, check_out_local, ...rest } = parsed.data;
 
   const { supabase, userId } = await requireUserId();
-  const { data: trip } = await supabase.from("trips").select("timezone").eq("id", tripId).single();
+  const { data: trip } = await supabase.from("trips").select("timezone, latitude, longitude").eq("id", tripId).single();
   if (!trip) return { error: "Trip not found." };
+  const near = trip.latitude !== null && trip.longitude !== null ? { latitude: trip.latitude, longitude: trip.longitude } : null;
+  const place = await geocode(rest.address ?? rest.name, { near, maxKmFromNear: near ? 80 : undefined });
 
   const check_in_at = zonedTimeToUtc(check_in_local, trip.timezone);
   const check_out_at = zonedTimeToUtc(check_out_local, trip.timezone);
@@ -247,7 +275,16 @@ export async function addLodging(tripId: string, _: ActionState, formData: FormD
 
   const { error } = await supabase
     .from("lodging")
-    .insert({ ...rest, trip_id: tripId, check_in_at, check_out_at, created_by: userId });
+    .insert({
+      ...rest,
+      trip_id: tripId,
+      check_in_at,
+      check_out_at,
+      created_by: userId,
+      latitude: place?.latitude ?? null,
+      longitude: place?.longitude ?? null,
+      address: rest.address ?? place?.address ?? null,
+    });
   if (error) return { error: "Couldn't save this stay." };
   refresh(tripId);
   return { ok: true };
@@ -284,5 +321,30 @@ export async function addExpense(tripId: string, _: ActionState, formData: FormD
 export async function deleteExpense(tripId: string, id: string) {
   const { supabase } = await requireUserId();
   await supabase.from("expenses").delete().eq("id", id);
+  refresh(tripId);
+}
+
+// ---------------------------------------------------------------------------
+// Map: find coordinates for something that doesn't have them yet
+// ---------------------------------------------------------------------------
+export async function locateItem(tripId: string, itemId: string, formData: FormData) {
+  const query = String(formData.get("query") ?? "").trim();
+  const { supabase } = await requireUserId();
+  const [{ data: trip }, { data: item }] = await Promise.all([
+    supabase.from("trips").select("latitude, longitude, destination").eq("id", tripId).single(),
+    supabase.from("itinerary_items").select("title").eq("id", itemId).single(),
+  ]);
+  if (!trip || !item) return;
+  const near = trip.latitude !== null && trip.longitude !== null ? { latitude: trip.latitude, longitude: trip.longitude } : null;
+  const place = await geocode(query || [item.title, trip.destination].filter(Boolean).join(", "), {
+    near,
+    maxKmFromNear: near ? 80 : undefined,
+  });
+  if (place) {
+    await supabase
+      .from("itinerary_items")
+      .update({ latitude: place.latitude, longitude: place.longitude, address: place.address })
+      .eq("id", itemId);
+  }
   refresh(tripId);
 }

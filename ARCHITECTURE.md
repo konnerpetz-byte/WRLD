@@ -1,6 +1,6 @@
-# Layover — Architecture
+# WRLD — Architecture
 
-*Working name; change it in `src/components/layout/wordmark.tsx` and `src/app/layout.tsx`.*
+
 
 A trip planner that combines three ideas:
 - **Points search and wallet** (like PointsYeah) — see all your points in one place and use them for flights and hotels

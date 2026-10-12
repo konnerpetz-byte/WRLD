@@ -1,88 +1,93 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/bricolage-grotesque/index.css";
-@import "@fontsource-variable/public-sans/index.css";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
-  Palette — departure board meets boarding pass
-    sky ink     #12355B  structure, primary actions
-    runway      #F3F6F4  page background
-    board yellow#F2B705  travel moments (arrival, departure, in transit)
-    lagoon      #1E8C7E  free / open time, money left
-    haze        #C9D2DB  lines and borders
-    ink         #18222E  text
+  WRLD brand palette — built from the logo's two colors
+    sage          #5E7F73  brand: logo, map routes, large display type
+    blush cream   #FBE8D8  brand: logo mark, highlight surfaces
+  Added for readability (the brand pair is 3.7:1, below the 4.5:1 text minimum):
+    sage deep     #3E5D52  buttons and links (6.1:1 with cream text)
+    pine          #1D2B26  body text (13.8:1 on the page)
+    evergreen     #253A33  navigation rail
+  One warm accent, used sparingly (~10% of the screen):
+    sunrise       #F0A35A  travel moments: arrivals, departures, flights
+  Proportions follow 60-30-10: cream neutrals 60%, sage/pine 30%, sunrise 10%.
 */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: #f3f6f4;
-  --foreground: #18222e;
+  --background: #fdf6f0;
+  --foreground: #1d2b26;
   --card: #ffffff;
-  --card-foreground: #18222e;
+  --card-foreground: #1d2b26;
   --popover: #ffffff;
-  --popover-foreground: #18222e;
-  --primary: #12355b;
-  --primary-foreground: #f3f6f4;
-  --secondary: #e4eaee;
-  --secondary-foreground: #12355b;
-  --muted: #e9eef0;
-  --muted-foreground: #556472;
-  --accent: #e4eaee;
-  --accent-foreground: #12355b;
+  --popover-foreground: #1d2b26;
+  --primary: #3e5d52;
+  --primary-foreground: #fbe8d8;
+  --secondary: #f3e9df;
+  --secondary-foreground: #1d2b26;
+  --muted: #f3ebe3;
+  --muted-foreground: #5c6b64;
+  --accent: #efe4d8;
+  --accent-foreground: #1d2b26;
   --destructive: #b42318;
-  --border: #c9d2db;
-  --input: #c9d2db;
-  --ring: #12355b;
+  --border: #e3d6c9;
+  --input: #d9cabb;
+  --ring: #5e7f73;
 
-  --board: #f2b705;
-  --board-foreground: #3b2c00;
-  --board-soft: #fdf3cf;
-  --lagoon: #1e8c7e;
-  --lagoon-foreground: #ffffff;
-  --lagoon-soft: #ddf1ed;
-  --hatch: #c9d2db;
+  --brand: #5e7f73;
+  --brand-cream: #fbe8d8;
+  --travel: #f0a35a;
+  --travel-foreground: #4a2a08;
+  --travel-soft: #fde9d2;
+  --open: #3e5d52;
+  --open-foreground: #fbe8d8;
+  --open-soft: #e4ece7;
+  --hatch: #e3d6c9;
 
-  --sidebar: #12355b;
-  --sidebar-foreground: #dbe5ee;
+  --sidebar: #253a33;
+  --sidebar-foreground: #e9e1d6;
 }
 
 .dark {
-  --background: #0f1b28;
-  --foreground: #e6edf3;
-  --card: #152435;
-  --card-foreground: #e6edf3;
-  --popover: #152435;
-  --popover-foreground: #e6edf3;
-  --primary: #9cc3ea;
-  --primary-foreground: #0f1b28;
-  --secondary: #1d3045;
-  --secondary-foreground: #e6edf3;
-  --muted: #1b2c3e;
-  --muted-foreground: #9aabbb;
-  --accent: #1d3045;
-  --accent-foreground: #e6edf3;
+  --background: #121c18;
+  --foreground: #ede6dd;
+  --card: #1a2722;
+  --card-foreground: #ede6dd;
+  --popover: #1a2722;
+  --popover-foreground: #ede6dd;
+  --primary: #a9c9bc;
+  --primary-foreground: #122019;
+  --secondary: #22322c;
+  --secondary-foreground: #ede6dd;
+  --muted: #1f2e28;
+  --muted-foreground: #a3b1aa;
+  --accent: #22322c;
+  --accent-foreground: #ede6dd;
   --destructive: #f97066;
-  --border: #2a3f55;
-  --input: #2a3f55;
-  --ring: #9cc3ea;
+  --border: #2c3d36;
+  --input: #34473f;
+  --ring: #a9c9bc;
 
-  --board: #f2b705;
-  --board-foreground: #2a1f00;
-  --board-soft: #3a3010;
-  --lagoon: #4cc1b1;
-  --lagoon-foreground: #062a25;
-  --lagoon-soft: #13332f;
-  --hatch: #2a3f55;
+  --brand: #7fa294;
+  --brand-cream: #fbe8d8;
+  --travel: #f0a35a;
+  --travel-foreground: #2b1804;
+  --travel-soft: #3a2a18;
+  --open: #a9c9bc;
+  --open-foreground: #122019;
+  --open-soft: #1f2f28;
+  --hatch: #2c3d36;
 
-  --sidebar: #0a1520;
-  --sidebar-foreground: #c6d3df;
+  --sidebar: #0e1713;
+  --sidebar-foreground: #d8d0c6;
 }
 
 @theme inline {
-  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-wrld), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-wrld), ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -102,12 +107,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-board: var(--board);
-  --color-board-foreground: var(--board-foreground);
-  --color-board-soft: var(--board-soft);
-  --color-lagoon: var(--lagoon);
-  --color-lagoon-foreground: var(--lagoon-foreground);
-  --color-lagoon-soft: var(--lagoon-soft);
+  --color-brand: var(--brand);
+  --color-brand-cream: var(--brand-cream);
+  --color-travel: var(--travel);
+  --color-travel-foreground: var(--travel-foreground);
+  --color-travel-soft: var(--travel-soft);
+  --color-open: var(--open);
+  --color-open-foreground: var(--open-foreground);
+  --color-open-soft: var(--open-soft);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
 
@@ -129,19 +136,59 @@
     @apply font-display tracking-tight;
     text-wrap: balance;
   }
+  h1 {
+    letter-spacing: -0.025em;
+  }
 }
 
 /* Time that can't be used (before landing, after leaving) */
 .hatched {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    var(--hatch) 0 1px,
-    transparent 1px 8px
-  );
+  background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 8px);
 }
 
 /* Boarding-pass perforation on the left edge of travel cards */
 .perforated {
   -webkit-mask: radial-gradient(circle 6px at 0 50%, transparent 98%, #000) left / 100% 100%;
   mask: radial-gradient(circle 6px at 0 50%, transparent 98%, #000) left / 100% 100%;
+}
+
+/* Map markers (MapLibre positions the outer element, so the
+   teardrop shape lives on an inner element it won't overwrite) */
+.wrld-pin {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.wrld-pin__shape {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 4px;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  background: var(--brand);
+  color: var(--brand-cream);
+  border: 2px solid var(--brand-cream);
+  box-shadow: 0 2px 6px rgb(29 43 38 / 0.35);
+  font: 600 12px/1 var(--font-wrld), sans-serif;
+}
+.wrld-pin__shape > span {
+  transform: rotate(45deg);
+}
+.wrld-pin[data-kind="stay"] .wrld-pin__shape {
+  background: var(--sidebar);
+}
+.wrld-pin[data-kind="travel"] .wrld-pin__shape {
+  background: var(--travel);
+  color: var(--travel-foreground);
+}
+.wrld-pin[data-active="true"] .wrld-pin__shape {
+  outline: 3px solid var(--travel);
+  outline-offset: 2px;
+}
+.wrld-pin:focus-visible .wrld-pin__shape {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
 }

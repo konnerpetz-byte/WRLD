@@ -139,6 +139,9 @@ export type Trip = Timestamps & {
   notes: string | null;
   /** People sharing the trip's costs, for per-person totals. */
   party_size: number;
+  /** Destination center, for the map. */
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export type TripMember = { trip_id: UUID; user_id: UUID; role: TripRole; created_at: ISODateTime };
@@ -225,6 +228,10 @@ export type TransitSegment = Timestamps &
     arrive_at: ISODateTime;
     buffer_before_minutes: number;
     buffer_after_minutes: number;
+    origin_latitude: number | null;
+    origin_longitude: number | null;
+    destination_latitude: number | null;
+    destination_longitude: number | null;
     cabin_class: string | null;
     seat: string | null;
     confirmation_code: string | null;

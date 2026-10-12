@@ -28,7 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <form action={signOut}>
             <button
               type="submit"
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-board"
+              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-travel"
             >
               <LogOut className="size-4" aria-hidden="true" />
               <span className="max-sm:sr-only">Sign out</span>

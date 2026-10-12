@@ -42,7 +42,7 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
         </p>
       )}
       {state.message && (
-        <p role="status" className="rounded-md bg-lagoon-soft px-3 py-2 text-sm">
+        <p role="status" className="rounded-md bg-open-soft px-3 py-2 text-sm">
           {state.message}
         </p>
       )}

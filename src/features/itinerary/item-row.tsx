@@ -40,7 +40,7 @@ export function ItemRow({
   const cancelled = item.booking_status === "cancelled";
 
   return (
-    <li className={`rounded-md border-l-2 bg-lagoon-soft py-1.5 pr-1.5 pl-2.5 ${cancelled ? "border-muted-foreground opacity-60" : "border-lagoon"}`}>
+    <li className={`rounded-md border-l-2 bg-open-soft py-1.5 pr-1.5 pl-2.5 ${cancelled ? "border-muted-foreground opacity-60" : "border-open"}`}>
       <div className="flex items-start justify-between gap-2">
         <p className={`text-sm font-medium ${cancelled ? "line-through" : ""}`}>{item.title}</p>
         {canEdit && (

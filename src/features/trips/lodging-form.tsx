@@ -60,7 +60,7 @@ export function LodgingForm({ tripId, tripCurrency, startDate, endDate }: { trip
         <Input id="l-conf" name="confirmation_code" placeholder="Optional" />
       </div>
       {state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
-      {state.ok && <p role="status" className="text-sm text-lagoon">Saved and added to the budget.</p>}
+      {state.ok && <p role="status" className="text-sm text-open">Saved and added to the budget.</p>}
       <div>
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save stay"}</Button>
       </div>

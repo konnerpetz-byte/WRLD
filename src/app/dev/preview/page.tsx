@@ -61,7 +61,7 @@ export default function PreviewPage() {
   const leg = (id: string, direction: TransitSegment["direction"], num: string, from: string, to: string, dep: string, arr: string): TransitSegment => ({
     id, trip_id: tripId, mode: "flight", direction, carrier: "TAP", service_number: num, origin_code: from, origin_name: null,
     origin_timezone: null, destination_code: to, destination_name: null, destination_timezone: null, depart_at: dep, arrive_at: arr,
-    buffer_before_minutes: 120, buffer_after_minutes: 90, cabin_class: null, seat: null, confirmation_code: null,
+    buffer_before_minutes: 120, buffer_after_minutes: 90, ...COORDS[from], ...TO[to], cabin_class: null, seat: null, confirmation_code: null,
     booking_status: "booked", booking_url: null, provider: null, provider_ref: null, cost: 640, currency: "EUR",
     loyalty_program_id: null, loyalty_account_id: null, points_used: null, notes: null, created_by: null, created_at: ts, updated_at: ts,
   });
@@ -90,6 +90,14 @@ export default function PreviewPage() {
     </div>
   );
 }
+
+const AIRPORTS: Record<string, [number, number]> = { EWR: [40.6895, -74.1745], LIS: [38.7742, -9.1342] };
+const COORDS: Record<string, { origin_latitude: number; origin_longitude: number }> = Object.fromEntries(
+  Object.entries(AIRPORTS).map(([k, [la, lo]]) => [k, { origin_latitude: la, origin_longitude: lo }]),
+);
+const TO: Record<string, { destination_latitude: number; destination_longitude: number }> = Object.fromEntries(
+  Object.entries(AIRPORTS).map(([k, [la, lo]]) => [k, { destination_latitude: la, destination_longitude: lo }]),
+);
 
 function nextDay(date: string) {
   const d = new Date(`${date}T00:00:00Z`);

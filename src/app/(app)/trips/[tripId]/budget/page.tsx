@@ -52,14 +52,14 @@ export default async function BudgetPage({ params }: PageProps<"/trips/[tripId]/
           </p>
           {trip.party_size > 1 && <p className="mt-1 text-sidebar-foreground/80">{formatMoney(budget?.projected_per_person, cur)} per person for {trip.party_size} travelers</p>}
           {pointsPlanned.length > 0 && (
-            <p className="mt-1 text-board">
+            <p className="mt-1 text-travel">
               Plus {pointsPlanned.map((p) => `${formatPoints(n(p.points_committed) + n(p.points_ideas))} ${programName.get(p.loyalty_program_id) ?? "points"}`).join(" and ")}
             </p>
           )}
         </div>
         <div className="grid content-between gap-4 rounded-xl bg-white/5 p-4">
           {limit !== null ? (
-            <p className={`font-display text-2xl font-semibold ${projected > limit ? "text-board" : "text-white"}`}>
+            <p className={`font-display text-2xl font-semibold ${projected > limit ? "text-travel" : "text-white"}`}>
               {projected > limit
                 ? `${formatMoney(projected - limit, cur)} over budget`
                 : `${formatMoney(limit - projected, cur)} left to spend`}
@@ -92,7 +92,7 @@ export default async function BudgetPage({ params }: PageProps<"/trips/[tripId]/
                     <span className="flex h-3 overflow-hidden rounded-full bg-muted" aria-hidden="true">
                       <span className="bg-primary" style={{ width: `${(n(c.committed) / maxCat) * 100}%` }} />
                       <span className="bg-primary/40" style={{ width: `${(n(c.ideas) / maxCat) * 100}%` }} />
-                      <span className="bg-lagoon" style={{ width: `${(n(c.spent_unplanned) / maxCat) * 100}%` }} />
+                      <span className="bg-travel" style={{ width: `${(n(c.spent_unplanned) / maxCat) * 100}%` }} />
                     </span>
                     <span className="text-right font-medium">{formatMoney(c.total, cur)}</span>
                   </li>
@@ -101,7 +101,7 @@ export default async function BudgetPage({ params }: PageProps<"/trips/[tripId]/
               <p className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-primary" />Booked</span>
                 <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-primary/40" />Ideas</span>
-                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-lagoon" />Spent outside the plan</span>
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-travel" />Spent outside the plan</span>
               </p>
             </section>
           )}

@@ -33,9 +33,9 @@ export function TravelCompass({
         </desc>
 
         <rect x={0} y={0} width={half} height={half} fill="var(--primary)" opacity={0.18 * quad("itinerary_athlete") + 0.05} />
-        <rect x={half} y={0} width={half} height={half} fill="var(--lagoon)" opacity={0.25 * quad("trailblazer") + 0.05} />
+        <rect x={half} y={0} width={half} height={half} fill="var(--open)" opacity={0.25 * quad("trailblazer") + 0.05} />
         <rect x={0} y={half} width={half} height={half} fill="var(--muted-foreground)" opacity={0.18 * quad("flaneur") + 0.04} />
-        <rect x={half} y={half} width={half} height={half} fill="var(--board)" opacity={0.35 * quad("sunset_collector") + 0.06} />
+        <rect x={half} y={half} width={half} height={half} fill="var(--travel)" opacity={0.35 * quad("sunset_collector") + 0.06} />
         <rect x={0} y={0} width={size} height={size} fill="none" stroke="var(--border)" />
         <line x1={0} y1={half} x2={size} y2={half} stroke="var(--border)" />
         <line x1={half} y1={0} x2={half} y2={size} stroke="var(--border)" />

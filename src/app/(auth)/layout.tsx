@@ -37,7 +37,7 @@ function DepartureStrip() {
       <tbody>
         {rows.map(([flight, city, land, status]) => (
           <tr key={flight} className="border-t border-white/10">
-            <td className="py-2 pr-3 font-medium text-board">{flight}</td>
+            <td className="py-2 pr-3 font-medium text-travel">{flight}</td>
             <td className="py-2 pr-3 text-white">{city}</td>
             <td className="py-2 pr-3">{land}</td>
             <td className="py-2 text-right">{status}</td>
