@@ -2,6 +2,8 @@ import "server-only";
 
 import { cacheLife } from "next/cache";
 
+import { env } from "@/lib/env";
+
 import { CABINS, type Cabin, SOURCE_PROGRAM } from "./regions";
 
 /**
@@ -36,12 +38,14 @@ export type AwardSearch = {
   end: string;
   cabin: Cabin;
   directOnly: boolean;
+  /** Only these mileage programs (Seats.aero source names); empty = all. */
+  sources?: string[];
 };
 
 export type AwardMode = "live" | "sample" | "off";
 
 export function awardMode(): AwardMode {
-  if (process.env.SEATS_AERO_API_KEY) return "live";
+  if (env("SEATS_AERO_API_KEY")) return "live";
   if (process.env.PRICING_SAMPLE_DATA === "true") return "sample";
   return "off";
 }
@@ -49,9 +53,12 @@ export function awardMode(): AwardMode {
 export async function searchAwards(q: AwardSearch): Promise<{ mode: AwardMode; results: AwardResult[]; error?: string }> {
   const mode = awardMode();
   if (mode === "off") return { mode, results: [] };
-  if (mode === "sample") return { mode, results: sampleAwards(q) };
+  if (mode === "sample") {
+    const only = q.sources?.length ? new Set(q.sources) : null;
+    return { mode, results: sampleAwards(q).filter((r) => !only || only.has(r.source)) };
+  }
   try {
-    return { mode, results: await seatsAeroSearch(q.origin, q.destinations.join(","), q.start, q.end, q.cabin, q.directOnly) };
+    return { mode, results: await seatsAeroSearch(q.origin, q.destinations.join(","), q.start, q.end, q.cabin, q.directOnly, (q.sources ?? []).join(",")) };
   } catch (e) {
     return { mode, results: [], error: e instanceof Error ? e.message : "Search failed" };
   }
@@ -65,7 +72,7 @@ type SeatsAvailability = Record<string, unknown> & {
   Route: { OriginAirport: string; DestinationAirport: string };
 };
 
-async function seatsAeroSearch(origin: string, destinations: string, start: string, end: string, cabin: Cabin, directOnly: boolean): Promise<AwardResult[]> {
+async function seatsAeroSearch(origin: string, destinations: string, start: string, end: string, cabin: Cabin, directOnly: boolean, sources: string): Promise<AwardResult[]> {
   "use cache";
   cacheLife("hours");
   const k = CABINS[cabin].key;
@@ -79,9 +86,10 @@ async function seatsAeroSearch(origin: string, destinations: string, start: stri
     order_by: "lowest_mileage",
     take: "500",
     ...(directOnly ? { only_direct_flights: "true" } : {}),
+    ...(sources ? { sources } : {}),
   }).toString();
   const response = await fetch(url, {
-    headers: { "Partner-Authorization": process.env.SEATS_AERO_API_KEY ?? "", Accept: "application/json" },
+    headers: { "Partner-Authorization": env("SEATS_AERO_API_KEY") ?? "", Accept: "application/json" },
     signal: AbortSignal.timeout(12000),
   });
   if (response.status === 429) throw new Error("Seats.aero's daily search limit was reached. Try again tomorrow.");

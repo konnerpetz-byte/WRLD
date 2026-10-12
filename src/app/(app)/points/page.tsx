@@ -4,14 +4,14 @@ import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { Button } from "@/components/ui/button";
-import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey } from "@/features/awards/regions";
+import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { type AwardResult, programFor, searchAwards } from "@/features/awards/search";
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 
 export const metadata = { title: "Points explorer" };
 
-type Params = { from?: string; to?: string; month?: string; cabin?: string; direct?: string };
+type Params = { from?: string; to?: string; month?: string; cabin?: string; direct?: string; via?: string };
 
 export default function FlightsPage({ searchParams }: PageProps<"/points">) {
   return (
@@ -38,10 +38,11 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
   const { supabase, userId } = await requireUserId();
   const sp = (await searchParams) as Params;
 
-  const [{ data: profile }, { data: reach }, { data: programs }] = await Promise.all([
+  const [{ data: profile }, { data: reach }, { data: programs }, { data: partners }] = await Promise.all([
     supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
     supabase.from("wallet_reachable_points").select("target_program_id, via_program_id, route, points").eq("user_id", userId),
-    supabase.from("loyalty_programs").select("id, slug, name"),
+    supabase.from("loyalty_programs").select("id, slug, name, kind"),
+    supabase.from("transfer_partners").select("from_program_id, to_program_id, ratio_from, ratio_to"),
   ]);
 
   const home = profile?.home_airport?.toUpperCase() ?? null;
@@ -73,13 +74,41 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
     reachBySlug.set(target.slug, entry);
   }
 
-  const ready = IATA.test(from) && destinations.length > 0;
+  // "Explore by": everything, what your wallet can reach, one bank's transfer partners, or one program.
+  const sourceBySlug = new Map(Object.entries(SOURCE_PROGRAM).filter(([, p]) => p.slug).map(([source, p]) => [p.slug!, source]));
+  const banks = (programs ?? []).filter((p) => p.kind === "bank");
+  const bankPartners = (bankId: string) =>
+    (partners ?? [])
+      .filter((t) => t.from_program_id === bankId)
+      .map((t) => ({ slug: nameById.get(t.to_program_id)?.slug ?? "", ratio: `${t.ratio_from}:${t.ratio_to}` }))
+      .filter((t) => sourceBySlug.has(t.slug));
+  const via = sp.via ?? "";
+  let sources: string[] = [];
+  let viaNote: string | null = null;
+  if (via === "mine") {
+    sources = [...reachBySlug.keys()].map((slug) => sourceBySlug.get(slug)).filter((x): x is string => Boolean(x));
+    viaNote = sources.length
+      ? `Only programs your points can reach: ${sources.map((src) => programFor(src).name).join(", ")}.`
+      : "Add balances on the My points tab to filter by what you can book.";
+  } else if (via.startsWith("bank:")) {
+    const bank = banks.find((b) => b.slug === via.slice(5));
+    if (bank) {
+      const list = bankPartners(bank.id);
+      sources = list.map((t) => sourceBySlug.get(t.slug)!);
+      viaNote = `Seats you can book by moving ${bank.name} to: ${list.map((t) => `${programFor(sourceBySlug.get(t.slug)!).name}${t.ratio === "1:1" ? "" : ` (${t.ratio})`}`).join(", ")}.`;
+    }
+  } else if (via.startsWith("program:") && SOURCE_PROGRAM[via.slice(8)]) {
+    sources = [via.slice(8)];
+  }
+  const filterEmpty = (via === "mine" || via.startsWith("bank:")) && !sources.length;
+
+  const ready = IATA.test(from) && destinations.length > 0 && !filterEmpty;
   const [y, m] = month.split("-").map(Number);
   const start = `${month}-01`;
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
   const search = ready
-    ? await searchAwards({ origin: from, destinations, start: start < today ? today : start, end, cabin, directOnly })
+    ? await searchAwards({ origin: from, destinations, start: start < today ? today : start, end, cabin, directOnly, sources })
     : null;
 
   // Group by destination: cheapest first.
@@ -105,7 +134,7 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
         </p>
       )}
 
-      <form className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[7rem_1fr_1fr_1fr_auto] lg:items-end" action="/points">
+      <form className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[6rem_1fr_1fr_1fr_1.3fr_auto] lg:items-end" action="/points">
         <label className="grid gap-1 text-sm">
           <span className="font-medium">From</span>
           <input name="from" defaultValue={from} placeholder="DTW" maxLength={3} required pattern="[A-Za-z]{3}" className="h-9 rounded-md border bg-background px-3 uppercase" />
@@ -140,6 +169,29 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
             ))}
           </select>
         </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Explore by</span>
+          <select name="via" defaultValue={via} className="h-9 rounded-md border bg-background px-2">
+            <option value="">All programs</option>
+            <option value="mine">Programs my points can reach</option>
+            <optgroup label="Credit card points">
+              {banks.map((b) => (
+                <option key={b.slug} value={`bank:${b.slug}`}>
+                  {b.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Airline programs">
+              {Object.entries(SOURCE_PROGRAM)
+                .sort((a, b) => a[1].name.localeCompare(b[1].name))
+                .map(([source, p]) => (
+                  <option key={source} value={`program:${source}`}>
+                    {p.name}
+                  </option>
+                ))}
+            </optgroup>
+          </select>
+        </label>
         <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-1">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="direct" value="1" defaultChecked={directOnly} className="size-4" /> Nonstop
@@ -149,6 +201,8 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
           </Button>
         </div>
       </form>
+
+      {viaNote && <p className="text-sm text-muted-foreground">{viaNote}</p>}
 
       {search?.mode === "off" && (
         <p className="rounded-xl border border-dashed bg-card p-6 text-sm">
