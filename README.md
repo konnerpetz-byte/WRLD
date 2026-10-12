@@ -6,7 +6,7 @@ Built with Next.js 16 (App Router), Tailwind CSS 4, shadcn/ui and Supabase. See 
 
 ## Your Supabase project
 
-The database for project `zzbbjhokowvmpuuzsbjq` was set up through the Supabase connector on Oct 12, 2026. Files 01–02 and 04–11 are live.
+The database for project `zzbbjhokowvmpuuzsbjq` was set up through the Supabase connector on Oct 12, 2026. Files 01–02, 04–11 and most of 03 are live.
 
 **One step left:** run `wrld-finish-setup.sql` once in **Supabase → SQL Editor**. It adds file 03 (the arrival-aware day grid) and the access lockdown. Those statements need your confirmation, so they weren't applied automatically. Until it's run, new trips won't get their days and time blocks.
 
