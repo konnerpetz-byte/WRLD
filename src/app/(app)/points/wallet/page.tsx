@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { Link2, Plane, ShieldCheck, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Link2, ShieldCheck, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,7 @@ import { ManualAccountForm } from "@/features/wallet/manual-account-form";
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 
-export const metadata = { title: "Points wallet" };
+export const metadata = { title: "My points" };
 
 const KIND_LABEL = {
   airline: "Airlines",
@@ -70,21 +69,11 @@ async function WalletPageContent() {
     .filter((g) => g.accounts.length);
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-10">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-semibold">Points wallet</h1>
-          <p className="mt-1 text-muted-foreground">
-            Every airline, hotel and credit card balance in one place, ready to
-            use for flights and stays.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/flights">
-            <Plane aria-hidden="true" /> Find flights with your points
-          </Link>
-        </Button>
-      </header>
+    <div className="grid gap-10">
+      <p className="text-muted-foreground">
+        Every airline, hotel and credit card balance in one place. The flight
+        explorer uses these to tell you what your points can book.
+      </p>
 
       <section
         aria-labelledby="connect"

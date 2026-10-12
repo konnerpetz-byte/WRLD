@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
  *   1. exchange the code for a token (server-side, with AWARDWALLET_CLIENT_SECRET)
  *   2. create a wallet_connections row and store the token in
  *      private.wallet_connection_tokens using the service role
- *   3. run the first balance sync and redirect to /wallet
+ *   3. run the first balance sync and redirect to /points/wallet
  *
  * Before going live: add a random `state` value (saved in an httpOnly cookie
  * and checked in the callback) so the sign-in can't be forged.

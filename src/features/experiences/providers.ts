@@ -51,7 +51,8 @@ export async function viatorSearch(city: string, term: string, currency: string)
   const key = process.env.VIATOR_API_KEY;
   if (!key) return [];
   try {
-    const response = await fetch("https://api.viator.com/partner/search/freetext", {
+    const base = process.env.VIATOR_API_BASE ?? "https://api.viator.com/partner";
+    const response = await fetch(`${base}/search/freetext`, {
       method: "POST",
       headers: {
         "exp-api-key": key,
@@ -67,7 +68,7 @@ export async function viatorSearch(city: string, term: string, currency: string)
       signal: AbortSignal.timeout(7000),
     });
     if (!response.ok) {
-      console.error("Viator search", response.status);
+      console.error("Viator search", response.status, (await response.text()).slice(0, 300));
       return [];
     }
     const data = (await response.json()) as { products?: { results?: ViatorProduct[] } };
@@ -118,8 +119,14 @@ export function sampleSearch(city: string, term: string, currency: string): Expe
   ];
 }
 
+/** Viator search page, tagged with WRLD's partner IDs (VIATOR_PID / VIATOR_MCID) so bookings earn commission. */
 export function viatorSearchUrl(city: string, term: string) {
-  return `https://www.viator.com/searchResults/all?text=${encodeURIComponent(`${city} ${term}`)}`;
+  const url = new URL("https://www.viator.com/searchResults/all");
+  url.searchParams.set("text", `${city} ${term}`);
+  if (process.env.VIATOR_PID) url.searchParams.set("pid", process.env.VIATOR_PID);
+  if (process.env.VIATOR_MCID) url.searchParams.set("mcid", process.env.VIATOR_MCID);
+  if (process.env.VIATOR_PID) url.searchParams.set("medium", "link");
+  return url.toString();
 }
 
 /** Search pages on other booking sites for the same city and theme. */
@@ -129,10 +136,10 @@ export function moreLinks(city: string, term: string) {
   gyg.searchParams.set("q", `${city} ${term}`);
   if (process.env.GETYOURGUIDE_PARTNER_ID) gyg.searchParams.set("partner_id", process.env.GETYOURGUIDE_PARTNER_ID);
   return [
+    { label: "Viator", url: viatorSearchUrl(city, term) },
     { label: "GetYourGuide", url: gyg.toString() },
     { label: "Airbnb Experiences", url: `https://www.airbnb.com/s/${encodeURIComponent(city)}/experiences?query=${encodeURIComponent(term)}` },
     { label: "Tripadvisor", url: `https://www.tripadvisor.com/Search?q=${q}` },
-    ...(process.env.VIATOR_API_KEY ? [] : [{ label: "Viator", url: viatorSearchUrl(city, term) }]),
   ];
 }
 

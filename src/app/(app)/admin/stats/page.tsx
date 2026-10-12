@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { requireUserId } from "@/lib/supabase/server";
+import { viatorSearch } from "@/features/experiences/providers";
 import type { AdminStats } from "@/types/database";
 
 export const metadata = { title: "Stats" };
@@ -157,6 +158,13 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
         </div>
       </section>
 
+      <section aria-labelledby="conn-h" className="grid gap-3">
+        <h2 id="conn-h" className="text-xl font-semibold">Partner connections</h2>
+        <Suspense fallback={<p className="text-sm text-muted-foreground">Checking…</p>}>
+          <Connections />
+        </Suspense>
+      </section>
+
       <section aria-labelledby="links-h" className="grid gap-3">
         <h2 id="links-h" className="text-xl font-semibold">Official links to look at</h2>
         <p className="text-sm text-muted-foreground">
@@ -221,5 +229,55 @@ function Metric({ n, title, part, whole, detail, goal }: { n: number; title: str
       <p className="mt-2 text-sm">{pct === null ? "Not enough data yet." : detail}</p>
       <p className="mt-1 text-xs text-muted-foreground">{goal}</p>
     </div>
+  );
+}
+
+/** Which partner keys are set in Vercel, and whether Viator actually answers. */
+async function Connections() {
+  const viatorKey = Boolean(process.env.VIATOR_API_KEY);
+  const viatorResults = viatorKey ? await viatorSearch("Lisbon", "walking tour", "USD") : [];
+  const rows: { name: string; ok: boolean; note: string }[] = [
+    {
+      name: "Viator",
+      ok: viatorKey && viatorResults.length > 0,
+      note: !viatorKey
+        ? "No VIATOR_API_KEY yet: sample listings are shown."
+        : viatorResults.length
+          ? `Working: a test search for Lisbon walking tours returned ${viatorResults.length} live listings.`
+          : "Key is set but the test search returned nothing. Check the key, or set VIATOR_API_BASE if it's a sandbox key.",
+    },
+    {
+      name: "Viator link tracking",
+      ok: Boolean(process.env.VIATOR_PID),
+      note: process.env.VIATOR_PID ? "Search links carry your partner ID." : "Add VIATOR_PID (and VIATOR_MCID) so plain Viator search links earn commission too.",
+    },
+    {
+      name: "GetYourGuide",
+      ok: Boolean(process.env.GETYOURGUIDE_PARTNER_ID),
+      note: process.env.GETYOURGUIDE_PARTNER_ID ? "Partner ID added to every link." : "Waiting for GETYOURGUIDE_PARTNER_ID.",
+    },
+    {
+      name: "Seats.aero (award flights)",
+      ok: Boolean(process.env.SEATS_AERO_API_KEY),
+      note: process.env.SEATS_AERO_API_KEY ? "Live award search is on." : "Waiting for SEATS_AERO_API_KEY: sample results are shown.",
+    },
+    {
+      name: "AwardWallet (balances)",
+      ok: Boolean(process.env.AWARDWALLET_CLIENT_ID),
+      note: process.env.AWARDWALLET_CLIENT_ID ? "Connect button is live." : "Waiting for AwardWallet API access.",
+    },
+  ];
+  return (
+    <ul className="grid gap-2 text-sm">
+      {rows.map((r) => (
+        <li key={r.name} className="flex items-start gap-3 rounded-lg border bg-card px-3 py-2">
+          <span className={`mt-1.5 size-2 shrink-0 rounded-full ${r.ok ? "bg-open" : "bg-muted-foreground/40"}`} aria-hidden="true" />
+          <span>
+            <strong>{r.name}</strong> <span className="sr-only">{r.ok ? "(connected)" : "(not connected)"}</span>
+            <span className="block text-muted-foreground">{r.note}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

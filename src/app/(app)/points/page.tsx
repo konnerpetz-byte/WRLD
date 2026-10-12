@@ -9,11 +9,11 @@ import { type AwardResult, programFor, searchAwards } from "@/features/awards/se
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 
-export const metadata = { title: "Points flights" };
+export const metadata = { title: "Points explorer" };
 
 type Params = { from?: string; to?: string; month?: string; cabin?: string; direct?: string };
 
-export default function FlightsPage({ searchParams }: PageProps<"/flights">) {
+export default function FlightsPage({ searchParams }: PageProps<"/points">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
       <FlightsContent searchParams={searchParams} />
@@ -34,7 +34,7 @@ function monthOptions() {
   });
 }
 
-async function FlightsContent({ searchParams }: { searchParams: PageProps<"/flights">["searchParams"] }) {
+async function FlightsContent({ searchParams }: { searchParams: PageProps<"/points">["searchParams"] }) {
   const { supabase, userId } = await requireUserId();
   const sp = (await searchParams) as Params;
 
@@ -90,13 +90,10 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/flig
     .sort((a, b) => a.results[0].miles - b.results[0].miles);
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-8">
-      <header>
-        <h1 className="text-4xl font-semibold">Points flights</h1>
-        <p className="mt-1 text-muted-foreground">
-          Where your miles and card points can take you from {home ? <strong>{home}</strong> : "your home airport"}: the cheapest award seats by destination and date.
-        </p>
-      </header>
+    <div className="grid gap-8">
+      <p className="text-muted-foreground">
+        Where your miles and card points can take you from {home ? <strong>{home}</strong> : "your home airport"}: the cheapest award seats by destination and date.
+      </p>
 
       {!home && (
         <p className="rounded-xl border border-dashed bg-card p-4 text-sm">
@@ -108,7 +105,7 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/flig
         </p>
       )}
 
-      <form className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[7rem_1fr_1fr_1fr_auto] lg:items-end" action="/flights">
+      <form className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[7rem_1fr_1fr_1fr_auto] lg:items-end" action="/points">
         <label className="grid gap-1 text-sm">
           <span className="font-medium">From</span>
           <input name="from" defaultValue={from} placeholder="DTW" maxLength={3} required pattern="[A-Za-z]{3}" className="h-9 rounded-md border bg-background px-3 uppercase" />
