@@ -4,6 +4,14 @@ A trip planner that builds each day around your real flight times, keeps your po
 
 Built with Next.js 16 (App Router), Tailwind CSS 4, shadcn/ui and Supabase. See `ARCHITECTURE.md` for the full design.
 
+## Your Supabase project
+
+The database for project `zzbbjhokowvmpuuzsbjq` was set up through the Supabase connector on Oct 12, 2026. Files 01–02 and 04–10 are live.
+
+**One step left:** run `layover-finish-setup.sql` once in **Supabase → SQL Editor**. It adds file 03 (the arrival-aware day grid) and the access lockdown. Those statements need your confirmation, so they weren't applied automatically. Until it's run, new trips won't get their days and time blocks.
+
+`.env.local` already points at this project. The live migration history uses different step names than the files in `supabase/migrations/`. If you later switch to the Supabase CLI, run `npx supabase db pull` first so the two line up.
+
 ## Run it locally
 
 **1. Create a Supabase project** at supabase.com. In **Project settings → API keys**, copy the project URL and the **publishable** key.

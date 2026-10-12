@@ -74,6 +74,7 @@ create table private.wallet_connection_tokens (
   expires_at     timestamptz,
   updated_at     timestamptz not null default now()
 );
+alter table private.wallet_connection_tokens enable row level security;
 revoke all on private.wallet_connection_tokens from public, anon, authenticated;
 
 create table public.loyalty_accounts (
