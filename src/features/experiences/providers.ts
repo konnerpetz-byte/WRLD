@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cacheLife } from "next/cache";
+import { env } from "@/lib/env";
 
 /**
  * Bookable experiences from booking sites.
@@ -48,10 +49,10 @@ type ViatorProduct = {
 export async function viatorSearch(city: string, term: string, currency: string): Promise<ExperienceOffer[]> {
   "use cache";
   cacheLife("hours");
-  const key = process.env.VIATOR_API_KEY;
+  const key = env("VIATOR_API_KEY");
   if (!key) return [];
   try {
-    const base = process.env.VIATOR_API_BASE ?? "https://api.viator.com/partner";
+    const base = env("VIATOR_API_BASE") ?? "https://api.viator.com/partner";
     const response = await fetch(`${base}/search/freetext`, {
       method: "POST",
       headers: {
@@ -99,7 +100,7 @@ export async function viatorSearch(city: string, term: string, currency: string)
 
 /** Placeholder listings for local demos. Never shown unless PRICING_SAMPLE_DATA=true and no Viator key. */
 export function sampleSearch(city: string, term: string, currency: string): ExperienceOffer[] {
-  if (process.env.VIATOR_API_KEY || process.env.PRICING_SAMPLE_DATA !== "true") return [];
+  if (env("VIATOR_API_KEY") || process.env.PRICING_SAMPLE_DATA !== "true") return [];
   const words = term.replace(/\b\w/g, (c) => c.toUpperCase());
   const base = 25 + (hash(`${city}${term}`) % 90);
   return [
@@ -123,9 +124,11 @@ export function sampleSearch(city: string, term: string, currency: string): Expe
 export function viatorSearchUrl(city: string, term: string) {
   const url = new URL("https://www.viator.com/searchResults/all");
   url.searchParams.set("text", `${city} ${term}`);
-  if (process.env.VIATOR_PID) url.searchParams.set("pid", process.env.VIATOR_PID);
-  if (process.env.VIATOR_MCID) url.searchParams.set("mcid", process.env.VIATOR_MCID);
-  if (process.env.VIATOR_PID) url.searchParams.set("medium", "link");
+  const pid = env("VIATOR_PID");
+  const mcid = env("VIATOR_MCID");
+  if (pid) url.searchParams.set("pid", pid);
+  if (mcid) url.searchParams.set("mcid", mcid);
+  if (pid) url.searchParams.set("medium", "link");
   return url.toString();
 }
 

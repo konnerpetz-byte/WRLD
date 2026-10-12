@@ -1,4 +1,5 @@
 import "server-only";
+import { env } from "@/lib/env";
 
 /**
  * Finds a ticket price for an activity the user typed in by name
@@ -49,7 +50,7 @@ export async function lookupActivityPrice(input: {
   currency: string;
 }): Promise<PriceMatch | null> {
   try {
-    if (process.env.VIATOR_API_KEY) return await viatorLookup(input);
+    if (env("VIATOR_API_KEY")) return await viatorLookup(input);
     if (process.env.PRICING_SAMPLE_DATA === "true") return sampleLookup(input.title);
   } catch (error) {
     console.error("Price lookup failed", error);
@@ -72,7 +73,7 @@ async function viatorLookup({ title, destination, currency }: { title: string; d
   const response = await fetch("https://api.viator.com/partner/search/freetext", {
     method: "POST",
     headers: {
-      "exp-api-key": process.env.VIATOR_API_KEY!,
+      "exp-api-key": env("VIATOR_API_KEY") ?? "",
       Accept: "application/json;version=2.0",
       "Accept-Language": "en-US",
       "Content-Type": "application/json",

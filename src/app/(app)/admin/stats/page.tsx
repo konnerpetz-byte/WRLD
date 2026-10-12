@@ -6,6 +6,7 @@ import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { requireUserId } from "@/lib/supabase/server";
 import { viatorSearch } from "@/features/experiences/providers";
 import type { AdminStats } from "@/types/database";
+import { env } from "@/lib/env";
 
 export const metadata = { title: "Stats" };
 
@@ -234,7 +235,7 @@ function Metric({ n, title, part, whole, detail, goal }: { n: number; title: str
 
 /** Which partner keys are set in Vercel, and whether Viator actually answers. */
 async function Connections() {
-  const viatorKey = Boolean(process.env.VIATOR_API_KEY);
+  const viatorKey = Boolean(env("VIATOR_API_KEY"));
   const viatorResults = viatorKey ? await viatorSearch("Lisbon", "walking tour", "USD") : [];
   const rows: { name: string; ok: boolean; note: string }[] = [
     {
@@ -248,8 +249,8 @@ async function Connections() {
     },
     {
       name: "Viator link tracking",
-      ok: Boolean(process.env.VIATOR_PID),
-      note: process.env.VIATOR_PID ? "Search links carry your partner ID." : "Add VIATOR_PID (and VIATOR_MCID) so plain Viator search links earn commission too.",
+      ok: Boolean(env("VIATOR_PID")),
+      note: env("VIATOR_PID") ? "Search links carry your partner ID." : "Add VIATOR_PID (and VIATOR_MCID) so plain Viator search links earn commission too.",
     },
     {
       name: "GetYourGuide",
