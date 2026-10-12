@@ -71,6 +71,13 @@ export async function setItemStatus(tripId: string, itemId: string, formData: Fo
   refresh(tripId);
 }
 
+export async function toggleVote(tripId: string, itemId: string, on: boolean) {
+  const { supabase, userId } = await requireUserId();
+  if (on) await supabase.from("item_votes").insert({ item_id: itemId, user_id: userId, trip_id: tripId });
+  else await supabase.from("item_votes").delete().eq("item_id", itemId).eq("user_id", userId);
+  refresh(tripId);
+}
+
 export async function deleteItem(tripId: string, itemId: string) {
   const { supabase } = await requireUserId();
   await supabase.from("itinerary_items").delete().eq("id", itemId);
@@ -221,10 +228,44 @@ export async function addExpense(tripId: string, _: ActionState, formData: FormD
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
   const { supabase, userId } = await requireUserId();
-  const { error } = await supabase.from("expenses").insert({ ...parsed.data, trip_id: tripId, paid_by: userId });
-  if (error) return { error: "Couldn't save the expense." };
+  const { data: members } = await supabase.from("trip_members").select("user_id").eq("trip_id", tripId);
+  const memberIds = new Set((members ?? []).map((m) => m.user_id));
+  const paidByRaw = String(formData.get("paid_by") ?? "");
+  const paid_by = memberIds.has(paidByRaw) ? paidByRaw : userId;
+  const split = formData.getAll("split").map(String).filter((id) => memberIds.has(id));
+  if (formData.has("split_shown") && split.length === 0) return { error: "Pick at least one person to split it between." };
+
+  const { data: expense, error } = await supabase
+    .from("expenses")
+    .insert({ ...parsed.data, trip_id: tripId, paid_by })
+    .select("id")
+    .single();
+  if (error || !expense) return { error: "Couldn't save the expense." };
+
+  // Everyone is the default; only store a list when it's a subset.
+  if (split.length && split.length < memberIds.size) {
+    await supabase
+      .from("expense_participants")
+      .insert(split.map((user_id) => ({ expense_id: expense.id, user_id, trip_id: tripId })));
+  }
   refresh(tripId);
   return { ok: true };
+}
+
+export async function recordSettlement(tripId: string, formData: FormData) {
+  const parsed = z
+    .object({ from_user: z.uuid(), to_user: z.uuid(), amount: z.coerce.number().positive(), currency: z.string().regex(/^[A-Z]{3}$/) })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+  const { supabase, userId } = await requireUserId();
+  await supabase.from("settlements").insert({ ...parsed.data, trip_id: tripId, created_by: userId });
+  refresh(tripId);
+}
+
+export async function undoSettlement(tripId: string, id: string) {
+  const { supabase } = await requireUserId();
+  await supabase.from("settlements").delete().eq("id", id);
+  refresh(tripId);
 }
 
 export async function deleteExpense(tripId: string, id: string) {

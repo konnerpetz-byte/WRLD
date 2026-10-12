@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { Avatar } from "@/components/avatar";
 import { AppNav, NavLinks } from "@/components/layout/app-nav";
 import { Wordmark } from "@/components/layout/wordmark";
 import { signOut } from "@/features/auth/actions";
@@ -25,7 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Suspense fallback={<div className="hidden h-9 lg:block" />}>
             <CurrentUser />
           </Suspense>
-          <form action={signOut}>
+          <form action={signOut} className="max-lg:hidden">
             <button
               type="submit"
               className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-travel"
@@ -45,13 +46,19 @@ async function CurrentUser() {
   const { supabase, userId } = await requireUserId();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, home_currency")
+    .select("display_name, home_currency, avatar_url")
     .eq("id", userId)
     .maybeSingle();
   return (
-    <div className="hidden px-3 text-sm lg:block">
-      <p className="text-white">{profile?.display_name ?? "Traveler"}</p>
-      <p className="text-xs text-sidebar-foreground/70">Home currency {profile?.home_currency ?? "USD"}</p>
-    </div>
+    <Link
+      href="/account"
+      className="hidden items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-travel lg:flex"
+    >
+      <Avatar name={profile?.display_name} url={profile?.avatar_url} size={32} />
+      <span className="min-w-0">
+        <span className="block truncate text-white">{profile?.display_name ?? "Traveler"}</span>
+        <span className="block text-xs text-sidebar-foreground/70">Home currency {profile?.home_currency ?? "USD"}</span>
+      </span>
+    </Link>
   );
 }

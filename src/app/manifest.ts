@@ -14,6 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#fdf6f0",
     theme_color: "#253a33",
     categories: ["travel", "navigation"],
+    // Installed on Android, WRLD shows up in the share sheet (TikTok, Instagram, Maps…).
+    share_target: { action: "/share", method: "GET", params: { title: "title", text: "text", url: "url" } },
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

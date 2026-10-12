@@ -1,13 +1,13 @@
 "use client";
 
-import { BadgeCheck, ExternalLink, MapPin, Trash2 } from "lucide-react";
+import { BadgeCheck, ExternalLink, MapPin, ThumbsUp, Trash2 } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { hostOf } from "@/features/attractions/types";
-import { deleteItem, setItemStatus, updateActivityPrice, type ActionState } from "@/features/trips/actions";
+import { deleteItem, setItemStatus, toggleVote, updateActivityPrice, type ActionState } from "@/features/trips/actions";
 import { formatMoney } from "@/lib/format";
 import type { ItineraryItem } from "@/types/database";
 import { ExploreNearby } from "./explore-nearby";
@@ -27,7 +27,9 @@ export function ItemRow({
   partySize,
   tripCurrency,
   canEdit,
+  votes,
 }: {
+  votes?: { count: number; mine: boolean };
   item: ItineraryItem;
   tripId: string;
   partySize: number;
@@ -94,6 +96,20 @@ export function ItemRow({
             </button>
           )
         )}
+
+        <form action={toggleVote.bind(null, tripId, item.id, !votes?.mine)}>
+          <button
+            type="submit"
+            aria-pressed={Boolean(votes?.mine)}
+            aria-label={`${votes?.mine ? "Remove your vote for" : "Vote for"} ${item.title}${votes?.count ? `, ${votes.count} vote${votes.count > 1 ? "s" : ""}` : ""}`}
+            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 focus-visible:outline-2 focus-visible:outline-ring ${
+              votes?.mine ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <ThumbsUp className="size-3" aria-hidden="true" />
+            {votes?.count ? <span>{votes.count}</span> : null}
+          </button>
+        </form>
 
         {canEdit && (
           <form action={setItemStatus.bind(null, tripId, item.id)} className="ml-auto">

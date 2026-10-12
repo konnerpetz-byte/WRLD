@@ -30,7 +30,21 @@ export function BudgetSettingsForm({ tripId, budget, partySize, currency }: { tr
   );
 }
 
-export function ExpenseForm({ tripId, currency, currencies, today }: { tripId: string; currency: string; currencies: string[]; today: string }) {
+export function ExpenseForm({
+  tripId,
+  currency,
+  currencies,
+  today,
+  members = [],
+  me,
+}: {
+  tripId: string;
+  currency: string;
+  currencies: string[];
+  today: string;
+  members?: { user_id: string; name: string }[];
+  me?: string;
+}) {
   const [state, action, pending] = useActionState<ActionState, FormData>(addExpense.bind(null, tripId), {});
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -69,6 +83,30 @@ export function ExpenseForm({ tripId, currency, currencies, today }: { tripId: s
           <Input id="e-date" name="incurred_on" type="date" defaultValue={today} required />
         </div>
       </div>
+      {members.length > 1 && (
+        <>
+          <div className="grid gap-2">
+            <Label htmlFor="e-paid">Paid by</Label>
+            <NativeSelect id="e-paid" name="paid_by" defaultValue={me}>
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.user_id === me ? `${m.name} (you)` : m.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <fieldset className="grid gap-1.5">
+            <legend className="mb-1 text-sm font-medium">Split equally between</legend>
+            <input type="hidden" name="split_shown" value="1" />
+            {members.map((m) => (
+              <label key={m.user_id} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="split" value={m.user_id} defaultChecked />
+                {m.user_id === me ? `${m.name} (you)` : m.name}
+              </label>
+            ))}
+          </fieldset>
+        </>
+      )}
       {state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
       <div>
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Add expense"}</Button>

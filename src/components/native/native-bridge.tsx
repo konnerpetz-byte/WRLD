@@ -1,14 +1,17 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { isNativeApp } from "@/lib/native";
 
 /**
- * Runs once inside the iOS/Android apps: status bar colors, Android back button.
+ * Runs once inside the iOS/Android apps: status bar colors, Android back
+ * button, and links from the iOS share extension.
  * Renders nothing, and does nothing in a regular browser.
  */
 export function NativeBridge() {
+  const router = useRouter();
   useEffect(() => {
     if (!isNativeApp()) return;
     let removeBack: (() => void) | undefined;
@@ -25,11 +28,25 @@ export function NativeBridge() {
         if (canGoBack) window.history.back();
         else App.exitApp();
       });
-      removeBack = () => void handle.remove();
+      // iOS share extension → wrld://share?url=…&text=… → the /share page.
+      const open = await App.addListener("appUrlOpen", ({ url }) => {
+        try {
+          const u = new URL(url);
+          if (u.protocol === "wrld:" && (u.host === "share" || u.pathname.replace(/^\/+/, "") === "share")) {
+            router.push(`/share${u.search}`);
+          }
+        } catch {
+          // ignore malformed links
+        }
+      });
+      removeBack = () => {
+        void handle.remove();
+        void open.remove();
+      };
     })();
 
     return () => removeBack?.();
-  }, []);
+  }, [router]);
 
   return null;
 }

@@ -17,7 +17,9 @@ export function DayGrid({
   transit,
   lodging,
   canEdit,
+  votes,
 }: {
+  votes?: Map<string, { count: number; mine: boolean }>;
   trip: Trip;
   days: DayPlan[];
   transit: TransitSegment[];
@@ -66,6 +68,7 @@ export function DayGrid({
             <BlockCell
               key={block.id}
               near={near}
+              votes={votes}
               trip={{ ...trip, timezone: day.tz }}
               block={block}
               transit={live}
@@ -82,6 +85,7 @@ export function DayGrid({
 }
 
 function BlockCell({
+  votes,
   near,
   trip,
   block,
@@ -90,6 +94,7 @@ function BlockCell({
   beforeArrival,
   canEdit,
 }: {
+  votes?: Map<string, { count: number; mine: boolean }>;
   near: { latitude: number; longitude: number } | null;
   trip: Trip;
   block: DayPlan["blocks"][number];
@@ -162,7 +167,7 @@ function BlockCell({
       {block.items.length > 0 && (
         <ul className="grid gap-2">
           {block.items.map((item) => (
-            <ItemRow key={item.id} item={item} tripId={trip.id} partySize={trip.party_size} tripCurrency={trip.currency} canEdit={canEdit} />
+            <ItemRow key={item.id} votes={votes?.get(item.id)} item={item} tripId={trip.id} partySize={trip.party_size} tripCurrency={trip.currency} canEdit={canEdit} />
           ))}
         </ul>
       )}

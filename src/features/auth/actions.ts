@@ -42,20 +42,22 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
   const country = h.get("x-vercel-ip-country") ?? h.get("cf-ipcountry") ?? undefined;
   const origin = h.get("origin") ?? `https://${h.get("host")}`;
 
+  // Coming from an invite link → straight back to it; otherwise the quiz.
+  const next = formData.get("next") ? safeNext(formData.get("next")) : "/profile/quiz";
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.full_name, country },
-      emailRedirectTo: `${origin}/auth/confirm?next=/profile/quiz`,
+      emailRedirectTo: `${origin}/auth/confirm?next=${encodeURIComponent(next)}`,
     },
   });
   if (error) return { error: error.message };
 
   // Email confirmation on (Supabase default): no session yet.
   if (!data.session) return { message: "Check your email for a link to finish signing up." };
-  redirect("/profile/quiz");
+  redirect(next);
 }
 
 export async function signOut() {

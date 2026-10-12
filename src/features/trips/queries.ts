@@ -30,15 +30,22 @@ export type DayPlan = TripDay & {
 };
 
 export const getItinerary = cache(async (tripId: string) => {
-  const { supabase } = await requireUserId();
-  const [{ trip, stops }, days, blocks, items, transit, lodging] = await Promise.all([
+  const { supabase, userId } = await requireUserId();
+  const [{ trip, stops }, days, blocks, items, transit, lodging, votes] = await Promise.all([
     getTrip(tripId),
     supabase.from("trip_days").select("*").eq("trip_id", tripId).order("date"),
     supabase.from("time_blocks").select("*").eq("trip_id", tripId).order("starts_at"),
     supabase.from("itinerary_items").select("*").eq("trip_id", tripId).order("position").order("created_at"),
     supabase.from("transit_segments").select("*").eq("trip_id", tripId).order("depart_at"),
     supabase.from("lodging").select("*").eq("trip_id", tripId).order("check_in_at"),
+    supabase.from("item_votes").select("item_id, user_id").eq("trip_id", tripId),
   ]);
+
+  const voteCounts = new Map<string, { count: number; mine: boolean }>();
+  for (const v of votes.data ?? []) {
+    const cur = voteCounts.get(v.item_id) ?? { count: 0, mine: false };
+    voteCounts.set(v.item_id, { count: cur.count + 1, mine: cur.mine || v.user_id === userId });
+  }
 
   const itemsByBlock = new Map<string, ItineraryItem[]>();
   for (const item of items.data ?? []) {
@@ -58,5 +65,6 @@ export const getItinerary = cache(async (tripId: string) => {
     })) as DayPlan[],
     transit: (transit.data ?? []) as TransitSegment[],
     lodging: (lodging.data ?? []) as Lodging[],
+    votes: voteCounts,
   };
 });

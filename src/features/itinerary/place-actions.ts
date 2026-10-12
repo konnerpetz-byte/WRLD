@@ -77,7 +77,7 @@ async function insertItem(
   loaded: Loaded,
   block: TimeBlock,
   input: { title: string; place: PlaceSuggestion | null; address: string | null; unitPrice: number | null; startTime: string | null },
-): Promise<ActionState> {
+): Promise<ActionState & { itemId?: string }> {
   const { trip, days, items } = loaded;
   const day = days.find((d) => d.id === block.day_id)!;
   const place = input.place;
@@ -149,7 +149,7 @@ async function insertItem(
     }
   }
 
-  const { error } = await supabase.from("itinerary_items").insert({
+  const { data: inserted, error } = await supabase.from("itinerary_items").insert({
     trip_id: trip.id,
     time_block_id: block.id,
     title: place?.name ?? input.title,
@@ -166,12 +166,13 @@ async function insertItem(
     booking_url: place?.ticketsUrl ?? null,
     created_by: userId,
     ...price,
-  });
-  if (error) return { error: "Only owners and editors can add to this trip." };
+  }).select("id").single();
+  if (error || !inserted) return { error: "Only owners and editors can add to this trip." };
 
   const when = start ? `${formatClock(start)}${end ? `–${formatClock(end)}` : ""}` : null;
   return {
     ok: true,
+    itemId: inserted.id,
     note: [when ? `Added for ${when}.` : null, place?.timedEntry ? "Timed entry — book your slot on the official site." : null, ...notes]
       .filter(Boolean)
       .join(" "),
@@ -349,4 +350,66 @@ export async function setItemLocation(tripId: string, itemId: string, _: ActionS
     return { ok: true };
   }
   return { error: query ? "Couldn't find that address. Try adding the city." : "Couldn't find it. Type the address." };
+}
+
+// ---------------------------------------------------------------------------
+// A saved spot (reel, TikTok, link) → onto a day, with time and map pin
+// ---------------------------------------------------------------------------
+export async function addSpotToItinerary(tripId: string, spotId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const dayId = z.preprocess(blankToNull, z.uuid().nullable()).catch(null).parse(formData.get("day_id"));
+  const { supabase, userId } = await requireUserId();
+  const [loaded, { data: spot }] = await Promise.all([
+    loadTrip(supabase, tripId),
+    supabase.from("saved_spots").select("*").eq("id", spotId).eq("trip_id", tripId).maybeSingle(),
+  ]);
+  if (!loaded || !spot) return { error: "Couldn't find that spot." };
+
+  let place: PlaceSuggestion | null = null;
+  if (spot.attraction_id) place = await resolvePick(supabase, "official", spot.attraction_id, null);
+  if (!place && spot.latitude !== null && spot.longitude !== null) {
+    place = {
+      source: "nearby",
+      ref: spot.id,
+      name: spot.place_name ?? spot.title ?? "Saved spot",
+      detail: null,
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      address: spot.address,
+      officialUrl: null,
+      ticketsUrl: null,
+      timedEntry: false,
+      bestSlot: null,
+      suggestedStart: null,
+      durationMinutes: null,
+      price: null,
+      currency: null,
+      priceNote: null,
+      hoursNote: null,
+      visitNote: null,
+      km: null,
+    };
+  }
+
+  const block = chooseBlock(loaded, place, dayId);
+  if (!block) return { error: "Every part of the trip is taken by travel." };
+  const result = await insertItem(supabase, userId, loaded, block, {
+    title: spot.place_name ?? spot.title?.slice(0, 200) ?? "Saved spot",
+    place,
+    address: spot.address,
+    unitPrice: null,
+    startTime: null,
+  });
+  if (result.ok && result.itemId) {
+    // Keep the link to the video on the itinerary item, and the item on the spot.
+    if (spot.url) {
+      await supabase
+        .from("itinerary_items")
+        .update({ description: `Saved from ${spot.url}` })
+        .eq("id", result.itemId)
+        .is("description", null);
+    }
+    await supabase.from("saved_spots").update({ itinerary_item_id: result.itemId }).eq("id", spot.id);
+    refresh(tripId);
+  }
+  return { ok: result.ok, error: result.error, note: result.note };
 }

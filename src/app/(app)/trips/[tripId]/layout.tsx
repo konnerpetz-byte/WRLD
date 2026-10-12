@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { getTrip } from "@/features/trips/queries";
 import { ShareTripButton } from "@/features/trips/share-trip-button";
 import { formatDateRange, formatMoney, toNumber } from "@/lib/format";
+import { requireUserId } from "@/lib/supabase/server";
 
 export default function TripLayout({ children, params }: LayoutProps<"/trips/[tripId]">) {
   return (
@@ -19,7 +20,7 @@ export default function TripLayout({ children, params }: LayoutProps<"/trips/[tr
         <TripHeader params={params} />
       </Suspense>
       <Suspense fallback={<div className="h-[42px] border-b" />}>
-        <TripTabs />
+        <TabsWithUnread params={params} />
       </Suspense>
       <div className="pt-6">{children}</div>
     </div>
@@ -90,4 +91,15 @@ function HeaderSkeleton() {
       <div className="h-16 w-64 rounded-xl bg-muted" />
     </div>
   );
+}
+
+/** Tabs, with a badge for unread group messages. */
+async function TabsWithUnread({ params }: { params: LayoutProps<"/trips/[tripId]">["params"] }) {
+  const { tripId } = await params;
+  const { supabase, userId } = await requireUserId();
+  const { data: me } = await supabase.from("trip_members").select("last_read_at").eq("trip_id", tripId).eq("user_id", userId).maybeSingle();
+  let query = supabase.from("trip_messages").select("id", { count: "exact", head: true }).eq("trip_id", tripId).neq("user_id", userId);
+  if (me?.last_read_at) query = query.gt("created_at", me.last_read_at);
+  const { count } = await query;
+  return <TripTabs unread={count ?? 0} />;
 }

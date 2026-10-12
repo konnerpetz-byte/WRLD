@@ -144,7 +144,93 @@ export type Trip = Timestamps & {
   longitude: number | null;
 };
 
-export type TripMember = { trip_id: UUID; user_id: UUID; role: TripRole; created_at: ISODateTime };
+export type TripMember = { trip_id: UUID; user_id: UUID; role: TripRole; created_at: ISODateTime; last_read_at: ISODateTime | null };
+
+// ---------------------------------------------------------------------------
+// Traveling together (14) and account (15)
+// ---------------------------------------------------------------------------
+export type TripInvite = {
+  id: UUID;
+  trip_id: UUID;
+  token: UUID;
+  role: TripRole;
+  created_by: UUID | null;
+  created_at: ISODateTime;
+  expires_at: ISODateTime;
+  revoked_at: ISODateTime | null;
+  max_uses: number | null;
+  uses: number;
+};
+
+export const SPOT_SOURCES = ['tiktok', 'instagram', 'youtube', 'maps', 'link', 'note'] as const;
+export type SpotSource = (typeof SPOT_SOURCES)[number];
+
+export type SavedSpot = Geo & {
+  id: UUID;
+  user_id: UUID | null;
+  trip_id: UUID | null;
+  url: string | null;
+  source: SpotSource;
+  title: string | null;
+  author: string | null;
+  thumbnail_url: string | null;
+  note: string | null;
+  place_name: string | null;
+  address: string | null;
+  attraction_id: UUID | null;
+  itinerary_item_id: UUID | null;
+  created_at: ISODateTime;
+};
+
+export type TripMessage = {
+  id: UUID;
+  trip_id: UUID;
+  user_id: UUID | null;
+  body: string;
+  spot_id: UUID | null;
+  created_at: ISODateTime;
+};
+
+export type ExpenseParticipant = { expense_id: UUID; user_id: UUID; trip_id: UUID };
+
+export type Settlement = {
+  id: UUID;
+  trip_id: UUID;
+  from_user: UUID;
+  to_user: UUID;
+  amount: number;
+  currency: CurrencyCode;
+  settled_on: ISODate;
+  created_by: UUID | null;
+  created_at: ISODateTime;
+};
+
+export type ChecklistItem = Timestamps & {
+  id: UUID;
+  trip_id: UUID;
+  list: 'packing' | 'todo';
+  title: string;
+  done: boolean;
+  done_by: UUID | null;
+  assigned_to: UUID | null;
+  due_on: ISODate | null;
+  position: number;
+  created_by: UUID | null;
+};
+
+export type ItemVote = { item_id: UUID; user_id: UUID; trip_id: UUID; created_at: ISODateTime };
+
+/** Private to the account holder (phone, home address). */
+export type AccountDetails = Timestamps & {
+  user_id: UUID;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  region: string | null;
+  postal_code: string | null;
+  country_code: CountryCode | null;
+};
 
 export type TripDay = Timestamps & {
   id: UUID;
@@ -542,7 +628,7 @@ export type ProfileUpdate = UpdateOf<Profile>;
 export type TripInsert = InsertOf<Trip, 'owner_id' | 'title' | 'start_date' | 'end_date'>;
 export type TripUpdate = Omit<UpdateOf<Trip>, 'owner_id'>;
 
-export type TripMemberInsert = InsertOf<TripMember, 'trip_id' | 'user_id'>;
+export type TripMemberInsert = Omit<InsertOf<TripMember, 'trip_id' | 'user_id'>, 'last_read_at'>;
 export type TripMemberUpdate = Pick<Partial<TripMember>, 'role'>;
 
 /** Days and blocks are created by the database; only title/notes are editable. */
@@ -596,6 +682,14 @@ export type Database = {
       trips: TableDef<Trip, TripInsert, TripUpdate>;
       trip_members: TableDef<TripMember, TripMemberInsert, TripMemberUpdate>;
       trip_stops: TableDef<TripStop, TripStopInsert, TripStopUpdate>;
+      trip_invites: TableDef<TripInvite, InsertOf<TripInvite, 'trip_id' | 'created_by'>, Pick<Partial<TripInvite>, 'revoked_at'>>;
+      saved_spots: TableDef<SavedSpot, InsertOf<SavedSpot, 'user_id'>, UpdateOf<SavedSpot>>;
+      trip_messages: TableDef<TripMessage, InsertOf<TripMessage, 'trip_id' | 'user_id' | 'body'>, never>;
+      expense_participants: TableDef<ExpenseParticipant, ExpenseParticipant, never>;
+      settlements: TableDef<Settlement, InsertOf<Settlement, 'trip_id' | 'from_user' | 'to_user' | 'amount' | 'currency'>, never>;
+      checklist_items: TableDef<ChecklistItem, InsertOf<ChecklistItem, 'trip_id' | 'list' | 'title'>, UpdateOf<ChecklistItem>>;
+      item_votes: TableDef<ItemVote, InsertOf<ItemVote, 'item_id' | 'user_id' | 'trip_id'>, never>;
+      account_details: TableDef<AccountDetails, InsertOf<AccountDetails, 'user_id'>, UpdateOf<AccountDetails>>;
       attractions: ReadOnly<Attraction>;
       trip_days: TableDef<TripDay, never, TripDayUpdate>;
       time_blocks: TableDef<TimeBlock, never, TimeBlockUpdate>;
@@ -628,6 +722,12 @@ export type Database = {
         Args: { p_recommendation_id: UUID; p_time_block_id?: UUID };
         Returns: UUID;
       };
+      invite_preview: {
+        Args: { p_token: UUID };
+        Returns: { trip_title: string; destination: string | null; start_date: ISODate; end_date: ISODate; invited_by: string; role: TripRole; valid: boolean }[];
+      };
+      accept_trip_invite: { Args: { p_token: UUID }; Returns: UUID };
+      mark_chat_read: { Args: { p_trip_id: UUID }; Returns: undefined };
       search_attractions: {
         Args: { p_query: string; p_limit?: number };
         Returns: Attraction[];

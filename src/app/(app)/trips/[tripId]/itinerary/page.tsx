@@ -9,7 +9,7 @@ export const metadata = { title: "Itinerary" };
 
 export default async function ItineraryPage({ params }: PageProps<"/trips/[tripId]/itinerary">) {
   const { tripId } = await params;
-  const [{ trip, canEdit }, { days, transit, lodging }] = await Promise.all([getTrip(tripId), getItinerary(tripId)]);
+  const [{ trip, canEdit }, { days, transit, lodging, votes }] = await Promise.all([getTrip(tripId), getItinerary(tripId)]);
 
   const dayOptions = days
     .filter((d) => d.blocks.some((b) => b.status !== "unavailable"))
@@ -32,7 +32,7 @@ export default async function ItineraryPage({ params }: PageProps<"/trips/[tripI
           </Link>
         </p>
       )}
-      <DayGrid trip={trip} days={days} transit={transit} lodging={lodging} canEdit={canEdit} />
+      <DayGrid trip={trip} days={days} transit={transit} lodging={lodging} canEdit={canEdit} votes={votes} />
     </>
   );
 }

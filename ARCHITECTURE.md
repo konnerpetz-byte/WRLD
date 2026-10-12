@@ -223,6 +223,31 @@ Everything with a price in the plan is added up automatically, in the trip's cur
   - Anything still unplaced shows "Not on the map — add an address" right on the itinerary.
 - **Growing the list:** add rows to `public.attractions` with the service role or in the SQL editor. Keep `verified_on` current, because prices and hours change.
 
+### Traveling together
+- **Invites:** owners and editors make an invite link (can edit / can view). The link expires after 14 days and can be turned off. `/invite/<token>` shows the trip; joining runs `accept_trip_invite`.
+- **Group tab:** shows who's going. The organizer can change roles or remove people, and anyone else can leave. It also holds a **live group chat** (Supabase Realtime, so only members receive messages), with an unread badge on the tab.
+- **Saved spots:**
+  - Paste or share a TikTok, Instagram, YouTube, Google Maps or any link.
+  - WRLD reads its public preview (TikTok and YouTube oEmbed, Open Graph tags, coordinates in Maps links) and pins it to an official sight when the caption names one.
+  - From there: pin it to a place, add it to a day (time and map pin filled in), or share it in chat.
+  - Links pasted in chat become saved spots automatically.
+- **How shared links reach the app:**
+  - Web on Android: the manifest `share_target`.
+  - Android app: a share intent opens `/share`.
+  - iOS app: a share extension (`ios/App/ShareExtension`; add the target in Xcode) opens `wrld://share`.
+- **Splitting costs:** each expense has who paid and who it's split between (everyone by default). The Budget tab shows the fewest payments to settle up, and "Mark as paid" records them.
+- **Checklist tab:** a shared to-do list (with who and by when) and a packing list with a starter set.
+- **Votes:** thumbs-up on any itinerary item.
+
+### Account and privacy
+- **Account page:**
+  - Name, photo (Storage bucket `avatars`, your own folder only), home country, currency and airport.
+  - Email change with confirmation, and password.
+  - Phone and home address in `account_details`, readable only by you.
+- **Deleting an account:**
+  - In-app: Account → Delete my account calls the `delete-account` Edge Function, which checks your token and deletes only you.
+  - Public: `/delete-account` page for Google Play, and a draft `/privacy` policy.
+
 ### Recommendations (to build next)
 For each trip and traveler, score candidate activities (Viator first) out of 100:
 

@@ -6,12 +6,15 @@ import { useParams, usePathname } from "next/navigation";
 const TABS = [
   { slug: "itinerary", label: "Itinerary" },
   { slug: "map", label: "Map" },
+  { slug: "group", label: "Group" },
+  { slug: "saved", label: "Saved" },
   { slug: "transit", label: "Flights & trains" },
   { slug: "lodging", label: "Stays" },
   { slug: "budget", label: "Budget" },
+  { slug: "checklist", label: "Checklist" },
 ];
 
-export function TripTabs() {
+export function TripTabs({ unread = 0 }: { unread?: number }) {
   const pathname = usePathname();
   const { tripId } = useParams<{ tripId: string }>();
   return (
@@ -29,6 +32,12 @@ export function TripTabs() {
             }`}
           >
             {label}
+            {slug === "group" && unread > 0 && !active && (
+              <span className="ml-1.5 inline-grid min-w-5 place-items-center rounded-full bg-travel px-1.5 text-[11px] font-semibold text-travel-foreground">
+                {unread > 99 ? "99+" : unread}
+                <span className="sr-only"> unread messages</span>
+              </span>
+            )}
           </Link>
         );
       })}

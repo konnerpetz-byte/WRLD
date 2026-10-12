@@ -55,14 +55,14 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
         {mode === "login" ? (
           <>
             New here?{" "}
-            <Link href="/signup" className="font-medium text-primary underline underline-offset-4">
+            <Link href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"} className="font-medium text-primary underline underline-offset-4">
               Create an account
             </Link>
           </>
         ) : (
           <>
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-primary underline underline-offset-4">
+            <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="font-medium text-primary underline underline-offset-4">
               Sign in
             </Link>
           </>
