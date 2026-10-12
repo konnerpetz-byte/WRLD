@@ -13,6 +13,9 @@ _Written October 12, 2026. Live at wrldtrips.com._
 | Points flights explorer (`/flights`) | Built. Shows **sample results** until Seats.aero approves access. |
 | Card → airline transfer ratios | 32 transfer links, from a chart last updated September 2026 |
 | Stats | `/admin/stats` (you only) plus Vercel Analytics |
+| Getting around | Flights, trains, buses, ferries and drives, with ticket links per type |
+| Group fit | Compatibility score from everyone's travel type, tips, and group-ranked recommendations |
+| Travel documents | Per-person list from passport country and destinations (UK ETA, ETIAS, K-ETA, ESTA, arrival cards…), with **Set reminder**, an in-app banner when due, and **Add to calendar** |
 
 ## 1. Partner accounts: what to do and when
 
@@ -79,6 +82,16 @@ Seats.aero's API is for personal use unless they approve commercial use in writi
 
 ### Phase 2: real data and first revenue (weeks 3–8)
 
+- **Reminder emails and push notifications.** In-app banners and calendar files work today. Emailing people on the day needs:
+  - the email sending service from Phase 0 (Resend)
+  - a daily scheduled job (`pg_cron` + an Edge Function) that sends each due reminder once and marks it sent
+
+  Push notifications come with the store apps (Phase 4).
+- **Group fit add-ons:**
+  - a nudge email asking people on a trip to take the quiz
+  - voting on group picks
+  - a button that plans one "split-up" block a day when the score is under 60
+
 - **Viator key live:** real listings and the first commissions. GetYourGuide links earn too.
 - **Seats.aero live** (or "Login with Seats.aero"): `/flights` shows real award seats from each person's home airport.
 - **Prices on official sights:** read the ticket pages for the 107 sights and add adult prices with a "checked on" date. Re-check every 6 months.
@@ -105,7 +118,26 @@ Seats.aero's API is for personal use unless they approve commercial use in writi
 - In-app purchases for the Trip Pass and Pro
 - Store screenshots, descriptions and privacy forms
 
-## 3. Official attractions: how they're kept right
+## 3. Travel document rules: keeping them right
+
+- **What's written in WRLD today** (checked October 12, 2026 against the official sites):
+  - passport validity
+  - Europe's ETIAS (starting in the last quarter of 2026)
+  - UK ETA (£20)
+  - South Korea: e-Arrival Card for U.S. citizens through December 31, 2026, then K-ETA
+  - Thailand TDAC and the Singapore SG Arrival Card
+  - Visit Japan Web
+  - Australia ETA and New Zealand NZeTA
+  - India e-Visa, Egypt visa and Kenya eTA
+  - U.S. ESTA and Canada eTA
+  - International Driving Permit for drives in Japan, Italy, Spain, Greece, Austria and Korea
+  - STEP enrollment for U.S. travelers
+- **Everything else** shows "Check entry rules" with the State Department country page (U.S. passports) or the IATA Travel Centre.
+- **Left out:** Vietnam's e-visa site couldn't be reached to confirm, so Vietnam uses the fallback.
+- **Before launch:** check again on the ETIAS start date and Korea's K-ETA exemption, which ends December 31, 2026.
+- **To cover every passport and country:** license a rules feed such as Sherpa° or IATA Timatic. Both are paid and need a partner agreement. Ask once the beta shows people use this.
+
+## 4. Official attractions: how they're kept right
 
 - **What a verified sight means.** Its domain matches the official website listed on Wikidata, or a second check confirms the government body or operator runs it. The link answers, and the map pin is within 1.5 km of Wikidata's coordinates.
 - **Coverage, 40 cities and towns:**
@@ -117,7 +149,7 @@ Seats.aero's API is for personal use unless they approve commercial use in writi
 - **Upkeep:** every Monday the database re-opens each official link. Anything that stops answering appears on `/admin/stats` under "Official links to look at".
 - **Adding more:** `scripts/attractions/README.md` explains the process. Next batch: the cities your testers actually pick.
 
-## 4. Costs to expect in the first 6 months
+## 5. Costs to expect in the first 6 months
 
 | Item | Cost |
 |---|---|
@@ -137,3 +169,7 @@ Seats.aero's API is for personal use unless they approve commercial use in writi
 - Seats.aero cached search reference: https://developers.seats.aero/reference/cached-search
 - Transfer partner ratios (updated Sept 1, 2026): https://thepointsguy.com/guide/transfer-credit-card-rewards/
 - Greek Ministry of Culture ticketing (Hellenic Heritage): https://www.hh.gr/en/about
+- UK ETA (£20): https://www.gov.uk/guidance/apply-for-an-electronic-travel-authorisation-eta
+- ETIAS start (last quarter of 2026): https://thepointsguy.com/guide/europe-travel-visa-etias-what-to-know
+- Korea K-ETA exemption for U.S. citizens through December 31, 2026: https://tripprof.com/en/blog/korea-k-eta-exemption-ends-americans-2027/
+- Thailand Digital Arrival Card: https://tdac.immigration.go.th

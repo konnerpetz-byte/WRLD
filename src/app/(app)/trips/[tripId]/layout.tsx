@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { BellRing, Pencil } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -18,6 +18,9 @@ export default function TripLayout({ children, params }: LayoutProps<"/trips/[tr
       </Link>
       <Suspense fallback={<HeaderSkeleton />}>
         <TripHeader params={params} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <DueReminders params={params} />
       </Suspense>
       <Suspense fallback={<div className="h-[42px] border-b" />}>
         <TabsWithUnread params={params} />
@@ -102,4 +105,31 @@ async function TabsWithUnread({ params }: { params: LayoutProps<"/trips/[tripId]
   if (me?.last_read_at) query = query.gt("created_at", me.last_read_at);
   const { count } = await query;
   return <TripTabs unread={count ?? 0} />;
+}
+
+/** Your document reminders for this trip that are due today or overdue. */
+async function DueReminders({ params }: { params: LayoutProps<"/trips/[tripId]">["params"] }) {
+  const { tripId } = await params;
+  const { supabase, userId } = await requireUserId();
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: due } = await supabase
+    .from("checklist_items")
+    .select("id, title, remind_on, info_url")
+    .eq("trip_id", tripId)
+    .eq("list", "documents")
+    .eq("assigned_to", userId)
+    .eq("done", false)
+    .lte("remind_on", today)
+    .order("remind_on");
+  if (!due?.length) return null;
+  return (
+    <div role="status" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-travel bg-travel-soft px-4 py-3 text-sm">
+      <BellRing className="size-4 shrink-0" aria-hidden="true" />
+      <strong>Reminder:</strong>
+      <span className="min-w-0 flex-1">{due.map((d) => d.title).join(" · ")}</span>
+      <Link href={`/trips/${tripId}/checklist#docs-h`} className="font-medium underline underline-offset-2">
+        Open documents
+      </Link>
+    </div>
+  );
 }

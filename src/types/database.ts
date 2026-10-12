@@ -208,7 +208,7 @@ export type Settlement = {
 export type ChecklistItem = Timestamps & {
   id: UUID;
   trip_id: UUID;
-  list: 'packing' | 'todo';
+  list: 'packing' | 'todo' | 'documents';
   title: string;
   done: boolean;
   done_by: UUID | null;
@@ -216,6 +216,10 @@ export type ChecklistItem = Timestamps & {
   due_on: ISODate | null;
   position: number;
   created_by: UUID | null;
+  /** Travel documents: when to remind, which rule it came from, the official page. */
+  remind_on: ISODate | null;
+  doc_key: string | null;
+  info_url: string | null;
 };
 
 export type ItemVote = { item_id: UUID; user_id: UUID; trip_id: UUID; created_at: ISODateTime };
@@ -739,6 +743,10 @@ export type Database = {
       touch_activity: { Args: Record<string, never>; Returns: undefined };
       is_app_admin: { Args: Record<string, never>; Returns: boolean };
       admin_stats: { Args: { p_days?: number }; Returns: AdminStats };
+      trip_travel_types: {
+        Args: { p_trip_id: UUID };
+        Returns: { user_id: UUID; display_name: string | null; avatar_url: string | null; compass_x: number | null; compass_y: number | null; archetype: TravelArchetype | null; interests: Record<string, number> }[];
+      };
       search_attractions: {
         Args: { p_query: string; p_limit?: number };
         Returns: Attraction[];

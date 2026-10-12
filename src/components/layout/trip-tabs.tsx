@@ -7,6 +7,7 @@ const TABS = [
   { slug: "itinerary", label: "Itinerary" },
   { slug: "map", label: "Map" },
   { slug: "group", label: "Group" },
+  { slug: "fit", label: "Group fit" },
   { slug: "saved", label: "Saved" },
   { slug: "transit", label: "Getting around" },
   { slug: "lodging", label: "Stays" },

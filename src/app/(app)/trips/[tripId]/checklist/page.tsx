@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { ChecklistCard } from "@/features/checklist/checklist";
+import { tripDocContext } from "@/features/documents/context";
+import { DocumentsCard } from "@/features/documents/documents-card";
+import { documentsFor } from "@/features/documents/rules";
 import { getMembers } from "@/features/group/queries";
 import { requireUserId } from "@/lib/supabase/server";
 import type { ChecklistItem } from "@/types/database";
@@ -21,14 +24,15 @@ async function ChecklistPageContent({
   params,
 }: PageProps<"/trips/[tripId]/checklist">) {
   const { tripId } = await params;
-  const { supabase } = await requireUserId();
-  const [{ members }, { data }] = await Promise.all([
+  const { supabase, userId } = await requireUserId();
+  const [{ members }, { data }, ctx] = await Promise.all([
     getMembers(tripId),
     supabase
       .from("checklist_items")
       .select("*")
       .eq("trip_id", tripId)
       .order("position"),
+    tripDocContext(supabase, userId, tripId),
   ]);
   const items = (data ?? []) as ChecklistItem[];
   const people = members.map((m) => ({
@@ -39,6 +43,15 @@ async function ChecklistPageContent({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      {ctx && (
+        <DocumentsCard
+          tripId={tripId}
+          start={ctx.start}
+          docs={documentsFor(ctx)}
+          saved={items.filter((i) => i.list === "documents" && i.assigned_to === userId)}
+          hasHome={Boolean(ctx.home)}
+        />
+      )}
       <ChecklistCard
         tripId={tripId}
         list="todo"
