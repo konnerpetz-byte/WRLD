@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Analytics } from "@vercel/analytics/next";
 
 import { NativeBridge } from "@/components/native/native-bridge";
 
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full">
         <NativeBridge />
         {children}
+        <Analytics />
       </body>
     </html>
   );

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { addExperience } from "@/features/itinerary/place-actions";
 import type { ActionState } from "@/features/trips/actions";
 import { formatDuration, formatMoney } from "@/lib/format";
+import { providerOf, track } from "@/lib/track";
 
 type Offer = {
   provider: "viator" | "sample";
@@ -34,7 +35,10 @@ export function BookableSuggestions({ tripId, blockId }: { tripId: string; block
     const controller = new AbortController();
     fetch(`/api/experiences?trip=${tripId}&block=${blockId}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setResult)
+      .then((r: Result) => {
+        setResult(r);
+        if (r.offers.length) track({ kind: "suggestions_shown", tripId, count: r.offers.length });
+      })
       .catch(() => {
         if (!controller.signal.aborted) setFailed(true);
       });
@@ -67,7 +71,7 @@ export function BookableSuggestions({ tripId, blockId }: { tripId: string; block
         <p className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
           {result.offers.length > 0 && <span>More on</span>}
           {result.links.map((l) => (
-            <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer sponsored" className="underline underline-offset-2 hover:text-foreground">
+            <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer sponsored" onClick={() => track({ kind: "booking_click", tripId, provider: providerOf(l.url) })} className="underline underline-offset-2 hover:text-foreground">
               {l.label}
             </a>
           ))}
@@ -128,6 +132,7 @@ function OfferRow({ offer, tripId, blockId }: { offer: Offer; tripId: string; bl
           <a
             href={offer.url}
             target="_blank"
+            onClick={() => track({ kind: "booking_click", tripId, provider: "viator" })}
             rel="noopener noreferrer sponsored"
             className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2"
           >

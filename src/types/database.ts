@@ -695,6 +695,7 @@ export type Database = {
       item_votes: TableDef<ItemVote, InsertOf<ItemVote, 'item_id' | 'user_id' | 'trip_id'>, never>;
       account_details: TableDef<AccountDetails, InsertOf<AccountDetails, 'user_id'>, UpdateOf<AccountDetails>>;
       attractions: ReadOnly<Attraction>;
+      app_events: TableDef<AppEvent, InsertOf<AppEvent, 'user_id' | 'kind'>, never>;
       trip_days: TableDef<TripDay, never, TripDayUpdate>;
       time_blocks: TableDef<TimeBlock, never, TimeBlockUpdate>;
       itinerary_items: TableDef<ItineraryItem, ItineraryItemInsert, ItineraryItemUpdate>;
@@ -732,6 +733,9 @@ export type Database = {
       };
       accept_trip_invite: { Args: { p_token: UUID }; Returns: UUID };
       mark_chat_read: { Args: { p_trip_id: UUID }; Returns: undefined };
+      touch_activity: { Args: Record<string, never>; Returns: undefined };
+      is_app_admin: { Args: Record<string, never>; Returns: boolean };
+      admin_stats: { Args: { p_days?: number }; Returns: AdminStats };
       search_attractions: {
         Args: { p_query: string; p_limit?: number };
         Returns: Attraction[];
@@ -806,4 +810,27 @@ export type TripSummary = Pick<
 /** A wallet row ready to display. */
 export type WalletAccountView = LoyaltyAccount & {
   program: Pick<LoyaltyProgram, 'name' | 'kind' | 'unit_name' | 'logo_url' | 'est_cents_per_point'>;
+};
+
+export type AppEvent = {
+  id: number;
+  user_id: UUID;
+  kind: "booking_click" | "suggestions_shown";
+  trip_id: UUID | null;
+  provider: string | null;
+  count: number;
+  created_at: string;
+};
+
+/** What admin_stats() returns (see migration 20261012001700_stats.sql). */
+export type AdminStats = {
+  days: number;
+  totals: { users: number; trips: number; active_7d: number; active_30d: number };
+  started: { new_users: number; made_a_trip: number; trips_created: number };
+  invites: { trips_with_invite: number; trips_where_friends_joined: number; friends_joined: number; invited_friends_who_were_new: number };
+  return: { eligible: number; came_back: number };
+  suggestions: { shown: number; added: number };
+  booking_clicks: { total: number; by_provider: Record<string, number> };
+  engagement: { chat_messages: number; saved_spots: number; itinerary_items: number };
+  weekly: { week: string; signups: number; active: number; trips: number }[];
 };

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { LogOut } from "lucide-react";
+import { BarChart3, LogOut } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ async function AccountPageContent() {
     { data: countries },
     { data: currencies },
     { data: owned },
+    { data: isAdmin },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("profiles").select("*").eq("id", userId).single(),
@@ -49,6 +50,7 @@ async function AccountPageContent() {
       .order("name"),
     supabase.from("currencies").select("*").order("code"),
     supabase.from("trips").select("id, title").eq("owner_id", userId),
+    supabase.rpc("is_app_admin"),
   ]);
   const ownedIds = (owned ?? []).map((t) => t.id);
   const { data: others } = ownedIds.length
@@ -73,11 +75,20 @@ async function AccountPageContent() {
             Your details, sign-in and privacy.
           </p>
         </div>
-        <form action={signOut}>
-          <Button type="submit" variant="outline">
-            <LogOut aria-hidden="true" /> Sign out
-          </Button>
-        </form>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button asChild variant="outline">
+              <Link href="/admin/stats">
+                <BarChart3 aria-hidden="true" /> Stats
+              </Link>
+            </Button>
+          )}
+          <form action={signOut}>
+            <Button type="submit" variant="outline">
+              <LogOut aria-hidden="true" /> Sign out
+            </Button>
+          </form>
+        </div>
       </header>
 
       <Section

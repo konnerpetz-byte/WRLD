@@ -44,6 +44,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 async function CurrentUser() {
   const { supabase, userId } = await requireUserId();
+  // One row per person per day, for the "came back" number on /admin/stats.
+  await supabase.rpc("touch_activity");
   const { data: profile } = await supabase
     .from("profiles")
     .select("display_name, home_currency, avatar_url")

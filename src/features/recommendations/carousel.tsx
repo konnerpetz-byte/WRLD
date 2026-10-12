@@ -11,12 +11,13 @@ import {
   Ticket,
 } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useRef } from "react";
+import { useActionState, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { addOfferToTrip } from "@/features/itinerary/place-actions";
 import type { ActionState } from "@/features/trips/actions";
 import { formatDuration, formatMoney } from "@/lib/format";
+import { providerOf, track as trackEvent } from "@/lib/track";
 import type { Recommendation } from "./recommend";
 
 const BADGE = {
@@ -58,6 +59,10 @@ export function RecommendationCarousel({
       });
   };
   const hasBookable = items.some((i) => i.kind === "bookable");
+  const bookableCount = items.filter((i) => i.kind === "bookable").length;
+  useEffect(() => {
+    if (bookableCount) trackEvent({ kind: "suggestions_shown", count: bookableCount });
+  }, [bookableCount]);
 
   return (
     <section aria-labelledby="recs-h" className="grid gap-4">
@@ -113,6 +118,7 @@ export function RecommendationCarousel({
                   <a
                     href={l.url}
                     target="_blank"
+                    onClick={() => trackEvent({ kind: "booking_click", provider: providerOf(l.url) })}
                     rel="noopener noreferrer sponsored"
                     className="underline underline-offset-2 hover:text-foreground"
                   >
@@ -218,6 +224,7 @@ function Card({ r }: { r: Recommendation }) {
             <a
               href={r.externalHref}
               target="_blank"
+              onClick={() => r.kind === "bookable" && trackEvent({ kind: "booking_click", provider: "viator" })}
               rel={
                 r.kind === "bookable"
                   ? "noopener noreferrer sponsored"

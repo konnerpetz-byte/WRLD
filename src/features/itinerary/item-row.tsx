@@ -13,6 +13,7 @@ import type { ItineraryItem } from "@/types/database";
 import { ExploreNearby } from "./explore-nearby";
 import { setItemLocation } from "./place-actions";
 import { formatClock } from "./schedule";
+import { providerOf, track } from "@/lib/track";
 
 const SOURCE_LABEL: Record<string, string> = {
   manual: "Your price",
@@ -135,7 +136,7 @@ export function ItemRow({
       {(item.booking_url || item.official_url) && (
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
           {item.booking_url && (
-            <a href={item.booking_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">
+            <a href={item.booking_url} target="_blank" rel="noopener noreferrer" onClick={() => track({ kind: "booking_click", tripId, provider: item.attraction_id ? "official" : providerOf(item.booking_url) })} className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">
               {item.attraction_id ? "Official tickets" : "Book"}
               {ticketHost ? <span className="sr-only">on {ticketHost}</span> : null}
               <ExternalLink className="size-3" aria-hidden="true" />
