@@ -1,26 +1,147 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/bricolage-grotesque/index.css";
+@import "@fontsource-variable/public-sans/index.css";
 
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Palette — departure board meets boarding pass
+    sky ink     #12355B  structure, primary actions
+    runway      #F3F6F4  page background
+    board yellow#F2B705  travel moments (arrival, departure, in transit)
+    lagoon      #1E8C7E  free / open time, money left
+    haze        #C9D2DB  lines and borders
+    ink         #18222E  text
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --radius: 0.625rem;
+
+  --background: #f3f6f4;
+  --foreground: #18222e;
+  --card: #ffffff;
+  --card-foreground: #18222e;
+  --popover: #ffffff;
+  --popover-foreground: #18222e;
+  --primary: #12355b;
+  --primary-foreground: #f3f6f4;
+  --secondary: #e4eaee;
+  --secondary-foreground: #12355b;
+  --muted: #e9eef0;
+  --muted-foreground: #556472;
+  --accent: #e4eaee;
+  --accent-foreground: #12355b;
+  --destructive: #b42318;
+  --border: #c9d2db;
+  --input: #c9d2db;
+  --ring: #12355b;
+
+  --board: #f2b705;
+  --board-foreground: #3b2c00;
+  --board-soft: #fdf3cf;
+  --lagoon: #1e8c7e;
+  --lagoon-foreground: #ffffff;
+  --lagoon-soft: #ddf1ed;
+  --hatch: #c9d2db;
+
+  --sidebar: #12355b;
+  --sidebar-foreground: #dbe5ee;
+}
+
+.dark {
+  --background: #0f1b28;
+  --foreground: #e6edf3;
+  --card: #152435;
+  --card-foreground: #e6edf3;
+  --popover: #152435;
+  --popover-foreground: #e6edf3;
+  --primary: #9cc3ea;
+  --primary-foreground: #0f1b28;
+  --secondary: #1d3045;
+  --secondary-foreground: #e6edf3;
+  --muted: #1b2c3e;
+  --muted-foreground: #9aabbb;
+  --accent: #1d3045;
+  --accent-foreground: #e6edf3;
+  --destructive: #f97066;
+  --border: #2a3f55;
+  --input: #2a3f55;
+  --ring: #9cc3ea;
+
+  --board: #f2b705;
+  --board-foreground: #2a1f00;
+  --board-soft: #3a3010;
+  --lagoon: #4cc1b1;
+  --lagoon-foreground: #062a25;
+  --lagoon-soft: #13332f;
+  --hatch: #2a3f55;
+
+  --sidebar: #0a1520;
+  --sidebar-foreground: #c6d3df;
 }
 
 @theme inline {
+  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-board: var(--board);
+  --color-board-foreground: var(--board-foreground);
+  --color-board-soft: var(--board-soft);
+  --color-lagoon: var(--lagoon);
+  --color-lagoon-foreground: var(--lagoon-foreground);
+  --color-lagoon-soft: var(--lagoon-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "tnum" 1;
+  }
+  h1, h2, h3 {
+    @apply font-display tracking-tight;
+    text-wrap: balance;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Time that can't be used (before landing, after leaving) */
+.hatched {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--hatch) 0 1px,
+    transparent 1px 8px
+  );
+}
+
+/* Boarding-pass perforation on the left edge of travel cards */
+.perforated {
+  -webkit-mask: radial-gradient(circle 6px at 0 50%, transparent 98%, #000) left / 100% 100%;
+  mask: radial-gradient(circle 6px at 0 50%, transparent 98%, #000) left / 100% 100%;
 }
