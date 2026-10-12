@@ -144,6 +144,8 @@ async function ProfilePageContent({ searchParams }: PageProps<"/profile">) {
       {recs.items.length > 0 && (
         <RecommendationCarousel
           items={recs.items}
+          links={recs.bookingLinks}
+          sample={recs.bookingMode === "sample"}
           subtitle={
             recs.nextTrip
               ? `Picked for ${type?.name ?? "you"}, with ideas for ${

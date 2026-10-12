@@ -3,6 +3,8 @@ import "server-only";
 import { distanceKm } from "@/lib/geo";
 import { requireUserId } from "@/lib/supabase/server";
 import type { Attraction } from "@/types/database";
+import { myInterests } from "@/features/experiences/for-trip";
+import { suggestExperiences } from "@/features/experiences/suggest";
 import { IDEAS } from "./ideas";
 
 /**
@@ -17,7 +19,7 @@ import { IDEAS } from "./ideas";
 
 export type Recommendation = {
   key: string;
-  kind: "official" | "idea";
+  kind: "official" | "idea" | "bookable";
   title: string;
   blurb: string;
   why: string;
@@ -28,9 +30,21 @@ export type Recommendation = {
   externalHref?: string;
   city: string | null;
   price?: { amount: number; currency: string } | null;
+  /** Bookable listings (Viator…) */
+  provider?: "viator" | "sample";
+  rating?: number | null;
+  reviews?: number | null;
+  imageUrl?: string | null;
+  durationMinutes?: number | null;
+  addToTrip?: { tripId: string; city: string; offerId: string; tripTitle: string };
 };
 
-export async function getRecommendations(): Promise<{ items: Recommendation[]; nextTrip: { id: string; title: string; cities: string[] } | null }> {
+export async function getRecommendations(): Promise<{
+  items: Recommendation[];
+  nextTrip: { id: string; title: string; cities: string[] } | null;
+  bookingLinks: { label: string; url: string }[];
+  bookingMode: "live" | "sample" | "links" | null;
+}> {
   const { supabase, userId } = await requireUserId();
   const [{ data: profile }, { data: interests }, { data: tagRows }, { data: sights }, { data: trips }] = await Promise.all([
     supabase.from("traveler_profiles").select("compass_x, compass_y").eq("user_id", userId).maybeSingle(),
@@ -39,7 +53,7 @@ export async function getRecommendations(): Promise<{ items: Recommendation[]; n
     supabase.from("attractions").select("*"),
     supabase.from("trips").select("id, title, start_date, end_date").gte("end_date", new Date().toISOString().slice(0, 10)).order("start_date").limit(1),
   ]);
-  if (profile?.compass_x == null || profile.compass_y == null) return { items: [], nextTrip: null };
+  if (profile?.compass_x == null || profile.compass_y == null) return { items: [], nextTrip: null, bookingLinks: [], bookingMode: null };
 
   const me = { x: Number(profile.compass_x) / 5, y: Number(profile.compass_y) / 5 }; // −10…10 → −2…2
   const weight = new Map((interests ?? []).map((i) => [i.tag_slug, Number(i.weight)]));
@@ -102,6 +116,53 @@ export async function getRecommendations(): Promise<{ items: Recommendation[]; n
   }
 
   out.sort((a, b) => b.score - a.score);
-  const items = out.slice(0, 12);
-  return { items, nextTrip: next ? { id: next.id, title: next.title, cities: (stops ?? []).map((s) => s.city) } : null };
+  let items = out.slice(0, 12);
+
+  // Bookable tours and classes in the next trip's first city, matched to the same interests.
+  let bookingLinks: { label: string; url: string }[] = [];
+  let bookingMode: "live" | "sample" | "links" | null = null;
+  if (next && city) {
+    const { data: tripRow } = await supabase.from("trips").select("currency").eq("id", next.id).single();
+    const booked = await suggestExperiences({
+      city,
+      currency: tripRow?.currency ?? "USD",
+      interests: await myInterests(supabase, userId),
+      limit: 4,
+    });
+    bookingLinks = booked.links;
+    bookingMode = booked.mode;
+    const bookable: Recommendation[] = booked.offers.map((o) => ({
+      key: `b-${o.provider}-${o.id}`,
+      kind: "bookable",
+      title: o.title,
+      blurb: "",
+      why: o.why,
+      score: o.score,
+      href: o.url,
+      action: `Add to ${next.title}`,
+      externalHref: o.url,
+      city,
+      price: o.price !== null ? { amount: o.price, currency: o.currency } : null,
+      provider: o.provider,
+      rating: o.rating,
+      reviews: o.reviews,
+      imageUrl: o.imageUrl,
+      durationMinutes: o.durationMinutes,
+      addToTrip: { tripId: next.id, city, offerId: o.id, tripTitle: next.title },
+    }));
+    // Show bookable picks early: every other card.
+    const mixed: Recommendation[] = [];
+    const rest = [...items];
+    while (bookable.length || rest.length) {
+      if (rest.length) mixed.push(rest.shift()!);
+      if (bookable.length) mixed.push(bookable.shift()!);
+    }
+    items = mixed.slice(0, 14);
+  }
+  return {
+    items,
+    nextTrip: next ? { id: next.id, title: next.title, cities: (stops ?? []).map((s) => s.city) } : null,
+    bookingLinks,
+    bookingMode,
+  };
 }

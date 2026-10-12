@@ -64,7 +64,7 @@ Open http://localhost:3000, create an account, take the travel-type quiz, then a
 ## Needs outside accounts to finish
 | Feature | What's needed |
 |---|---|
-| Automatic activity prices | A Viator affiliate API key (`VIATOR_API_KEY`). Check the response fields in `src/features/pricing/lookup.ts` against your API version. |
+| Bookable experiences + automatic activity prices | A Viator affiliate API key (`VIATOR_API_KEY`, free sign-up at partnerresources.viator.com). Powers "Bookable for your travel type" in the itinerary and the Travel type carousel. Check field names in `src/features/experiences/providers.ts` and `src/features/pricing/lookup.ts` against your API version. GetYourGuide, Airbnb Experiences and Tripadvisor are linked by search until you have partner API access; add `GETYOURGUIDE_PARTNER_ID` for GetYourGuide commission. |
 | Connected points balances | AwardWallet API access, then finish `/api/wallet/awardwallet/connect` and its callback, plus a sync job. |
 | Daily exchange rates | A scheduled Supabase Edge Function that pulls rates from Frankfurter into `exchange_rates`. Until it runs, only same-currency amounts are counted. |
 | Activity recommendations | The recommender (scoring is described in `ARCHITECTURE.md`). The database side, including one-click "add to trip" with price, is done. |

@@ -7,15 +7,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlaceSearch } from "@/features/attractions/place-search";
+import { BookableSuggestions } from "@/features/experiences/bookable-suggestions";
 import type { PlaceSuggestion } from "@/features/attractions/types";
 import type { ActionState } from "@/features/trips/actions";
 import { addActivity } from "./place-actions";
 
 type Point = { latitude: number; longitude: number } | null;
 
-export function AddActivityForm({ tripId, timeBlockId, near }: { tripId: string; timeBlockId: string; near: Point }) {
+export function AddActivityForm({
+  tripId,
+  timeBlockId,
+  near,
+}: {
+  tripId: string;
+  timeBlockId: string;
+  near: Point;
+}) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState<ActionState, FormData>(addActivity.bind(null, tripId), {});
+  const [state, action, pending] = useActionState<ActionState, FormData>(
+    addActivity.bind(null, tripId),
+    {}
+  );
   const [title, setTitle] = useState("");
   const [picked, setPicked] = useState<PlaceSuggestion | null>(null);
   const [showAddress, setShowAddress] = useState(false);
@@ -40,7 +52,13 @@ export function AddActivityForm({ tripId, timeBlockId, near }: { tripId: string;
             {state.note}
           </p>
         )}
-        <Button type="button" variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-2 text-muted-foreground"
+          onClick={() => setOpen(true)}
+        >
           <Plus aria-hidden="true" /> Add
         </Button>
       </div>
@@ -49,59 +67,91 @@ export function AddActivityForm({ tripId, timeBlockId, near }: { tripId: string;
 
   const id = (name: string) => `${name}-${timeBlockId}`;
   return (
-    <form action={action} className="mt-auto grid gap-2 rounded-md bg-muted/60 p-2">
-      <input type="hidden" name="time_block_id" value={timeBlockId} />
-      <Label htmlFor={id("title")} className="sr-only">
-        Place or activity
-      </Label>
-      <PlaceSearch id={id("title")} value={title} onValueChange={setTitle} picked={picked} onPick={setPicked} near={near} autoFocus />
-
-      {!picked &&
-        (showAddress ? (
-          <div className="grid gap-1">
-            <Label htmlFor={id("address")} className="text-xs">
-              Address (puts it on the map)
-            </Label>
-            <Input id={id("address")} name="address" placeholder="Street, number, city" className="h-8" />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowAddress(true)}
-            className="w-fit text-xs text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            Add an address
-          </button>
-        ))}
-
-      <div className="grid grid-cols-[1fr_auto] gap-2">
-        <Label htmlFor={id("price")} className="sr-only">
-          Ticket price per person
+    <div className="mt-auto grid gap-2">
+      <form action={action} className="grid gap-2 rounded-md bg-muted/60 p-2">
+        <input type="hidden" name="time_block_id" value={timeBlockId} />
+        <Label htmlFor={id("title")} className="sr-only">
+          Place or activity
         </Label>
-        <Input
-          id={id("price")}
-          name="unit_price"
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder={picked?.price != null ? "Using the official price" : "Price each (optional)"}
-          className="h-9"
+        <PlaceSearch
+          id={id("title")}
+          value={title}
+          onValueChange={setTitle}
+          picked={picked}
+          onPick={setPicked}
+          near={near}
+          autoFocus
         />
-        <Button type="submit" size="sm" className="h-9" disabled={pending}>
-          {pending ? "Adding…" : "Add"}
-        </Button>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">Pick a suggestion to fill in the time, place and official price.</p>
-        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
-      {state.error && (
-        <p role="alert" className="text-xs text-destructive">
-          {state.error}
-        </p>
+
+        {!picked &&
+          (showAddress ? (
+            <div className="grid gap-1">
+              <Label htmlFor={id("address")} className="text-xs">
+                Address (puts it on the map)
+              </Label>
+              <Input
+                id={id("address")}
+                name="address"
+                placeholder="Street, number, city"
+                className="h-8"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAddress(true)}
+              className="w-fit text-xs text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              Add an address
+            </button>
+          ))}
+
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <Label htmlFor={id("price")} className="sr-only">
+            Ticket price per person
+          </Label>
+          <Input
+            id={id("price")}
+            name="unit_price"
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder={
+              picked?.price != null
+                ? "Using the official price"
+                : "Price each (optional)"
+            }
+            className="h-9"
+          />
+          <Button type="submit" size="sm" className="h-9" disabled={pending}>
+            {pending ? "Adding…" : "Add"}
+          </Button>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Pick a suggestion to fill in the time, place and official price.
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setOpen(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+        {state.error && (
+          <p role="alert" className="text-xs text-destructive">
+            {state.error}
+          </p>
+        )}
+      </form>
+      {!title && (
+        <div className="rounded-md bg-muted/60 p-2">
+          <BookableSuggestions tripId={tripId} blockId={timeBlockId} />
+        </div>
       )}
-    </form>
+    </div>
   );
 }

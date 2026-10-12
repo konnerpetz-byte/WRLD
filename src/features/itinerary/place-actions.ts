@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { fromAttraction, wikidataPlace } from "@/features/attractions/search";
+import { myInterests, suggestionsForBlock } from "@/features/experiences/for-trip";
+import { suggestExperiences } from "@/features/experiences/suggest";
 import { SLOT_LABEL, type PlaceSuggestion } from "@/features/attractions/types";
 import { geocode } from "@/features/places/geocode";
 import { lookupActivityPrice } from "@/features/pricing/lookup";
@@ -76,7 +78,15 @@ async function insertItem(
   userId: string,
   loaded: Loaded,
   block: TimeBlock,
-  input: { title: string; place: PlaceSuggestion | null; address: string | null; unitPrice: number | null; startTime: string | null },
+  input: {
+    title: string;
+    place: PlaceSuggestion | null;
+    address: string | null;
+    unitPrice: number | null;
+    startTime: string | null;
+    /** A bookable listing (Viator…): its price, link and length */
+    offer?: { provider: string; ref: string; url: string; price: number | null; currency: string; durationMinutes: number | null } | null;
+  },
 ): Promise<ActionState & { itemId?: string }> {
   const { trip, days, items } = loaded;
   const day = days.find((d) => d.id === block.day_id)!;
@@ -88,7 +98,8 @@ async function insertItem(
   let point: { latitude: number; longitude: number; address: string | null } | null = place
     ? { latitude: place.latitude, longitude: place.longitude, address: place.address }
     : null;
-  if (!point) {
+  // Tours start at a meeting point the listing doesn't give us; leave those for the traveler to pin.
+  if (!point && !input.offer) {
     const found = await geocode(input.address ?? `${input.title}${day.city ? `, ${day.city}` : ""}`, { near: day.point });
     const retry = !found && input.address === null ? await geocode(input.title, { near: day.point }) : null;
     const hit = found ?? retry;
@@ -103,24 +114,34 @@ async function insertItem(
   // When? Fill the slot automatically for picked places.
   let start = input.startTime;
   let end: string | null = null;
-  if (!start && place) {
+  if (!start && (place || input.offer)) {
     const plan = planTime({
       block,
       timeZone: day.timeZone,
       busyUntil: items.filter((i) => i.time_block_id === block.id).map((i) => i.end_time?.slice(0, 5) ?? i.start_time?.slice(0, 5) ?? null),
-      suggestedStart: place.suggestedStart,
-      durationMinutes: place.durationMinutes,
+      suggestedStart: place?.suggestedStart ?? null,
+      durationMinutes: place?.durationMinutes ?? input.offer?.durationMinutes ?? null,
     });
     start = plan.start;
     end = plan.end;
-    if (place.bestSlot && place.bestSlot !== block.slot) {
+    if (place?.bestSlot && place.bestSlot !== block.slot) {
       notes.push(`Best in the ${SLOT_LABEL[place.bestSlot].toLowerCase()}${place.suggestedStart ? ` (from ${formatClock(place.suggestedStart)})` : ""}.`);
     }
   }
 
-  // Price: what you typed → official price → provider lookup.
+  // Price: what you typed → bookable listing → official price → provider lookup.
   let price: Record<string, unknown> = {};
-  if (input.unitPrice !== null) {
+  if (input.offer) {
+    price = {
+      unit_price: input.offer.price,
+      currency: input.offer.currency,
+      price_source: input.offer.price === null ? null : "provider",
+      provider: input.offer.provider,
+      provider_ref: input.offer.ref,
+      booking_url: input.offer.url,
+      price_checked_at: input.offer.price === null ? null : new Date().toISOString(),
+    };
+  } else if (input.unitPrice !== null) {
     price = { unit_price: input.unitPrice, currency: trip.currency, price_source: "manual" };
   } else if (place?.source === "official" && place.price !== null) {
     price = {
@@ -153,7 +174,7 @@ async function insertItem(
     trip_id: trip.id,
     time_block_id: block.id,
     title: place?.name ?? input.title,
-    kind: place ? "sightseeing" : "activity",
+    kind: input.offer ? "tour" : place ? "sightseeing" : "activity",
     start_time: start,
     end_time: end,
     latitude: point?.latitude ?? null,
@@ -412,4 +433,85 @@ export async function addSpotToItinerary(tripId: string, spotId: string, _: Acti
     refresh(tripId);
   }
   return { ok: result.ok, error: result.error, note: result.note };
+}
+
+// ---------------------------------------------------------------------------
+// Bookable experiences (Viator…) suggested for a block
+// ---------------------------------------------------------------------------
+export async function addExperience(tripId: string, blockId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const id = String(formData.get("id") ?? "").slice(0, 120);
+  const { supabase, userId } = await requireUserId();
+  const loaded = await loadTrip(supabase, tripId);
+  if (!loaded) return { error: "Trip not found." };
+  const block = loaded.days.flatMap((d) => d.blocks).find((b) => b.id === blockId);
+  if (!block) return { error: "That part of the day no longer exists." };
+
+  // Look the listing up again on the server (cached), so prices can't be edited in the browser.
+  const result = await suggestionsForBlock(supabase, userId, tripId, blockId, 20);
+  const offer = result?.offers.find((o) => o.id === id);
+  if (!offer) return { error: "That listing isn't available anymore. Refresh the suggestions." };
+
+  const added = await insertItem(supabase, userId, loaded, block, {
+    title: offer.title.slice(0, 200),
+    place: null,
+    address: null,
+    unitPrice: null,
+    startTime: null,
+    offer: {
+      provider: offer.provider,
+      ref: offer.id,
+      url: offer.url,
+      price: offer.price,
+      currency: offer.currency,
+      durationMinutes: offer.durationMinutes,
+    },
+  });
+  if (added.ok) refresh(tripId);
+  return { ok: added.ok, error: added.error, note: added.ok ? "Added. Book it on the provider's site to lock in your spot." : undefined };
+}
+
+/** From the Travel type carousel: put a bookable listing on the best free block in that city. */
+export async function addOfferToTrip(tripId: string, city: string, offerId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  void formData;
+  const { supabase, userId } = await requireUserId();
+  const loaded = await loadTrip(supabase, tripId);
+  if (!loaded) return { error: "Trip not found." };
+  const { data: trip } = await supabase.from("trips").select("currency").eq("id", tripId).single();
+  const result = await suggestExperiences({
+    city,
+    currency: trip?.currency ?? "USD",
+    interests: await myInterests(supabase, userId),
+    limit: 30,
+  });
+  const offer = result.offers.find((o) => o.id === offerId);
+  if (!offer) return { error: "That listing isn't available anymore." };
+
+  const inCity = loaded.days.filter((d) => d.city === city);
+  const days = inCity.length ? inCity : loaded.days;
+  const order: TimeBlockSlot[] = offer.slot ? [offer.slot, ...SLOTS.filter((s) => s !== offer.slot)] : ["afternoon", "morning", "evening"];
+  const busy = new Set(loaded.items.map((i) => i.time_block_id));
+  let block: TimeBlock | undefined;
+  for (const preferEmpty of [true, false]) {
+    for (const slot of order) {
+      block = days.flatMap((d) => d.blocks).find((b) => b.slot === slot && b.status !== "unavailable" && (!preferEmpty || !busy.has(b.id)));
+      if (block) break;
+    }
+    if (block) break;
+  }
+  if (!block) return { error: "No free time left in that city." };
+
+  const added = await insertItem(supabase, userId, loaded, block, {
+    title: offer.title.slice(0, 200),
+    place: null,
+    address: null,
+    unitPrice: null,
+    startTime: null,
+    offer: { provider: offer.provider, ref: offer.id, url: offer.url, price: offer.price, currency: offer.currency, durationMinutes: offer.durationMinutes },
+  });
+  if (!added.ok) return added;
+  refresh(tripId);
+  const day = loaded.days.find((d) => d.id === block!.day_id)!;
+  const [y, m, d] = day.date.split("-").map(Number);
+  const when = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+  return { ok: true, note: `Added to ${when}, ${SLOT_LABEL[block.slot].toLowerCase()}.` };
 }
