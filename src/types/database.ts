@@ -776,6 +776,10 @@ export type Database = {
         Returns: { trip_title: string; destination: string | null; start_date: ISODate; end_date: ISODate; invited_by: string; role: TripRole; valid: boolean }[];
       };
       accept_trip_invite: { Args: { p_token: UUID }; Returns: UUID };
+      report_award_seat: {
+        Args: { p_origin: string; p_destination: string; p_date: ISODate; p_program: string; p_cabin: string; p_miles: number; p_direct?: boolean };
+        Returns: undefined;
+      };
       trip_budget_comfort_summary: {
         Args: { p_trip_id: UUID };
         Returns: { responses: number; members: number; comfortable: number | null; mine: number | null }[];

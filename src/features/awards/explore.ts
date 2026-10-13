@@ -49,13 +49,14 @@ export async function exploreAwards(
   const cached: AwardResult[] = [];
   let oldestSeen: string | null = null;
   let sample = false;
-  if (checked.size) {
+  {
+    // Cached seats for checked routes, plus traveler reports on any route (last three days only).
     let query = supabase
       .from("award_availability")
       .select("id, origin, destination, travel_date, program, cabin, miles, seats, airlines, direct, data_source, seen_at")
       .eq("origin", q.origin)
       .eq("cabin", q.cabin)
-      .in("destination", [...checked])
+      .in("destination", q.destinations.slice(0, 60))
       .gte("travel_date", q.start)
       .lte("travel_date", q.end)
       .is("closed_at", null)
@@ -64,13 +65,17 @@ export async function exploreAwards(
     if (q.sources?.length) query = query.in("program", q.sources);
     if (q.directOnly) query = query.eq("direct", true);
     const { data } = await query;
-    const rows = data ?? [];
-    // If the engine has any real (licensed) data, never mix sample seats in.
-    const hasReal = rows.some((r) => r.data_source !== "sample");
+    const fresh = Date.now() - 3 * 86400000;
+    const rows = (data ?? []).filter((r) =>
+      r.data_source === "community" ? Date.parse(r.seen_at) >= fresh : checked.has(r.destination),
+    );
+    // Once a licensed source has data, never mix sample seats in.
+    const hasLicensed = rows.some((r) => r.data_source !== "sample" && r.data_source !== "community");
     for (const row of rows) {
-      if (hasReal && row.data_source === "sample") continue;
+      if (hasLicensed && row.data_source === "sample") continue;
+      const reported = row.data_source === "community";
       if (row.data_source === "sample") sample = true;
-      if (!oldestSeen || row.seen_at < oldestSeen) oldestSeen = row.seen_at;
+      if (!reported && (!oldestSeen || row.seen_at < oldestSeen)) oldestSeen = row.seen_at;
       cached.push({
         id: `c${row.id}`,
         date: row.travel_date,
@@ -83,6 +88,7 @@ export async function exploreAwards(
         airlines: row.airlines,
         direct: row.direct,
         updatedAt: row.seen_at,
+        reported,
       });
     }
   }

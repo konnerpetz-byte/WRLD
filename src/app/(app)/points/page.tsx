@@ -5,7 +5,9 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "@/features/awards/regions";
+import { chartPrices } from "@/features/awards/charts";
 import { ago, exploreAwards } from "@/features/awards/explore";
+import { ReportSeatForm } from "@/features/awards/report-seat-form";
 import { type AwardResult, programFor } from "@/features/awards/search";
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
@@ -269,8 +271,15 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
                     {new Date(`${best.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
                     {best.airlines ? `, flying ${best.airlines}` : ""}
                     {best.direct ? ", nonstop" : ""}.
-                    {best.updatedAt && <span className="text-muted-foreground"> Seen {ago(best.updatedAt)}.</span>}
+                    {best.updatedAt && (
+                      <span className="text-muted-foreground"> {best.reported ? "Reported by a traveler" : "Seen"} {ago(best.updatedAt)}.</span>
+                    )}
                   </p>
+                  {chartPrices(from, dest, cabin).map((c) => (
+                    <p key={c.source} className="text-xs text-muted-foreground">
+                      Chart price with {c.program}: <strong className="text-foreground">{formatPoints(c.points)}</strong> for partner flights ({c.miles.toLocaleString()} miles nonstop).
+                    </p>
+                  ))}
 
                   {canBook ? (
                     <p className="flex items-start gap-2 rounded-lg bg-open-soft px-3 py-2 text-sm text-primary">
@@ -309,12 +318,86 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
               );
             })}
           </ul>
+          {(() => {
+            const withSeats = new Set(groups.map((g) => g.dest));
+            const estimates = destinations
+              .filter((d) => !withSeats.has(d) && d !== from)
+              .flatMap((d) => chartPrices(from, d, cabin).map((c) => ({ dest: d, ...c })))
+              .sort((a, b) => a.points - b.points);
+            if (!estimates.length) return null;
+            const aeroplanReach = reachBySlug.get("aircanada_aeroplan");
+            return (
+              <section aria-labelledby="chart-h" className="grid gap-3 rounded-2xl border bg-card p-4">
+                <div>
+                  <h3 id="chart-h" className="text-lg font-semibold">
+                    No seats seen yet? Here&rsquo;s what they cost when they open
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    From the published Aeroplan partner chart (checked {estimates[0].checkedOn}). Search the program to see if seats are open, then
+                    share what you find below.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <caption className="sr-only">Chart prices by destination</caption>
+                    <thead className="text-xs text-muted-foreground">
+                      <tr>
+                        <th scope="col" className="py-1.5 pr-3 font-medium">Destination</th>
+                        <th scope="col" className="py-1.5 pr-3 font-medium">Program</th>
+                        <th scope="col" className="py-1.5 pr-3 text-right font-medium">Points, one way</th>
+                        <th scope="col" className="py-1.5 font-medium">Your points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {estimates.slice(0, 20).map((e) => (
+                        <tr key={`${e.dest}-${e.source}`} className="border-t">
+                          <td className="py-2 pr-3">
+                            {AIRPORT_CITY[e.dest] ?? e.dest} <span className="text-xs text-muted-foreground">{e.dest} · {e.miles.toLocaleString()} mi</span>
+                          </td>
+                          <td className="py-2 pr-3">
+                            {programFor(e.source).url ? (
+                              <a href={programFor(e.source).url} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                                {e.program}
+                              </a>
+                            ) : (
+                              e.program
+                            )}
+                          </td>
+                          <td className="py-2 pr-3 text-right font-semibold tabular-nums">{formatPoints(e.points)}</td>
+                          <td className="py-2 text-xs">
+                            {aeroplanReach && e.source === "aeroplan" ? (
+                              aeroplanReach.total >= e.points ? (
+                                <span className="font-medium text-primary">You can cover this</span>
+                              ) : (
+                                <span className="text-muted-foreground">{formatPoints(e.points - aeroplanReach.total)} short</span>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground">Add balances to check</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-muted-foreground">{estimates[0].appliesTo}</p>
+              </section>
+            );
+          })()}
           <p className="text-xs text-muted-foreground">
             Award seats change by the minute and taxes are extra. Confirm on the airline&apos;s site before moving points: transfers usually can&apos;t be undone.
             Card transfer ratios last checked September 2026.
           </p>
         </section>
       )}
+      <ReportSeatForm
+        origin={from}
+        cabin={cabin}
+        programs={Object.entries(SOURCE_PROGRAM)
+          .map(([source, p]) => ({ source, name: p.name }))
+          .sort((a, b) => a.name.localeCompare(b.name))}
+        minDate={today}
+      />
     </div>
   );
 }

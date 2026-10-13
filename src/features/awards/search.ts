@@ -29,6 +29,8 @@ export type AwardResult = {
   airlines: string;
   direct: boolean;
   updatedAt: string | null;
+  /** Shared by a traveler who saw it on the airline's site (not checked by WRLD) */
+  reported?: boolean;
 };
 
 export type AwardSearch = {

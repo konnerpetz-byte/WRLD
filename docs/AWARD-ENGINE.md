@@ -124,6 +124,15 @@ Each of these is a specific claim in the Air Canada suit, and they'd put WRLD's 
 - **Card transfer ratios** for 32 card-to-airline and card-to-hotel links (September 2026), plus balances.
 - **Sample data** until a licensed source is switched on.
 
+## 6. License-free sources (built October 13, 2026)
+
+Live seat availability only exists on airline sites, and collecting it automatically is what Air Canada sued Seats.aero over, so WRLD doesn't do that. Two sources need no license and are now built:
+
+1. **Published award charts** (`src/features/awards/charts.ts`). WRLD measures each route's distance from its own airport data and applies the program's published zones and distance bands. The first chart is Aeroplan's partner chart (bookings from June 1, 2026), confirmed in two sources. The explorer shows the chart price on every destination and a "here's what they cost when they open" table where no seats have been seen. Add a program only after confirming its chart in two sources, and re-check every quarter.
+2. **Traveler-reported seats** (`report_award_seat`). Anyone signed in can share award space they saw on an airline site. Reports go into the same award cache as `community` data, show "Reported by a traveler, X hours ago", disappear from results after three days, and are limited to 20 per person per day. Every report is kept in `award_reports` for quality checks.
+
+These sit beside the licensed-feed adapters, which still switch on with a key.
+
 ## Sources
 
 - Seats.aero data collection: https://milepoint.com/questions/how-does-the-seats-aero-service-collect-data-for-award-seat-availability/
