@@ -2,9 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { CheckLive } from "@/features/awards/check-live";
 import { monthOptions, parseQuery, runExplorer, type Wallet } from "@/features/awards/engine";
-import { DestinationCard, HowItWorks, Sources } from "@/features/awards/explorer-results";
+import { AboutPrices, DestinationRow } from "@/features/awards/explorer-results";
 import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
 import { fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
@@ -71,33 +70,29 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
     ? q.months.map((m) => months.find((o) => o.value === m)?.label ?? m).join(", ")
     : q.start === q.end
       ? day(q.start, { month: "short", day: "numeric", year: "numeric" })
-      : `${day(q.start)} – ${day(q.end, { month: "short", day: "numeric", year: "numeric" })}`;
+      : `${day(q.start)} to ${day(q.end, { month: "short", day: "numeric", year: "numeric" })}`;
 
   return (
     <div className="grid gap-6">
-      <p className="text-muted-foreground">
-        Where your miles and card points can take you: what each trip costs in points, the taxes and fees on top, and exactly which points to
-        move where.
+      <p className="max-w-[60ch] text-muted-foreground">
+        What each trip costs in points, the cash on top, and exactly which points to move where.
+        {!home && !sp.from && (
+          <>
+            {" "}
+            <Link href="/account" className="font-medium text-primary underline underline-offset-2">
+              Set your home airport
+            </Link>{" "}
+            to start from it every time.
+          </>
+        )}
       </p>
-
-      <HowItWorks />
-
-      {!home && !sp.from && (
-        <p className="rounded-xl border border-dashed bg-card p-4 text-sm">
-          Set your home airport in{" "}
-          <Link href="/account" className="font-medium text-primary underline underline-offset-2">
-            Account
-          </Link>{" "}
-          so the explorer starts from it every time.
-        </p>
-      )}
 
       <ExplorerFilters
         initial={initial}
         regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
         monthOptions={months}
         cabins={Object.entries(CABINS).map(([value, c]) => ({ value, label: c.label }))}
-        banks={BANKS.map((b) => ({ value: b.key, label: b.name.replace(/ (Ultimate Rewards|Membership Rewards|ThankYou Points|Rewards|Miles)$/, "") }))}
+        banks={BANKS.map((b) => ({ value: b.key, label: b.short }))}
         programs={Object.entries(SOURCE_PROGRAM)
           .map(([value, p]) => ({ value, label: p.name }))
           .sort((a, b) => a.label.localeCompare(b.label))}
@@ -105,34 +100,31 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
       />
 
       {!q.origins.length ? (
-        <p className="rounded-xl border border-dashed bg-card p-6 text-sm">Enter the airport you&rsquo;re flying from to start.</p>
+        <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">Enter the airport you&rsquo;re flying from to see where your points go.</p>
       ) : result && result.destinations.length === 0 ? (
-        <p className="rounded-xl border border-dashed bg-card p-6 text-sm">
-          Nothing matches these filters. Try more destinations, another cabin, or fewer program filters.
+        <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          Nothing matches these filters. Try more destinations, another cabin, or fewer programs.
         </p>
       ) : result ? (
-        <section aria-labelledby="results-h" className="grid gap-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="results-h" className="text-xl font-semibold">
-              {result.destinations.length} destination{result.destinations.length === 1 ? "" : "s"} from {q.origins.join(", ")} · {when}
+        <section aria-labelledby="results-h" className="grid gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
+            <h2 id="results-h" className="text-lg font-semibold">
+              {result.destinations.length} destination{result.destinations.length === 1 ? "" : "s"} from {q.origins.join(", ")}
             </h2>
-            <p className="text-xs text-muted-foreground">
-              {result.seatsSeen ? `${result.seatsSeen} open seat${result.seatsSeen === 1 ? "" : "s"} reported` : "No open seats reported yet for these dates"}
+            <p className="text-sm text-muted-foreground">
+              {when}. {result.seatsSeen ? `${result.seatsSeen} open seat${result.seatsSeen === 1 ? "" : "s"} reported` : "No open seats reported yet"}
             </p>
           </div>
-          <ul className="grid gap-4 lg:grid-cols-2">
-            {result.destinations.slice(0, 40).map((d) => (
-              <DestinationCard key={d.destination} d={d} date={q.start} />
+          <ul className="grid gap-2">
+            {result.destinations.slice(0, 40).map((d, i) => (
+              <DestinationRow key={d.destination} d={d} date={q.start} defaultOpen={i === 0} />
             ))}
           </ul>
           {result.destinations.length > 40 && (
-            <p className="text-sm text-muted-foreground">Showing the 40 best of {result.destinations.length}. Narrow the filters to see others.</p>
+            <p className="px-1 text-sm text-muted-foreground">Showing the 40 best of {result.destinations.length}. Narrow the filters to see others.</p>
           )}
-          <Sources />
         </section>
       ) : null}
-
-      <CheckLive />
 
       <ReportSeatForm
         origin={q.origins[0] ?? ""}
@@ -142,6 +134,8 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
           .sort((a, b) => a.name.localeCompare(b.name))}
         minDate={new Date().toISOString().slice(0, 10)}
       />
+
+      <AboutPrices />
     </div>
   );
 }

@@ -1,19 +1,28 @@
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
-import { CheckLive } from "@/features/awards/check-live";
+import { ReportSeatForm } from "@/features/awards/report-seat-form";
 import { chartPrices } from "@/features/awards/charts";
 import { directionsFor, monthOptions, type DestinationResult, type Option } from "@/features/awards/engine";
 import { ExplorerFilters } from "@/features/awards/explorer-filters";
-import { DestinationCard, HowItWorks, Sources } from "@/features/awards/explorer-results";
+import { AboutPrices, DestinationRow } from "@/features/awards/explorer-results";
 import { estimateFees, fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { BANKS } from "@/features/awards/transfers";
 import { airportByCode } from "@/features/places/airports";
 
 /** Development-only: the Points explorer with sample results, for design and accessibility review. 404 in production. */
-export default async function PointsPreview() {
+export default function PointsPreview() {
   if (process.env.NODE_ENV === "production") notFound();
+  return (
+    <Suspense>
+      <Preview />
+    </Suspense>
+  );
+}
+
+async function Preview() {
   await connection();
   const fx = fxFrom(new Map([["EUR", 0.894], ["GBP", 0.755], ["CAD", 1.424]]));
   const wallet = { balances: new Map([["chase_ultimate_rewards", 80000]]) };
@@ -62,7 +71,6 @@ export default async function PointsPreview() {
   return (
     <main className="mx-auto grid max-w-5xl gap-6 p-6">
       <h1 className="text-4xl font-semibold">Points explorer</h1>
-      <HowItWorks />
       <ExplorerFilters
         initial={{ from: "DTW", to: ["europe"], codes: "", dateMode: "months", months: [months[1].value], start: "", end: "", cabins: ["business"], banks: [], programs: [], mine: false, direct: false, sort: "points" }}
         regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
@@ -72,13 +80,13 @@ export default async function PointsPreview() {
         programs={Object.entries(SOURCE_PROGRAM).map(([value, p]) => ({ value, label: p.name }))}
         hasWallet
       />
-      <ul className="grid gap-4 lg:grid-cols-2">
-        {results.map((d) => (
-          <DestinationCard key={d.destination} d={d} date="2027-05-16" />
+      <ul className="grid gap-2">
+        {results.map((d, i) => (
+          <DestinationRow key={d.destination} d={d} date="2027-05-16" defaultOpen={i === 0} />
         ))}
       </ul>
-      <Sources />
-      <CheckLive />
+      <ReportSeatForm origin="DTW" cabin="business" programs={[{ source: "aeroplan", name: "Air Canada Aeroplan" }]} minDate="2026-10-13" />
+      <AboutPrices />
     </main>
   );
 }

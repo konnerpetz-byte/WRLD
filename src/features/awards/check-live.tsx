@@ -10,7 +10,8 @@ import { useEffect, useRef } from "react";
  */
 const BOOKMARKLET = `javascript:(()=>{const d=JSON.stringify({u:location.href,t:document.body.innerText.slice(0,100000)});window.open('https://wrldtrips.com/points/share#'+encodeURIComponent(d),'_blank')})()`;
 
-export function CheckLive() {
+/** Bookmark and browser button: send what the airline shows straight to WRLD. */
+export function SendFromAirline() {
   const ref = useRef<HTMLAnchorElement>(null);
   // React won't render a javascript: link, so set it after mount.
   useEffect(() => {
@@ -18,45 +19,36 @@ export function CheckLive() {
   }, []);
 
   return (
-    <section id="check-live" aria-labelledby="check-live-h" className="grid gap-3 rounded-2xl border bg-card p-5">
-      <div>
-        <h2 id="check-live-h" className="text-lg font-semibold">
-          Live seats, checked on the airline&rsquo;s own site
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Every option has a <strong className="text-foreground">Check live</strong> button that opens the airline&rsquo;s award search,
-          already filled in. You see real, up-to-the-minute seats and taxes. Then send them to WRLD in one click so the explorer, and
-          everyone else, has them too.
-        </p>
-      </div>
-      <ol className="grid gap-3 text-sm sm:grid-cols-2">
-        <li className="grid content-start gap-2 rounded-xl bg-muted/50 p-3">
-          <p className="font-semibold">On a computer: add the Send to WRLD bookmark</p>
-          <p className="text-muted-foreground">Drag this button to your bookmarks bar. On airline results, click it.</p>
+    <div className="grid gap-4">
+      <p className="text-sm text-muted-foreground">
+        Open any result&rsquo;s <strong className="text-foreground">Check live seats</strong>, then send what the airline shows you in one
+        click. WRLD keeps only the dates, points and taxes you confirm, and never searches airline sites on its own.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid content-start gap-2 rounded-xl bg-muted/50 p-4 text-sm">
+          <p className="font-medium">Bookmark, on a computer</p>
+          <p className="text-muted-foreground">Drag this to your bookmarks bar, then click it on the airline&rsquo;s results.</p>
           <a
             ref={ref}
             href="#check-live"
             onClick={(e) => e.preventDefault()}
             draggable
-            className="inline-flex w-fit cursor-grab items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground active:cursor-grabbing"
+            className="mt-1 inline-flex min-h-9 w-fit cursor-grab items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-medium text-primary-foreground active:cursor-grabbing"
           >
             <Bookmark className="size-4" aria-hidden="true" /> Send to WRLD
           </a>
-        </li>
-        <li className="grid content-start gap-2 rounded-xl bg-muted/50 p-3">
-          <p className="font-semibold">Or the WRLD button for Chrome and Edge</p>
+        </div>
+        <div className="grid content-start gap-2 rounded-xl bg-muted/50 p-4 text-sm">
+          <p className="font-medium">Button for Chrome and Edge</p>
           <p className="text-muted-foreground">
-            Download, unzip, open <span className="font-mono text-xs">chrome://extensions</span>, turn on Developer mode and choose
-            &ldquo;Load unpacked.&rdquo; It only reads a page when you click it.
+            Unzip it, open <span className="font-mono text-xs">chrome://extensions</span>, turn on Developer mode and choose &ldquo;Load
+            unpacked.&rdquo;
           </p>
-          <a href="/wrld-seat-sharer.zip" download className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary underline underline-offset-2">
-            <Download className="size-4" aria-hidden="true" /> Download the WRLD button (2 KB)
+          <a href="/wrld-seat-sharer.zip" download className="mt-1 inline-flex w-fit items-center gap-1.5 font-medium text-primary underline underline-offset-2">
+            <Download className="size-4" aria-hidden="true" /> Download (2 KB)
           </a>
-        </li>
-      </ol>
-      <p className="text-xs text-muted-foreground">
-        WRLD keeps only the dates, points and taxes you confirm. It never signs in to airline sites or searches them on its own.
-      </p>
-    </section>
+        </div>
+      </div>
+    </div>
   );
 }

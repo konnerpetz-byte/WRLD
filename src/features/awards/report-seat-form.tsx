@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPaste, Megaphone } from "lucide-react";
+import { ClipboardPaste } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { NativeSelect } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 import { type PasteState, readPastedSeats, type ReportState, reportAwardSeat, reportManySeats } from "./actions";
+import { SendFromAirline } from "./check-live";
 
 type Programs = { source: string; name: string }[];
 
@@ -19,38 +20,42 @@ type Programs = { source: string; name: string }[];
  * for three days and can be confirmed or taken down by other travelers.
  */
 export function ReportSeatForm({ origin, cabin, programs, minDate }: { origin: string; cabin: string; programs: Programs; minDate: string }) {
-  const [mode, setMode] = useState<"one" | "paste">("one");
+  const [mode, setMode] = useState<"send" | "one" | "paste">("send");
   return (
-    <section aria-labelledby="report-h" className="grid gap-4 rounded-2xl border bg-card p-5">
-      <div>
-        <h2 id="report-h" className="flex items-center gap-2 text-lg font-semibold">
-          <Megaphone className="size-5 text-brand" aria-hidden="true" /> Found a seat? Share it
+    <section id="check-live" aria-labelledby="report-h" className="grid gap-4 rounded-2xl border bg-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="report-h" className="text-lg font-semibold">
+          Found seats on an airline&rsquo;s site?
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Saw award space on an airline&rsquo;s site? Share it, with the taxes the airline showed, and other WRLD travelers see it for three
-          days, marked as reported by a traveler. This is how WRLD builds its own seat data.
-        </p>
+        <div role="tablist" aria-label="How to add them" className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
+          {(
+            [
+              ["send", "One click"],
+              ["one", "Type it"],
+              ["paste", "Paste"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={mode === value}
+              onClick={() => setMode(value)}
+              className={`rounded-md px-3 py-1.5 transition-colors focus-visible:outline-2 focus-visible:outline-ring ${mode === value ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div role="tablist" aria-label="How to share" className="flex w-fit gap-1 rounded-lg bg-muted p-1 text-sm">
-        {(
-          [
-            ["one", "One seat"],
-            ["paste", "Paste a results calendar"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={mode === value}
-            onClick={() => setMode(value)}
-            className={`rounded-md px-3 py-1.5 transition-colors focus-visible:outline-2 focus-visible:outline-ring ${mode === value ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {mode === "one" ? <OneSeat origin={origin} cabin={cabin} programs={programs} minDate={minDate} /> : <PasteCalendar origin={origin} cabin={cabin} programs={programs} />}
+      {mode === "send" ? (
+        <SendFromAirline />
+      ) : mode === "one" ? (
+        <OneSeat origin={origin} cabin={cabin} programs={programs} minDate={minDate} />
+      ) : (
+        <PasteCalendar origin={origin} cabin={cabin} programs={programs} />
+      )}
+      <p className="text-xs text-muted-foreground">Shared seats show for three days, marked as seen by a traveler, and others can confirm or take them down.</p>
     </section>
   );
 }
