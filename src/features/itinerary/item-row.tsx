@@ -13,6 +13,8 @@ import type { ItineraryItem } from "@/types/database";
 import { ExploreNearby } from "./explore-nearby";
 import { setItemLocation } from "./place-actions";
 import { formatClock } from "./schedule";
+import { GygAvailability } from "@/features/experiences/gyg-widget";
+import { gygTourId, partnerUrl } from "@/lib/affiliate";
 import { providerOf, track } from "@/lib/track";
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -51,6 +53,7 @@ export function ItemRow({
   const time = item.start_time ? `${formatClock(item.start_time.slice(0, 5))}${item.end_time ? `–${formatClock(item.end_time.slice(0, 5))}` : ""}` : null;
   const ticketHost = hostOf(item.booking_url);
   const officialHost = hostOf(item.official_url);
+  const gygTour = cancelled ? null : gygTourId(item.booking_url);
 
   return (
     <li className={`rounded-md border-l-2 bg-open-soft py-1.5 pr-1.5 pl-2.5 ${cancelled ? "border-muted-foreground opacity-60" : "border-open"}`}>
@@ -136,7 +139,7 @@ export function ItemRow({
       {(item.booking_url || item.official_url) && (
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
           {item.booking_url && (
-            <a href={item.booking_url} target="_blank" rel="noopener noreferrer" onClick={() => track({ kind: "booking_click", tripId, provider: item.attraction_id ? "official" : providerOf(item.booking_url) })} className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">
+            <a href={partnerUrl(item.booking_url)} target="_blank" rel="noopener noreferrer sponsored" onClick={() => track({ kind: "booking_click", tripId, provider: item.attraction_id ? "official" : providerOf(item.booking_url) })} className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">
               {item.attraction_id ? "Official tickets" : "Book"}
               {ticketHost ? <span className="sr-only">on {ticketHost}</span> : null}
               <ExternalLink className="size-3" aria-hidden="true" />
@@ -154,6 +157,14 @@ export function ItemRow({
         <details className="mt-1 text-xs text-muted-foreground">
           <summary className="cursor-pointer select-none">Visit details</summary>
           <p className="mt-1 whitespace-pre-line">{item.description}</p>
+        </details>
+      )}
+      {gygTour && (
+        <details className="mt-1 text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none">Dates and prices</summary>
+          <div className="mt-2">
+            <GygAvailability tourId={gygTour} currency={currency} title={item.title} />
+          </div>
         </details>
       )}
 

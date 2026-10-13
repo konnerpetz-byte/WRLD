@@ -30,6 +30,8 @@ import { Button } from "@/components/ui/button";
 import { addNamedPlaceToTrip, addOfferToTrip } from "@/features/itinerary/place-actions";
 import type { ActionState } from "@/features/trips/actions";
 import { formatDuration, formatMoney } from "@/lib/format";
+import { GygActivities } from "@/features/experiences/gyg-widget";
+import { partnerUrl } from "@/lib/affiliate";
 import { providerOf, track } from "@/lib/track";
 
 type BudgetChip = { label: string; fits: boolean } | null;
@@ -112,6 +114,15 @@ export function PlaceRecommendations({ tripId, dayId, dayLabel }: { tripId: stri
   const budget = result?.budget ?? null;
   const ideas = result?.ideas ?? [];
   const offers = result?.offers ?? [];
+  // Same search as the GetYourGuide link ("Lisbon food tour"), for its panel.
+  const gygSearch = (() => {
+    const link = result?.links.find((l) => l.label === "GetYourGuide");
+    try {
+      return link ? new URL(link.url).searchParams.get("q") : null;
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <section aria-labelledby="recs-title" aria-busy={loading} className="grid gap-4 border-t pt-4">
@@ -237,7 +248,7 @@ export function PlaceRecommendations({ tripId, dayId, dayLabel }: { tripId: stri
               {result!.links.map((l) => (
                 <a
                   key={l.label}
-                  href={l.url}
+                  href={partnerUrl(l.url)}
                   target="_blank"
                   rel="noopener noreferrer sponsored"
                   onClick={() => track({ kind: "booking_click", tripId, provider: providerOf(l.url) })}
@@ -247,6 +258,17 @@ export function PlaceRecommendations({ tripId, dayId, dayLabel }: { tripId: stri
                 </a>
               ))}
             </p>
+          )}
+          {gygSearch && (
+            <details className="group rounded-2xl border bg-background">
+              <summary className="cursor-pointer list-none rounded-2xl px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                <span className="text-primary group-open:hidden">See more tours on GetYourGuide</span>
+                <span className="hidden text-muted-foreground group-open:inline">Tours on GetYourGuide</span>
+              </summary>
+              <div className="px-2 pb-2">
+                <GygActivities q={gygSearch} count={3} currency={offers[0]?.currency} />
+              </div>
+            </details>
           )}
           <p className="text-[11px] text-muted-foreground">
             {result?.mode === "sample" ? "Sample listings for testing. " : ""}Places from OpenStreetMap; check hours before you go. WRLD may earn a commission when you book tours through these links.
@@ -464,7 +486,7 @@ function OfferDetails({ offer, tripId, dayId, city, onClose }: { offer: Offer; t
           )}
           <Button asChild variant="outline">
             <a
-              href={offer.url}
+              href={partnerUrl(offer.url)}
               target="_blank"
               rel="noopener noreferrer sponsored"
               onClick={() => track({ kind: "booking_click", tripId, provider: "viator" })}

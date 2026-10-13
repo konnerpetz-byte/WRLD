@@ -106,7 +106,9 @@ export default function PrivacyPage() {
         <li>
           <strong>Booking and price partners:</strong> Viator receives activity searches (a city and a kind of activity, never your
           name or email). When you open a partner link (Viator, GetYourGuide, airlines, ticket sites), you leave WRLD and that
-          site&rsquo;s privacy policy applies. Some links carry a WRLD partner code, so we may earn a commission.
+          site&rsquo;s privacy policy applies. Some links carry a WRLD partner code, so we may earn a commission. When you open a
+          GetYourGuide panel in your plan (more tours, or dates and prices for a tour), it loads from GetYourGuide&rsquo;s servers,
+          which see your IP address and the search (a city and a kind of activity), never your name or email.
         </li>
         <li>
           <strong>Travelpayouts</strong>: on our public home page only, for visitors who aren&rsquo;t signed in, we load the

@@ -67,7 +67,9 @@ export default function CookiesPage() {
       <h2>Other sites</h2>
       <p>
         When you open a link to another site (a booking partner, an airline, a ticket office), that site may set its own cookies,
-        including the partner&rsquo;s cookie that credits WRLD for a booking. Their cookie policies apply.
+        including the partner&rsquo;s cookie that credits WRLD for a booking. GetYourGuide panels you open inside your plan run
+        on GetYourGuide&rsquo;s own domain and may set GetYourGuide cookies there; they can&rsquo;t read or set WRLD&rsquo;s. Their
+        cookie policies apply.
       </p>
 
       <h2>Your choices</h2>

@@ -19,7 +19,8 @@ const policy = (extra: { script?: string; connect?: string; frame?: string; styl
   `connect-src 'self' https://${supabase} wss://${supabase} https://tiles.openfreemap.org ${mapStyle}${extra.connect ?? ""}`.trim(),
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
-  extra.frame ? `frame-src${extra.frame}` : "frame-src 'none'",
+  // GetYourGuide panels are plain sandboxed iframes (src/features/experiences/gyg-widget.tsx).
+  `frame-src https://widget.getyourguide.com${extra.frame ?? ""}`,
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
