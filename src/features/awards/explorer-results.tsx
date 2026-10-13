@@ -15,10 +15,20 @@ import { ReportedVote } from "./reported-vote";
  * Shared by the Points explorer page and its design preview.
  */
 
+const PORTAL_LINKS = [
+  { name: "Chase Travel", url: "https://travelsecure.chase.com" },
+  { name: "Amex Travel", url: "https://www.amextravel.com" },
+  { name: "Capital One Travel", url: "https://travel.capitalone.com" },
+  { name: "Citi Travel", url: "https://www.thankyou.com" },
+];
+
 const day = (iso: string, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 
 function Tag({ o }: { o: Option }) {
+  if (o.kind === "portal" || o.kind === "revenue") {
+    return <span className="inline-flex shrink-0 items-center rounded-full bg-travel/20 px-2 py-0.5 text-xs font-medium">Any seat, today&rsquo;s fare</span>;
+  }
   if (o.days.some((d) => d.live)) {
     return <span className="inline-flex shrink-0 items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Live seats</span>;
   }
@@ -33,7 +43,9 @@ function Cost({ o, size = "md" }: { o: Option; size?: "md" | "lg" }) {
   const surcharge = o.cash.estimate.plusSurcharges && !o.cash.reported;
   return (
     <div className="shrink-0 text-right tabular-nums">
-      <p className={`font-semibold ${size === "lg" ? "font-display text-xl sm:text-2xl" : "text-base"}`}>{formatPoints(o.points)}</p>
+      <p className={`font-semibold ${size === "lg" ? "font-display text-xl sm:text-2xl" : "text-base"}`}>
+        {o.pointsHigh && o.pointsHigh !== o.points ? `${formatPoints(o.points)}–${formatPoints(o.pointsHigh)}` : formatPoints(o.points)}
+      </p>
       <p className="text-xs text-muted-foreground">
         + {feeRange(o.cash.low, o.cash.high)}
         {surcharge ? <span className={o.cash.estimate.surcharge.level === "high" ? "text-destructive" : ""}> + surcharges</span> : null}
@@ -44,6 +56,10 @@ function Cost({ o, size = "md" }: { o: Option; size?: "md" | "lg" }) {
 
 function route(o: Option) {
   const c = o.chart;
+  if (o.fares?.length) {
+    const f = o.fares[0];
+    return `$${f.price.toFixed(0)} fare on ${f.airline}${f.stops ? `, ${f.stops} stop${f.stops === 1 ? "" : "s"}` : ", nonstop"}. ${o.fares.length} day${o.fares.length === 1 ? "" : "s"} with fares`;
+  }
   if (o.kind === "seats") return `${o.days.length} day${o.days.length === 1 ? "" : "s"} with seats`;
   if (!c) return "";
   if (c.basis !== "route") return "Route not confirmed yet";
@@ -114,7 +130,7 @@ function OptionDetail({ o, date }: { o: Option; date: string }) {
           </ul>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
-              {lowest.live ? "Live from Seats.aero, updated" : lowest.reported ? "Seen by a traveler" : "Checked"} {ago(lowest.seenAt)}
+              {lowest.via === "browser" ? `Searched live on ${o.program === "Atmos Rewards (Alaska)" ? "alaskaair.com" : "the airline's site"}` : lowest.live ? "Live from Seats.aero, updated" : lowest.reported ? "Seen by a traveler" : "Checked"} {ago(lowest.seenAt)}
             </span>
             {lowest.reported && <ReportedVote id={lowest.id} />}
           </div>
@@ -138,7 +154,22 @@ function OptionDetail({ o, date }: { o: Option; date: string }) {
           {o.directions.shortBy ? (
             <p className="text-xs text-muted-foreground">{formatPoints(o.directions.shortBy)} points short with the cards you&rsquo;ve added.</p>
           ) : null}
-          {live && (
+          {o.kind === "portal" && (
+            <div className="flex flex-wrap gap-2">
+              {PORTAL_LINKS.map((p) => (
+                <a
+                  key={p.name}
+                  href={p.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full border bg-background px-3 text-sm font-medium hover:border-primary/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  {p.name} <ExternalLink className="size-3.5" aria-hidden="true" />
+                </a>
+              ))}
+            </div>
+          )}
+          {live && o.kind !== "portal" && (
             <a
               href={live.url}
               target="_blank"

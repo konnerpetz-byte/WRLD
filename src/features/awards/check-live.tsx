@@ -45,7 +45,7 @@ export function SendFromAirline() {
             unpacked.&rdquo;
           </p>
           <a href="/wrld-seat-sharer.zip" download className="mt-1 inline-flex w-fit items-center gap-1.5 font-medium text-primary underline underline-offset-2">
-            <Download className="size-4" aria-hidden="true" /> Download (2 KB)
+            <Download className="size-4" aria-hidden="true" /> Download (5 KB)
           </a>
         </div>
       </div>

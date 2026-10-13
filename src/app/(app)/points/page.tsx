@@ -6,11 +6,13 @@ import { monthOptions, parseQuery, runExplorer, type Wallet } from "@/features/a
 import { AboutPrices, DestinationRow } from "@/features/awards/explorer-results";
 import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
 import { LiveLink } from "@/features/awards/live-link";
+import { LiveSearch } from "@/features/awards/live-search";
 import { linkedToken, seatsConfig } from "@/features/awards/seats-aero";
 import { fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { ReportSeatForm } from "@/features/awards/report-seat-form";
 import { BANKS } from "@/features/awards/transfers";
+import { airportByCode } from "@/features/places/airports";
 import { requireUserId } from "@/lib/supabase/server";
 
 export const metadata = { title: "Points explorer" };
@@ -107,6 +109,13 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
         <LiveLink connected={Boolean(link)} seats={result?.live.seats ?? 0} error={result?.live.error} notice={notice} />
       )}
 
+      {result && q.cabins.includes("economy") && (
+        <LiveSearch
+          routes={liveRoutes(q.origins[0], result.destinations.map((d) => d.destination), result.searched)}
+          months={q.months.length ? q.months : [...new Set([q.start.slice(0, 7), q.end.slice(0, 7)])]}
+        />
+      )}
+
       {!q.origins.length ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">Enter the airport you&rsquo;re flying from to see where your points go.</p>
       ) : result && result.destinations.length === 0 ? (
@@ -148,3 +157,13 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
   );
 }
 
+
+/**
+ * Routes for a live Alaska search: destinations with results first, then the rest of
+ * the search in North America and Hawaii, where Alaska and its partners fly most.
+ */
+function liveRoutes(origin: string, ranked: string[], searched: string[]) {
+  const near = (code: string) => ["US", "CA", "MX", "CR", "BZ", "GT"].includes(airportByCode(code)?.country ?? "");
+  const order = [...ranked.filter(near), ...searched.filter(near), ...ranked];
+  return [...new Set(order)].filter((d) => d !== origin).slice(0, 30).map((destination) => ({ origin, destination }));
+}

@@ -7,6 +7,7 @@ import { type ChartPrice, routeAwareChartPrices } from "./charts";
 import { estimateFees, type FeeEstimate, type Fx } from "./fees";
 import { loadNetwork } from "./network";
 import { liveSeats } from "./seats-aero";
+import { type CashFare, cashFares, PORTAL_CENTS, PORTALS, REVENUE_PROGRAMS } from "./cash-fares";
 import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "./regions";
 import { programFor } from "./search";
 import { BANKS, bankPointsFor, ratioLabel } from "./transfers";
@@ -211,8 +212,9 @@ export type SeatDay = {
   seenAt: string;
   id: number;
   reported: boolean;
-  /** From the traveler's linked Seats.aero account (live award data) */
+  /** Live award data: from a linked Seats.aero account, or looked up in a traveler's browser */
   live?: boolean;
+  via?: "seats.aero" | "browser";
 };
 
 export type Option = {
@@ -224,7 +226,12 @@ export type Option = {
   program: string;
   points: number;
   /** "seats": real seats (traveler reports or licensed data); "chart": published price when a seat opens */
-  kind: "seats" | "chart";
+  /** seats: real award seats; chart: published price; portal: card points for today's cash fare; revenue: Southwest/JetBlue points from the fare */
+  kind: "seats" | "chart" | "portal" | "revenue";
+  /** For portal and revenue options: the cash fares behind them */
+  fares?: CashFare[];
+  /** Revenue programs price within a range */
+  pointsHigh?: number;
   days: SeatDay[];
   chart?: ChartPrice;
   /** Cash on top of the points, in USD */
@@ -241,6 +248,8 @@ export type ExplorerResult = {
   routesKnown: number;
   /** Live search through the traveler's linked Seats.aero account */
   live: { connected: boolean; seats: number; error?: string };
+  /** Every destination searched (Anywhere includes the route network) */
+  searched: string[];
 };
 
 export async function runExplorer(
@@ -251,7 +260,7 @@ export async function runExplorer(
   fx: Fx,
   liveToken: string | null = null,
 ): Promise<ExplorerResult> {
-  if (!q.origins.length || !q.destinations.length) return { destinations: [], seatsSeen: 0, routesKnown: 0, live: { connected: Boolean(liveToken), seats: 0 } };
+  if (!q.origins.length || !q.destinations.length) return { destinations: [], seatsSeen: 0, routesKnown: 0, live: { connected: Boolean(liveToken), seats: 0 }, searched: [] };
   const allowed = allowedPrograms(q, wallet);
   const ok = (source: string) => !allowed || allowed.has(source);
 
@@ -270,7 +279,8 @@ export async function runExplorer(
     q = { ...q, destinations: [...new Set([...q.destinations, ...nonstop, ...inbound])].filter((d) => !q.origins.includes(d) && airportByCode(d)).slice(0, 400) };
   }
   const liveSources = allowed ? [...allowed] : null;
-  const [typical, seatRows, live] = await Promise.all([
+  const wantsEconomy = q.cabins.includes("economy");
+  const [typical, seatRows, live, fares] = await Promise.all([
     typicalPrices(supabase, q.origins, q.destinations, q.cabins),
     (async () => {
       let query = supabase
@@ -287,11 +297,12 @@ export async function runExplorer(
         .limit(1000);
       if (q.directOnly) query = query.eq("direct", true);
       const { data } = await query;
-      return (data ?? []).filter((r) => (r.data_source !== "community" || r.seen_at >= fresh) && (!q.months.length || q.months.includes(r.travel_date.slice(0, 7))));
+      return (data ?? []).filter((r) => ((r.data_source !== "community" && r.data_source !== "browser") || r.seen_at >= fresh) && (!q.months.length || q.months.includes(r.travel_date.slice(0, 7))));
     })(),
     liveToken
       ? liveSeats(liveToken, { origins: q.origins, destinations: q.destinations, start: q.start, end: q.end, cabins: q.cabins, sources: liveSources, directOnly: q.directOnly })
       : Promise.resolve(null),
+    wantsEconomy ? cashFares({ origins: q.origins, months: q.months, start: q.start, end: q.end, directOnly: q.directOnly }) : Promise.resolve([] as CashFare[]),
   ]);
   const inMonths = (date: string) => !q.months.length || q.months.includes(date.slice(0, 7));
   // Live seats join the same groups as traveler reports (same route, cabin and program).
@@ -339,7 +350,8 @@ export async function runExplorer(
         seenAt: r.seen_at,
         id: r.id,
         reported: r.data_source === "community",
-        live: r.data_source === "live",
+        live: r.data_source === "live" || r.data_source === "browser",
+        via: r.data_source === "live" ? ("seats.aero" as const) : r.data_source === "browser" ? ("browser" as const) : undefined,
       }))
       .sort((a, b) => a.miles - b.miles || a.date.localeCompare(b.date))
       // One price per day: the cheapest.
@@ -399,6 +411,87 @@ export async function runExplorer(
     }
   }
 
+  // Today's cash fares, paid with points: card travel portals and Southwest/JetBlue.
+  {
+    const destSet = new Set(q.destinations);
+    const anywhere = q.regions.includes("anywhere");
+    const inWindow = fares.filter((f) => inMonths(f.date) && (anywhere || destSet.has(f.destination)) && !q.origins.includes(f.destination));
+    const portalBanks = PORTALS.filter((p) => (q.banks.length ? q.banks.includes(p.bank) : true));
+    const heldBanks = BANKS.filter((b) => (wallet.balances.get(b.slug) ?? 0) > 0).map((b) => b.key);
+    const portalOk =
+      portalBanks.length > 0 &&
+      (!allowed || q.banks.length > 0 || (q.mine && PORTALS.some((p) => heldBanks.includes(p.bank)))) &&
+      !(q.programs.length && !q.banks.length && !q.mine);
+    const byRoute = new Map<string, CashFare[]>();
+    for (const f of inWindow) byRoute.set(`${f.origin}|${f.destination}`, [...(byRoute.get(`${f.origin}|${f.destination}`) ?? []), f]);
+    for (const [route, list] of byRoute) {
+      const [origin, destination] = route.split("|");
+      if (!airportByCode(destination)) continue;
+      // Cheapest fare per day.
+      const perDay = [...new Map([...list].sort((a, b) => b.price - a.price).map((f) => [f.date, f])).values()].sort((a, b) => a.price - b.price);
+      const best = perDay[0];
+      const noFees = { low: 0, high: 0, lines: [{ label: "Taxes and fees", low: 0, high: 0, note: "Included in the points price" }], surcharge: { level: "none" as const, text: "Taxes are included in the points price." }, plusSurcharges: false };
+      const days = perDay.map((f) => ({ date: f.date, miles: Math.round((f.price * 100) / PORTAL_CENTS), taxes: null, taxCurrency: null, seenAt: new Date().toISOString(), id: 0, reported: false }));
+      if (portalOk) {
+        const points = Math.round((best.price * 100) / PORTAL_CENTS);
+        const usable = portalBanks.filter((p) => !q.mine || heldBanks.includes(p.bank));
+        const held = usable.find((p) => (wallet.balances.get(BANKS.find((b) => b.key === p.bank)!.slug) ?? 0) >= points);
+        const when = new Date(`${best.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+        const flight = `${airlineName(best.airline)}${best.stops ? `, ${best.stops} stop${best.stops === 1 ? "" : "s"}` : ", nonstop"}`;
+        options.push({
+          key: `${route}|economy|portal`,
+          origin,
+          destination,
+          cabin: "economy",
+          source: "portal",
+          program: "Card points, any seat",
+          points,
+          kind: "portal",
+          days,
+          fares: perDay,
+          cash: { low: 0, high: 0, reported: false, estimate: noFees },
+          directions: {
+            steps: [
+              held
+                ? `Search ${held.name} (${held.site}) for ${origin} to ${destination} on ${when} and pay with ${points.toLocaleString("en-US")} of your points.`
+                : `Search a card travel site (${usable.map((p) => p.name).join(", ")}) for ${origin} to ${destination} on ${when}; pay with about ${points.toLocaleString("en-US")} points.`,
+              `Lowest fare seen: $${best.price.toFixed(0)} on ${flight}, found by travelers in the last 48 hours. The price can change.`,
+            ],
+            covered: Boolean(held),
+            shortBy: null,
+          },
+        });
+      }
+      // Southwest and JetBlue price awards from the fare: show them when they fly it.
+      for (const [code, rev] of Object.entries(REVENUE_PROGRAMS)) {
+        if (!ok(rev.source)) continue;
+        const theirs = perDay.filter((f) => f.airline === code);
+        if (!theirs.length) continue;
+        const f = theirs[0];
+        // Fare minus U.S. taxes (7.5% ticket tax, $5.60 security fee) is what the points pay for.
+        const base = Math.max(0, (f.price - 5.6) / 1.075);
+        const low = Math.round(base / (rev.high / 100) / 100) * 100;
+        const high = Math.round(base / (rev.low / 100) / 100) * 100;
+        const fees = { low: 6, high: 6, lines: [{ label: "U.S. September 11th Security Fee", low: 6, high: 6 }], surcharge: { level: "none" as const, text: `${programFor(rev.source).name} doesn't add fuel surcharges.` }, plusSurcharges: false };
+        options.push({
+          key: `${route}|economy|${rev.source}`,
+          origin,
+          destination,
+          cabin: "economy",
+          source: rev.source,
+          program: programFor(rev.source).name,
+          points: low,
+          pointsHigh: high,
+          kind: "revenue",
+          days: theirs.map((x) => ({ date: x.date, miles: Math.round(Math.max(0, (x.price - 5.6) / 1.075) / (rev.high / 100) / 100) * 100, taxes: null, taxCurrency: null, seenAt: new Date().toISOString(), id: 0, reported: false })),
+          fares: theirs,
+          cash: { low: 6, high: 6, reported: false, estimate: fees },
+          directions: directionsFor({ source: rev.source, points: high, origin, destination, cabin: "economy", date: f.date, airlines: [airlineName(code)], wallet, banks: q.banks }),
+        });
+      }
+    }
+  }
+
   // Group by destination; order options and destinations by the chosen sort.
   const score = (x: Option) =>
     q.sort === "cash" ? x.cash.low * 1000 + x.points / 1000 : q.sort === "mine" ? (x.directions.covered ? 0 : 1e9) + x.points : x.points;
@@ -417,5 +510,18 @@ export async function runExplorer(
     seatsSeen: seatRows.length,
     routesKnown: network.known.size,
     live: { connected: Boolean(liveToken), seats: liveRows.length, error: live?.error },
+    searched: q.destinations,
   };
+}
+
+const AIRLINES: Record<string, string> = {
+  AA: "American", DL: "Delta", UA: "United", WN: "Southwest", B6: "JetBlue", AS: "Alaska", NK: "Spirit", F9: "Frontier",
+  G4: "Allegiant", HA: "Hawaiian", SY: "Sun Country", MX: "Breeze", AC: "Air Canada", WS: "WestJet", AM: "Aeroméxico",
+  Y4: "Volaris", BA: "British Airways", LH: "Lufthansa", AF: "Air France", KL: "KLM", VS: "Virgin Atlantic", EI: "Aer Lingus",
+  IB: "Iberia", TP: "TAP Air Portugal", TK: "Turkish Airlines", EK: "Emirates", QR: "Qatar Airways", LX: "SWISS", OS: "Austrian",
+  SK: "SAS", AY: "Finnair", FI: "Icelandair", JL: "Japan Airlines", NH: "ANA", KE: "Korean Air", CX: "Cathay Pacific", CM: "Copa",
+  AV: "Avianca", LA: "LATAM", PD: "Porter", WY: "Oman Air", EY: "Etihad", SQ: "Singapore Airlines",
+};
+function airlineName(code: string) {
+  return AIRLINES[code] ?? code;
 }
