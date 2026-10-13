@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "WRLD: Send seats to WRLD",
+  "version": "1.0.0",
+  "description": "On an airline's award results, click to send the dates, points and taxes you see to your WRLD points explorer.",
+  "permissions": ["activeTab", "scripting"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Send these seats to WRLD" }
+}

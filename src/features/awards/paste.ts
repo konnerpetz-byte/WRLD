@@ -4,20 +4,21 @@ import { datesIn } from "@/features/import/parse";
 
 export type PastedSeat = { date: string; miles: number; taxes?: number; taxCurrency?: string };
 
-const CASH_RE = /(US\$|USD|CA\$|C\$|CAD|A\$|AUD|€|EUR|£|GBP|\$)\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/g;
+const CASH_RE = /(US\$|USD|CA\$|C\$|CAD|A\$|AUD|€|EUR|£|GBP|\$)\s?(\d{1,3}(?:,\d{3}){0,2}(?:\.\d{1,2})?|\d{1,6}(?:\.\d{1,2})?)(?!\d)/g;
 const CASH_CODE: Record<string, string> = { US$: "USD", USD: "USD", $: "USD", CA$: "CAD", C$: "CAD", CAD: "CAD", A$: "AUD", AUD: "AUD", "€": "EUR", EUR: "EUR", "£": "GBP", GBP: "GBP" };
 
 /**
  * "date … points (+ taxes)" from text copied off an airline's results calendar
  * or list. The cash amount right after a points price is its taxes and fees.
  */
-export function seatsFromText(text: string, now = new Date()): PastedSeat[] {
+export function seatsFromText(text: string, now = new Date(), fallbackDate?: string | null): PastedSeat[] {
   const year = now.getUTCFullYear();
   const today = now.toISOString().slice(0, 10);
   // Dates without a year: assume the next occurrence.
   const dates = datesIn(text, year).map((d) => (d.value < today ? { ...d, value: `${Number(d.value.slice(0, 4)) + 1}${d.value.slice(4)}` } : d));
   const amounts: { index: number; miles: number }[] = [];
-  const re = /(\d{1,3}(?:[,.  ]\d{3})+|\d+(?:\.\d+)?\s?[kK])\s*(?:miles|mi\b|pts|points|avios)?/g;
+  // Starts only at the beginning of a number, with bounded digit runs, so long digit strings stay fast.
+  const re = /(?<![\d.,])(\d{1,3}(?:[,.  ]\d{3}){1,3}|\d{1,4}(?:\.\d{1,2})?\s?[kK])(?!\d)\s*(?:miles|mi\b|pts|points|avios)?/g;
   for (const m of text.matchAll(re)) {
     // Cash prices ("$1,234", "€ 120") aren't points.
     if (/[$€£¥]\s*$/.test(text.slice(Math.max(0, m.index! - 3), m.index!))) continue;
@@ -40,5 +41,13 @@ export function seatsFromText(text: string, now = new Date()): PastedSeat[] {
     if (rows.some((r) => r.date === d.value)) return;
     rows.push(fee && fee.amount <= 5000 ? { date: d.value, miles: best.miles, taxes: fee.amount, taxCurrency: fee.currency } : { date: d.value, miles: best.miles });
   });
+  // A results list for one day (the date is in the page address, not the text):
+  // the cheapest award on the page, with its taxes.
+  if (!rows.length && fallbackDate && /^\d{4}-\d{2}-\d{2}$/.test(fallbackDate) && amounts.length) {
+    const best = amounts.reduce((a, b) => (b.miles < a.miles ? b : a));
+    const nextAmount = amounts.find((a) => a.index > best.index)?.index ?? text.length;
+    const fee = cash.find((c) => c.index > best.index && c.index < nextAmount && c.index - best.index < 60);
+    rows.push(fee && fee.amount <= 5000 ? { date: fallbackDate, miles: best.miles, taxes: fee.amount, taxCurrency: fee.currency } : { date: fallbackDate, miles: best.miles });
+  }
   return rows.filter((r) => r.date >= today).slice(0, 31);
 }

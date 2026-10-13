@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireUserId } from "@/lib/supabase/server";
 
 import { chartPrices } from "./charts";
+import { readAirlineUrl } from "./deeplinks";
 import { type PastedSeat, seatsFromText } from "./paste";
 import { SOURCE_PROGRAM } from "./regions";
 
@@ -125,4 +126,28 @@ export async function voteAwardSeat(id: number, still: boolean): Promise<ReportS
   if (error) return { error: error.message.includes("no longer open") ? "That report is already closed." : "Couldn't save your vote." };
   revalidatePath("/points");
   return { ok: true, note: data === "closed" ? "Thanks, it's been taken down." : still ? "Thanks, it'll stay up." : "Thanks for checking." };
+}
+
+export type SharedPage = {
+  rows: PastedSeat[];
+  program: string | null;
+  origin?: string;
+  destination?: string;
+  date?: string;
+  cabin?: string;
+  error?: string;
+};
+
+/**
+ * "Send to WRLD" from an airline's results page (WRLD button or bookmark).
+ * Reads the page's address for the route and the visible text for dates,
+ * points and taxes. The text is only read here; it isn't stored or logged.
+ */
+export async function readSharedPage(url: string, text: string): Promise<SharedPage> {
+  await requireUserId();
+  const meta = readAirlineUrl(String(url).slice(0, 4000));
+  if (!meta.program) return { rows: [], program: null, error: "That page isn't an airline WRLD knows. Open an award search on the airline's site first." };
+  const rows = seatsFromText(String(text).slice(0, 200_000), new Date(), meta.date ?? null);
+  if (!rows.length) return { ...meta, rows, error: "No award prices found on that page. Wait for the results to load, then try again." };
+  return { ...meta, rows };
 }

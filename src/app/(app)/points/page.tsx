@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
+import { CheckLive } from "@/features/awards/check-live";
+import { liveSearchUrl } from "@/features/awards/deeplinks";
 import { ago } from "@/features/awards/explore";
 import { type DestinationResult, monthOptions, type Option, parseQuery, runExplorer, type Wallet } from "@/features/awards/engine";
 import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
@@ -10,7 +12,6 @@ import { feeRange, fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { ReportedVote } from "@/features/awards/reported-vote";
 import { ReportSeatForm } from "@/features/awards/report-seat-form";
-import { programFor } from "@/features/awards/search";
 import { BANKS } from "@/features/awards/transfers";
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
@@ -125,7 +126,7 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
           </div>
           <ul className="grid gap-4 lg:grid-cols-2">
             {result.destinations.slice(0, 40).map((d) => (
-              <DestinationCard key={d.destination} d={d} />
+              <DestinationCard key={d.destination} d={d} date={q.start} />
             ))}
           </ul>
           {result.destinations.length > 40 && (
@@ -134,6 +135,8 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
           <Sources />
         </section>
       ) : null}
+
+      <CheckLive />
 
       <ReportSeatForm
         origin={q.origins[0] ?? ""}
@@ -190,7 +193,7 @@ function HowItWorks() {
   );
 }
 
-function DestinationCard({ d }: { d: DestinationResult }) {
+function DestinationCard({ d, date }: { d: DestinationResult; date: string }) {
   const [best, ...rest] = d.options;
   return (
     <li className="grid content-start gap-3 rounded-2xl border bg-card p-4">
@@ -205,7 +208,7 @@ function DestinationCard({ d }: { d: DestinationResult }) {
         </div>
         <Price o={best} big />
       </div>
-      <OptionBody o={best} />
+      <OptionBody o={best} date={date} />
       {rest.length > 0 && (
         <details className="group rounded-xl border">
           <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
@@ -221,7 +224,7 @@ function DestinationCard({ d }: { d: DestinationResult }) {
                   <p className="text-sm font-semibold">{o.program}</p>
                   <Price o={o} />
                 </div>
-                <OptionBody o={o} />
+                <OptionBody o={o} date={date} />
               </li>
             ))}
           </ul>
@@ -247,9 +250,10 @@ function Price({ o, big }: { o: Option; big?: boolean }) {
   );
 }
 
-function OptionBody({ o }: { o: Option }) {
+function OptionBody({ o, date }: { o: Option; date: string }) {
   const c = o.chart;
   const lowest = o.days[0] ? o.days.reduce((a, b) => (b.miles < a.miles ? b : a)) : null;
+  const live = liveSearchUrl(o.source, { origin: o.origin, destination: o.destination, date: lowest?.date ?? date, cabin: o.cabin });
   return (
     <div className="grid gap-2.5 text-sm">
       {o.kind === "seats" && lowest ? (
@@ -316,14 +320,16 @@ function OptionBody({ o }: { o: Option }) {
         {o.directions.shortBy ? (
           <p className="mt-1.5 text-xs text-muted-foreground">You&rsquo;re {formatPoints(o.directions.shortBy)} points short with the cards you&rsquo;ve added.</p>
         ) : null}
-        {programFor(o.source).url && (
+        {live && (
           <a
-            href={programFor(o.source).url}
+            href={live.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary underline underline-offset-2"
+            className="mt-2.5 inline-flex min-h-9 w-fit items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-[transform,background-color] hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-[0.97]"
           >
-            Search {o.program} <ExternalLink className="size-3.5" aria-hidden="true" />
+            {live.prefilled ? `Check live on ${o.program}` : `Search ${o.program}`}
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">(opens the airline&rsquo;s site)</span>
           </a>
         )}
       </div>

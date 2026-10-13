@@ -34,9 +34,10 @@ export async function updateSession(request: NextRequest) {
   const signedIn = Boolean(data?.claims?.sub);
 
   if (!signedIn && !isPublic(request.nextUrl.pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", request.nextUrl.pathname);
+    // Come back to the same page and filters after signing in (safePath checks it on the way back).
+    const url = new URL("/login", request.nextUrl.origin);
+    const back = request.nextUrl.pathname + request.nextUrl.search;
+    url.searchParams.set("next", back.length <= 512 ? back : request.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
 

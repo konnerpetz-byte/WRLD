@@ -55,7 +55,21 @@ export function ReportSeatForm({ origin, cabin, programs, minDate }: { origin: s
   );
 }
 
-function RouteFields({ origin, cabin, programs, prefix }: { origin: string; cabin: string; programs: Programs; prefix: string }) {
+export function RouteFields({
+  origin,
+  cabin,
+  programs,
+  prefix,
+  destination = "",
+  program = "",
+}: {
+  origin: string;
+  cabin: string;
+  programs: Programs;
+  prefix: string;
+  destination?: string;
+  program?: string;
+}) {
   return (
     <>
       <div className="grid gap-1.5">
@@ -64,11 +78,11 @@ function RouteFields({ origin, cabin, programs, prefix }: { origin: string; cabi
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor={`${prefix}-to`} className="text-xs">To</Label>
-        <Input id={`${prefix}-to`} name="destination" maxLength={3} required placeholder="MUC" className="uppercase" />
+        <Input id={`${prefix}-to`} name="destination" defaultValue={destination} maxLength={3} required placeholder="MUC" className="uppercase" />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor={`${prefix}-program`} className="text-xs">Booked with</Label>
-        <NativeSelect id={`${prefix}-program`} name="program" required defaultValue="">
+        <NativeSelect id={`${prefix}-program`} name="program" required defaultValue={program}>
           <option value="" disabled>
             Choose a program
           </option>
@@ -92,7 +106,7 @@ function RouteFields({ origin, cabin, programs, prefix }: { origin: string; cabi
   );
 }
 
-function Status({ state }: { state: ReportState }) {
+export function Status({ state }: { state: ReportState }) {
   if (state.error)
     return (
       <p role="alert" className="text-sm text-destructive">
