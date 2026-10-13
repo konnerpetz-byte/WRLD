@@ -3,6 +3,7 @@ import "server-only";
 import { cacheLife } from "next/cache";
 import { env } from "@/lib/env";
 import { viatorPost } from "./viator-client";
+import { getYourGuideUrl } from "@/lib/affiliate";
 
 /**
  * Bookable experiences from booking sites.
@@ -128,10 +129,9 @@ export function moreLinks(city: string, term: string) {
   const q = encodeURIComponent(`${city} ${term}`);
   const gyg = new URL("https://www.getyourguide.com/s/");
   gyg.searchParams.set("q", `${city} ${term}`);
-  if (process.env.GETYOURGUIDE_PARTNER_ID) gyg.searchParams.set("partner_id", process.env.GETYOURGUIDE_PARTNER_ID);
   return [
     { label: "Viator", url: viatorSearchUrl(city, term) },
-    { label: "GetYourGuide", url: gyg.toString() },
+    { label: "GetYourGuide", url: getYourGuideUrl(gyg) },
     { label: "Airbnb Experiences", url: `https://www.airbnb.com/s/${encodeURIComponent(city)}/experiences?query=${encodeURIComponent(term)}` },
     { label: "Tripadvisor", url: `https://www.tripadvisor.com/Search?q=${q}` },
   ];

@@ -49,8 +49,8 @@ export default function CookiesPage() {
 
       <h2>Travel partner script (home page only)</h2>
       <p>
-        For visitors who aren&rsquo;t signed in, our home page loads the Travelpayouts partner script. It may store its own cookies
-        or similar identifiers so that a booking you make on a partner site (for example GetYourGuide) is credited to WRLD. We
+        For visitors who aren&rsquo;t signed in, our home page loads the Travelpayouts partner script. It stores its own identifiers
+        (today a first-party cookie named <code>am_user_session</code> and one browser storage entry) so that a booking you make on a partner site (for example GetYourGuide) is credited to WRLD. We
         don&rsquo;t load it on any signed-in page, if your browser sends Global Privacy Control or Do Not Track, or for visitors in
         Europe or the UK, where we&rsquo;d need to ask first. Turning on Global Privacy Control in your browser switches it off.
       </p>

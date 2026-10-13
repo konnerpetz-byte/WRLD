@@ -7,6 +7,7 @@ import { requireUserId } from "@/lib/supabase/server";
 import { viatorSearch } from "@/features/experiences/providers";
 import type { AdminStats } from "@/types/database";
 import { env } from "@/lib/env";
+import { affiliateStatus } from "@/lib/affiliate";
 
 export const metadata = { title: "Stats" };
 
@@ -254,8 +255,8 @@ async function Connections() {
     },
     {
       name: "GetYourGuide",
-      ok: Boolean(process.env.GETYOURGUIDE_PARTNER_ID),
-      note: process.env.GETYOURGUIDE_PARTNER_ID ? "Partner ID added to every link." : "Waiting for GETYOURGUIDE_PARTNER_ID.",
+      ok: affiliateStatus().getYourGuide,
+      note: affiliateStatus().getYourGuide ? "Tracking added to every link." : "Waiting for the Travelpayouts link format (TRAVELPAYOUTS_GYG_P).",
     },
     {
       name: "Seats.aero (award flights)",

@@ -10,12 +10,12 @@ const dev = process.env.NODE_ENV !== "production";
  * allowed, but only from this site. Everything else is locked to the hosts
  * the app really uses: Supabase (sign-in, chat, photos) and the map tiles.
  */
-const policy = (extra: { script?: string; connect?: string; frame?: string } = {}) => [
+const policy = (extra: { script?: string; connect?: string; frame?: string; style?: string; font?: string } = {}) => [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}${extra.script ?? ""}`,
-  "style-src 'self' 'unsafe-inline'",
+  `style-src 'self' 'unsafe-inline'${extra.style ?? ""}`,
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  `font-src 'self' data:${extra.font ?? ""}`,
   `connect-src 'self' https://${supabase} wss://${supabase} https://tiles.openfreemap.org ${mapStyle}${extra.connect ?? ""}`.trim(),
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
@@ -34,7 +34,13 @@ const policy = (extra: { script?: string; connect?: string; frame?: string } = {
  * It pulls widgets from hosts Travelpayouts doesn't publish, so this one page
  * allows HTTPS scripts. No signed-in page does: the app keeps the strict policy.
  */
-const homeCsp = policy({ script: " https:", connect: " https:", frame: " https:" });
+const homeCsp = policy({
+  script: " https:",
+  connect: " https:",
+  frame: " https:",
+  style: " https://fonts.googleapis.com",
+  font: " https://fonts.gstatic.com",
+});
 
 const headersWith = (csp: string) => [
   { key: "Content-Security-Policy", value: csp },
