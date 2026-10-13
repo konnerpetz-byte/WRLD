@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { LegalLinks } from "@/components/layout/legal-links";
@@ -51,6 +52,27 @@ export default function Home() {
           </div>
           <HeroProduct />
         </section>
+
+        {/* A real place from the example day: the view a few streets from Memmo Alfama */}
+        <figure className="relative isolate overflow-hidden bg-sidebar">
+          <Image
+            src="/photos/lisbon-alfama-sunset.webp"
+            alt="Lisbon at sunset from the Alfama: red roofs running down to the Tagus, with the 25 de Abril bridge in the distance"
+            width={2400}
+            height={1800}
+            sizes="100vw"
+            className="h-[58vh] max-h-[680px] min-h-80 w-full object-cover object-[50%_62%]"
+          />
+          <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-6 pt-32 pb-8 text-white">
+            <div className="mx-auto max-w-6xl">
+              <p className="max-w-xl font-display text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">The Alfama at 7:51&nbsp;PM.</p>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-white/90 sm:text-base">
+                A few streets from Memmo Alfama, the stay in the day above. Land in the morning, and WRLD keeps the evening free for a view
+                like this.
+              </p>
+            </div>
+          </figcaption>
+        </figure>
 
         {/* Three concrete benefits, each shown with a real example */}
         <section id="how" aria-labelledby="how-title" className="border-t bg-card">
@@ -136,12 +158,22 @@ export default function Home() {
               />
               <Benefit
                 title="Official tickets, not resellers"
-                body="Type Sagrada Família or Uffizi and get the official ticket page, timed-entry rules and the best time to go."
+                body="Type São Jorge Castle or Pena Palace and get the official ticket page, timed-entry rules and the best time to go."
                 example={
-                  <div className="rounded-md bg-card px-3 py-2 text-xs shadow-sm">
-                    <p className="font-semibold">Uffizi Gallery</p>
-                    <p className="text-muted-foreground">Morning, from 8:15 AM</p>
-                    <p className="mt-1.5 inline-block rounded bg-travel-soft px-1.5 py-0.5 font-medium">Official site · timed entry</p>
+                  <div className="flex items-center gap-3 rounded-md bg-card p-2 text-xs shadow-sm">
+                    <Image
+                      src="/photos/lisbon-sao-jorge-castle.webp"
+                      alt="The walls of São Jorge Castle above Lisbon's rooftops"
+                      width={1200}
+                      height={1600}
+                      sizes="56px"
+                      className="h-[5.5rem] w-14 shrink-0 rounded object-cover"
+                    />
+                    <span className="grid gap-0.5">
+                      <span className="font-semibold">São Jorge Castle</span>
+                      <span className="text-muted-foreground">Afternoon, from 5:00 PM</span>
+                      <span className="mt-1 w-fit rounded bg-travel-soft px-1.5 py-0.5 font-medium">Official site</span>
+                    </span>
                   </div>
                 }
               />
@@ -160,6 +192,38 @@ export default function Home() {
               />
             </div>
           </div>
+        </section>
+
+        {/* Real trips, matched to different travel types */}
+        <section aria-labelledby="trips-title" className="border-t bg-card">
+          <div className="mx-auto max-w-6xl px-6 pt-20 pb-6">
+            <h2 id="trips-title" className="max-w-2xl text-3xl font-bold sm:text-4xl">
+              Every trip, matched to how you travel.
+            </h2>
+            <p className="mt-3 max-w-xl text-muted-foreground">Photos from our founder&rsquo;s own trips this summer: a city, a coast, a lake town, a beach and a ruin.</p>
+          </div>
+          <ul className="mx-auto flex max-w-6xl snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-20 [scrollbar-width:none] lg:grid lg:grid-cols-5 lg:overflow-visible [&::-webkit-scrollbar]:hidden">
+            {TRIPS.map((t) => (
+              <li key={t.src} className="w-[68%] shrink-0 snap-start sm:w-[42%] lg:w-auto">
+                <figure className="group overflow-hidden rounded-2xl bg-muted">
+                  <div className="relative aspect-[4/5] overflow-hidden">
+                    <Image
+                      src={t.src}
+                      alt={t.alt}
+                      fill
+                      sizes="(min-width: 1024px) 20vw, (min-width: 640px) 42vw, 68vw"
+                      className="object-cover transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.04]"
+                      style={{ objectPosition: t.focus }}
+                    />
+                  </div>
+                  <figcaption className="grid gap-0.5 px-3 py-3">
+                    <span className="text-sm font-semibold">{t.place}</span>
+                    <span className="text-xs text-muted-foreground">{t.type}</span>
+                  </figcaption>
+                </figure>
+              </li>
+            ))}
+          </ul>
         </section>
 
         {/* Closing call to action repeats the one action */}
@@ -189,6 +253,14 @@ export default function Home() {
     </div>
   );
 }
+
+const TRIPS = [
+  { src: "/photos/porto-douro-dusk.webp", place: "Porto, Portugal", type: "For food and culture lovers", alt: "Dusk over the Douro river in Porto, with houses stepping down to the water", focus: "50% 50%" },
+  { src: "/photos/marseille-calanque.webp", place: "Marseille, France", type: "For outdoor swimmers", alt: "A turquoise cove among white limestone cliffs in the Marseille calanques", focus: "45% 60%" },
+  { src: "/photos/annecy-canal.webp", place: "Annecy, France", type: "For slow wanderers", alt: "Annecy's canal lined with flower boxes and cafés, mountains behind", focus: "45% 55%" },
+  { src: "/photos/arrabida-beach.webp", place: "Arrábida, Portugal", type: "For a day off the itinerary", alt: "A wide sandy beach in Arrábida with calm blue water and green hills", focus: "50% 70%" },
+  { src: "/photos/paestum-temple.webp", place: "Paestum, Italy", type: "For history buffs", alt: "A Greek temple at Paestum under a summer sky", focus: "72% 55%" },
+];
 
 function Benefit({ title, body, example }: { title: string; body: string; example: React.ReactNode }) {
   return (
@@ -237,8 +309,8 @@ function HeroProduct() {
             <span className="text-lg font-bold">$1,982</span>
           </p>
           <p className="-mt-1 flex items-baseline justify-between text-xs">
-            <span className="text-muted-foreground">$496 each for 4</span>
-            <span className="rounded-full bg-open-soft px-2 py-0.5 font-medium text-primary">Fits everyone&rsquo;s budget</span>
+            <span className="whitespace-nowrap text-muted-foreground">$496 each for 4</span>
+            <span className="whitespace-nowrap rounded-full bg-open-soft px-2 py-0.5 font-medium text-primary">Fits the budget</span>
           </p>
         </div>
       </div>
