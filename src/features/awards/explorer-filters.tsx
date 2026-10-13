@@ -42,11 +42,26 @@ function toParams(s: FilterState) {
 
 const codesOk = (v: string) => v.trim() === "" || /^([A-Za-z]{3})(\s*,\s*[A-Za-z]{3})*$/.test(v.trim());
 
-function Chips({ label, options, value, onChange, single }: { label: string; options: Opt[]; value: string[]; onChange: (v: string[]) => void; single?: boolean }) {
+function Chips({
+  label,
+  options,
+  value,
+  onChange,
+  single,
+  scroll,
+}: {
+  label: string;
+  options: Opt[];
+  value: string[];
+  onChange: (v: string[]) => void;
+  single?: boolean;
+  /** One swipeable row on phones instead of several wrapped rows */
+  scroll?: boolean;
+}) {
   return (
     <fieldset className="grid gap-1.5">
       <legend className="mb-1.5 text-sm font-medium">{label}</legend>
-      <div className="flex flex-wrap gap-1.5">
+      <div className={`flex gap-1.5 ${scroll ? "edge-fade-x -mx-4 overflow-x-auto px-4 pb-1 max-sm:snap-x sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&>*]:shrink-0 [&>*]:snap-start" : "flex-wrap"}`}>
         {options.map((o) => {
           const on = value.includes(o.value);
           return (
@@ -55,7 +70,7 @@ function Chips({ label, options, value, onChange, single }: { label: string; opt
               type="button"
               aria-pressed={on}
               onClick={() => onChange(single ? [o.value] : on ? value.filter((v) => v !== o.value) : [...value, o.value])}
-              className={`rounded-full border px-3 py-1 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
+              className={`min-h-9 rounded-full border px-3.5 text-sm transition-[color,background-color,border-color,transform] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-[0.96] ${
                 on ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary/60"
               }`}
             >
@@ -96,6 +111,8 @@ export function ExplorerFilters({
   const [morePrograms, setMorePrograms] = useState(initial.programs.length > 0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const first = useRef(true);
+  // Taps apply at once; typing waits for a pause.
+  const delay = useRef(0);
 
   useEffect(() => {
     if (first.current) {
@@ -108,13 +125,16 @@ export function ExplorerFilters({
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       start(() => router.replace(`${pathname}?${toParams(s).toString()}`, { scroll: false }));
-    }, 350);
+    }, delay.current);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [s, router, pathname]);
 
-  const set = <K extends keyof FilterState>(k: K, v: FilterState[K]) => setS((prev) => ({ ...prev, [k]: v }));
+  const set = <K extends keyof FilterState>(k: K, v: FilterState[K]) => {
+    delay.current = k === "from" || k === "codes" ? 450 : 0;
+    setS((prev) => ({ ...prev, [k]: v }));
+  };
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -127,8 +147,8 @@ export function ExplorerFilters({
       className="grid gap-5 rounded-2xl border bg-card p-4 sm:p-5"
       aria-describedby="filters-status"
     >
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,10rem)_1fr]">
-        <label className="grid gap-1.5 text-sm">
+      <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-start">
+        <label className="grid content-start gap-1.5 text-sm">
           <span className="font-medium">From</span>
           <input
             name="from"
@@ -189,7 +209,7 @@ export function ExplorerFilters({
           ))}
         </div>
         {s.dateMode === "months" ? (
-          <Chips label="Travel months" options={monthOptions} value={s.months} onChange={(v) => set("months", v.length ? v : s.months)} />
+          <Chips scroll label="Travel months" options={monthOptions} value={s.months} onChange={(v) => set("months", v.length ? v : s.months)} />
         ) : (
           <div className="flex flex-wrap items-end gap-3">
             <label className="grid gap-1 text-sm">

@@ -194,12 +194,19 @@ Deno.serve(async (req) => {
     const g = new URL("https://www.wikidata.org/w/api.php");
     g.search = new URLSearchParams({ action: "wbgetentities", ids: ids.join("|"), props: "sitelinks|claims", sitefilter: "enwiki", format: "json" }).toString();
     const ents = await api(g.toString());
+    // Codes move between airports (IST went from Atatürk to the new Istanbul Airport):
+    // skip deprecated claims and ones with an end date, and prefer the "preferred" one.
+    let best: { title: string; score: number } | null = null;
     for (const e of Object.values(ents.entities ?? {}) as Record<string, any>[]) {
-      const isAirport = (e.claims?.P238 ?? []).some((c: any) => c.mainsnak?.datavalue?.value === code);
       const title = e.sitelinks?.enwiki?.title;
-      if (isAirport && title) return title;
+      if (!title) continue;
+      for (const c of e.claims?.P238 ?? []) {
+        if (c.mainsnak?.datavalue?.value !== code || c.rank === "deprecated" || c.qualifiers?.P582) continue;
+        const score = c.rank === "preferred" ? 2 : 1;
+        if (!best || score > best.score) best = { title, score };
+      }
     }
-    return null;
+    return best?.title ?? null;
   }
 
   const codes: string[] = dry ? [dry] : (((await db.rpc("claim_route_airports", { p_limit: 6 })).data ?? []) as string[]);
