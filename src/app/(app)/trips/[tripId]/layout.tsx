@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getTrip } from "@/features/trips/queries";
 import { ShareTripButton } from "@/features/trips/share-trip-button";
-import { formatDateRange, formatMoney, toNumber } from "@/lib/format";
+import { formatDateRange, formatMoney, formatPoints, toNumber } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 
 export default function TripLayout({ children, params }: LayoutProps<"/trips/[tripId]">) {
@@ -35,9 +35,24 @@ async function TripHeader({ params }: { params: LayoutProps<"/trips/[tripId]">["
   const { trip, budget, stops, canEdit } = await getTrip(tripId);
   const route = stops.length ? stops.map((s) => s.city).join(" → ") : trip.destination;
 
+  const { supabase } = await requireUserId();
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: points }, { count: daysAhead }, { data: comfort }] = await Promise.all([
+    supabase.from("trip_points_planned").select("points_committed, points_ideas").eq("trip_id", tripId),
+    supabase.from("trip_days").select("id", { count: "exact", head: true }).eq("trip_id", tripId).gte("date", today),
+    supabase.rpc("trip_budget_comfort_summary", { p_trip_id: tripId }),
+  ]);
+
   const projected = toNumber(budget?.projected_total) ?? 0;
   const limit = toNumber(trip.budget);
   const over = limit !== null && projected > limit;
+  const party = Math.max(1, trip.party_size);
+  const totalPoints = (points ?? []).reduce((sum, p) => sum + (toNumber(p.points_committed) ?? 0) + (toNumber(p.points_ideas) ?? 0), 0);
+  // Days still to plan for: the days ahead, or the whole trip once it's over.
+  const days = Math.max(1, daysAhead || Math.round((Date.parse(trip.end_date) - Date.parse(trip.start_date)) / 86400000) + 1);
+  const leftPerPersonPerDay = limit !== null && !over ? (limit - projected) / party / days : null;
+  const c = comfort?.[0];
+  const askComfort = c && Number(c.members) > 1 && c.mine == null;
 
   return (
     <header className="mt-2 mb-6 grid gap-6 md:grid-cols-[1fr_auto] md:items-end">
@@ -59,25 +74,41 @@ async function TripHeader({ params }: { params: LayoutProps<"/trips/[tripId]">["
           <ShareTripButton tripId={trip.id} title={trip.title} dates={formatDateRange(trip.start_date, trip.end_date)} />
         </div>
       </div>
+      {/* Trip cost bar: what the whole trip costs, in cash and points, and what's left per person each day. */}
       <Link
-        href={`/trips/${trip.id}/budget`}
-        className="min-w-64 rounded-xl border bg-card px-4 py-3 hover:border-primary focus-visible:outline-2 focus-visible:outline-ring"
+        href={`/trips/${trip.id}/budget${askComfort ? "#comfort-h" : ""}`}
+        className="grid min-w-72 gap-2 rounded-2xl border bg-card px-4 py-3 transition-[border-color,box-shadow] duration-150 hover:border-primary/60 hover:shadow-[0_8px_24px_-14px_rgb(29_43_38/0.35)] focus-visible:outline-2 focus-visible:outline-ring"
       >
         <span className="flex items-baseline justify-between gap-4">
-          <span className="text-sm text-muted-foreground">Trip total so far</span>
-          <span className={`font-display text-2xl font-semibold ${over ? "text-destructive" : ""}`}>
-            {formatMoney(projected, trip.currency)}
+          <span className="text-sm text-muted-foreground">Trip total</span>
+          <span className="text-right">
+            <span className={`font-display text-2xl font-semibold tabular-nums ${over ? "text-destructive" : ""}`}>
+              {formatMoney(projected, trip.currency, { cents: false })}
+            </span>
+            {totalPoints > 0 && <span className="block text-xs font-medium text-travel-ink">+ {formatPoints(totalPoints)} points</span>}
           </span>
         </span>
+        {party > 1 && (
+          <span className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Per person</span>
+            <span className="font-medium tabular-nums">{formatMoney(projected / party, trip.currency, { cents: false })}</span>
+          </span>
+        )}
         {limit !== null && (
           <>
-            <Progress value={Math.min(100, (projected / Math.max(limit, 1)) * 100)} className="mt-2 h-1.5" />
-            <span className="mt-1 block text-xs text-muted-foreground">
+            <Progress value={Math.min(100, (projected / Math.max(limit, 1)) * 100)} className="h-1.5" aria-hidden="true" />
+            <span className={`text-xs ${over ? "font-medium text-destructive" : "text-muted-foreground"}`}>
               {over
-                ? `${formatMoney(projected - limit, trip.currency)} over your ${formatMoney(limit, trip.currency)} budget`
-                : `${formatMoney(limit - projected, trip.currency)} left of ${formatMoney(limit, trip.currency)}`}
+                ? `${formatMoney(projected - limit, trip.currency, { cents: false })} over the ${formatMoney(limit, trip.currency, { cents: false })} budget`
+                : `${formatMoney(limit - projected, trip.currency, { cents: false })} left · about ${formatMoney(leftPerPersonPerDay, trip.currency, { cents: false })} per person per day`}
             </span>
           </>
+        )}
+        {limit === null && !askComfort && <span className="text-xs text-muted-foreground">Set a budget to see what&rsquo;s left each day</span>}
+        {askComfort && (
+          <span className="rounded-lg bg-open-soft px-2.5 py-1.5 text-xs font-medium text-primary">
+            Add your private budget. Only the group&rsquo;s lowest number is shown.
+          </span>
         )}
       </Link>
     </header>

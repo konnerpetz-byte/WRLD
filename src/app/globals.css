@@ -134,6 +134,7 @@
   --color-travel: var(--travel);
   --color-travel-foreground: var(--travel-foreground);
   --color-travel-soft: var(--travel-soft);
+  --color-travel-ink: var(--travel-ink);
   --color-open: var(--open);
   --color-open-foreground: var(--open-foreground);
   --color-open-soft: var(--open-soft);

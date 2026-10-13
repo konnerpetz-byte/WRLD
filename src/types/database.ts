@@ -751,6 +751,11 @@ export type Database = {
       experience_ratings: TableDef<ExperienceRating, ExperienceRatingInsert, ExperienceRatingUpdate>;
       trip_recommendations: TableDef<TripRecommendation, TripRecommendationInsert, TripRecommendationUpdate>;
       award_availability: ReadOnly<AwardAvailability>;
+      trip_budget_comfort: TableDef<
+        { trip_id: UUID; user_id: UUID; amount: number; updated_at: string },
+        { trip_id: UUID; user_id: UUID; amount: number; updated_at?: string },
+        { amount?: number; updated_at?: string }
+      >;
       award_searches: TableDef<AwardSearchLog, Pick<AwardSearchLog, "user_id" | "origin" | "destinations" | "cabin" | "month" | "via">, never>;
     };
     Views: {
@@ -771,6 +776,10 @@ export type Database = {
         Returns: { trip_title: string; destination: string | null; start_date: ISODate; end_date: ISODate; invited_by: string; role: TripRole; valid: boolean }[];
       };
       accept_trip_invite: { Args: { p_token: UUID }; Returns: UUID };
+      trip_budget_comfort_summary: {
+        Args: { p_trip_id: UUID };
+        Returns: { responses: number; members: number; comfortable: number | null; mine: number | null }[];
+      };
       request_award_routes: {
         Args: { p_origin: string; p_destinations: string[]; p_cabin: string };
         Returns: { destination: string; checked_at: string | null }[];

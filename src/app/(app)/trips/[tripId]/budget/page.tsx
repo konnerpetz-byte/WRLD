@@ -10,6 +10,7 @@ import {
   ExpenseForm,
 } from "@/features/budget/budget-forms";
 import { CATEGORY_LABEL } from "@/features/budget/labels";
+import { GroupBudgetCard } from "@/features/budget/group-budget-card";
 import { computeBalances } from "@/features/budget/balances";
 import { getMembers } from "@/features/group/queries";
 import {
@@ -53,6 +54,7 @@ async function BudgetPageContent({
     { members, me },
     participants,
     settlements,
+    comfort,
   ] = await Promise.all([
     getTrip(tripId),
     supabase.from("trip_budget_by_category").select("*").eq("trip_id", tripId),
@@ -78,7 +80,15 @@ async function BudgetPageContent({
       .select("*")
       .eq("trip_id", tripId)
       .order("settled_on", { ascending: false }),
+    supabase.rpc("trip_budget_comfort_summary", { p_trip_id: tripId }),
   ]);
+  const comfortRow = comfort.data?.[0];
+  const comfortSummary = {
+    responses: Number(comfortRow?.responses ?? 0),
+    members: Number(comfortRow?.members ?? 1),
+    comfortable: comfortRow?.comfortable == null ? null : Number(comfortRow.comfortable),
+    mine: comfortRow?.mine == null ? null : Number(comfortRow.mine),
+  };
 
   // Who owes whom
   const name = new Map(members.map((m) => [m.user_id, m.name]));
@@ -134,6 +144,7 @@ async function BudgetPageContent({
     <div className="grid gap-10">
       {/* The answer to "how much will this trip cost?" */}
       <section
+        id="totals-card"
         aria-labelledby="totals"
         className="grid gap-6 rounded-2xl bg-sidebar p-6 text-sidebar-foreground md:grid-cols-[1.2fr_1fr]"
       >
@@ -207,6 +218,15 @@ async function BudgetPageContent({
           )}
         </div>
       </section>
+
+      <GroupBudgetCard
+        tripId={tripId}
+        currency={cur}
+        partySize={trip.party_size}
+        summary={comfortSummary}
+        canEdit={canEdit}
+        currentBudget={limit}
+      />
 
       <div className="grid gap-10 lg:grid-cols-[1fr_24rem] lg:items-start">
         <div className="grid gap-10">
