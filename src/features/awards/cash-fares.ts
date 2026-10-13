@@ -157,17 +157,24 @@ export const REVENUE_PROGRAMS: Record<string, { source: string; low: number; hig
 };
 
 /**
- * Dynamic-priced programs: no chart, the airline sets the miles price for its
- * own flights largely from the cash fare. WRLD predicts it from today's fare.
- * Starting values bracket NerdWallet's 2026 medians (Delta and United 1.2
- * cents, American 1.7, Alaska 1.4); WRLD replaces them with what its own
- * travelers' saved prices show once there are enough (award_fare_rates).
+ * Dynamic-priced programs: the airline sets the miles price for its own
+ * flights, partly from the cash fare.
+ *
+ * Delta is the only one with strong public evidence of a steady link: about
+ * 1.1 cents a mile on Delta-operated flights across cabins (10xTravel's
+ * EWR-DTW comparison, 1.08 to 1.15 cents; AwardFares' 2023 study of tens of
+ * thousands of Delta searches). So Delta starts at 1.0 to 1.2 cents.
+ *
+ * United, American and Alaska mix fixed floors (saver levels, web specials)
+ * with dynamic prices, so a cash fare alone doesn't predict them well. WRLD
+ * shows those only once its own travelers' saved prices give at least five
+ * real matches (award_fare_rates), and uses that measured range.
  */
-export const PREDICTED_PROGRAMS: Record<string, { source: string; low: number; high: number }> = {
-  DL: { source: "delta", low: 1.0, high: 1.4 },
-  UA: { source: "united", low: 1.0, high: 1.4 },
-  AA: { source: "american", low: 1.3, high: 1.9 },
-  AS: { source: "alaska", low: 1.2, high: 1.6 },
+export const PREDICTED_PROGRAMS: Record<string, { source: string; low: number; high: number; needsData?: boolean }> = {
+  DL: { source: "delta", low: 1.0, high: 1.2 },
+  UA: { source: "united", low: 1.0, high: 1.5, needsData: true },
+  AA: { source: "american", low: 1.2, high: 1.8, needsData: true },
+  AS: { source: "alaska", low: 1.2, high: 1.6, needsData: true },
 };
 export const CARRIER_OF: Record<string, string> = Object.fromEntries(
   Object.entries({ ...REVENUE_PROGRAMS, ...PREDICTED_PROGRAMS }).map(([code, p]) => [p.source, code]),

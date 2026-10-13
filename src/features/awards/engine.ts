@@ -501,6 +501,8 @@ export async function runExplorer(
         if (!theirs.length) continue;
         const predicted = code in PREDICTED_PROGRAMS;
         const seen = learned.get(base.source);
+        // Not enough evidence that the fare predicts this program yet: show nothing rather than a guess.
+        if ("needsData" in base && base.needsData && !seen) continue;
         const rate = seen ? { low: seen.low, high: seen.high } : base;
         // What the points pay for: the fare minus U.S. taxes (7.5% ticket tax, $5.60 security fee) at home, or minus typical international taxes.
         const pointsPart = (price: number) => (domestic ? Math.max(0, (price - 5.6) / 1.075) : Math.max(0, price * 0.8));

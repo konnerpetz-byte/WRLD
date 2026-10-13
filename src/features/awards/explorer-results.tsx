@@ -240,9 +240,9 @@ export function AboutPrices() {
           when a seat is open, from its award chart, on routes its partner airlines really fly.
         </p>
         <p>
-          <strong className="text-foreground">Predicted from today&rsquo;s fare</strong>: Delta, United, American and Alaska price awards
-          on their own flights largely from the cash fare. WRLD takes today&rsquo;s lowest fare for that airline and day and shows the
-          miles range it usually works out to. Each price travelers save with WRLD is matched to that day&rsquo;s fare, so the range
+          <strong className="text-foreground">Predicted from today&rsquo;s fare</strong>: Delta prices awards on its own flights at
+          about 1.1 cents a mile of the cash fare, so WRLD shows the miles range today&rsquo;s lowest Delta fare works out to. United,
+          American and Alaska appear here only once WRLD travelers have saved enough real prices to measure them. Each price travelers save with WRLD is matched to that day&rsquo;s fare, so the range
           gets tighter the more WRLD is used.
         </p>
         <p>
