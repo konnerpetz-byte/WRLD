@@ -458,9 +458,24 @@ function timesIn(text: string): Hit[] {
 }
 
 function flightNumberIn(text: string): string | null {
-  const m = /\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})\b/.exec(text);
-  return m ? `${m[1]} ${m[2]}` : null;
+  // A labeled number first ("Flight# DL0022", "Flight: UA 958"), then any airline-code-plus-digits.
+  const m =
+    /\bflight\s*(?:#|no\.?|number)?\s*:?\s*([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})\b/i.exec(text) ??
+    /\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})\b/.exec(text);
+  if (!m) return null;
+  const n = String(Number(m[2]));
+  return n === "0" ? null : `${m[1].toUpperCase()} ${n}`;
 }
+
+/** Airline names for the most common codes, so imported legs read "Delta DL 22". */
+const AIRLINES: Record<string, string> = {
+  AA: "American", AC: "Air Canada", AF: "Air France", AS: "Alaska", AY: "Finnair", AZ: "ITA Airways", B6: "JetBlue", BA: "British Airways",
+  CX: "Cathay Pacific", DL: "Delta", EI: "Aer Lingus", EK: "Emirates", EY: "Etihad", F9: "Frontier", FR: "Ryanair", IB: "Iberia",
+  JL: "Japan Airlines", KL: "KLM", LH: "Lufthansa", LX: "SWISS", NH: "ANA", NK: "Spirit", OS: "Austrian", QF: "Qantas", QR: "Qatar Airways",
+  SK: "SAS", SN: "Brussels Airlines", SQ: "Singapore Airlines", TK: "Turkish Airlines", TP: "TAP Air Portugal", U2: "easyJet",
+  UA: "United", VS: "Virgin Atlantic", WN: "Southwest", WS: "WestJet", AM: "Aeroméxico", LA: "LATAM", AV: "Avianca", CM: "Copa",
+};
+const airlineOf = (flight: string | null) => (flight ? (AIRLINES[flight.slice(0, 2)] ?? null) : null);
 
 function confirmationIn(text: string): string | null {
   const re = /\b(?:confirmation|booking|reservation|record locator|pnr|reference|ref\.?)(?:\s+(?:reference|number|code|no\.?|#))?\s*[:#]?\s*([A-Za-z0-9]{5,10})\b/gi;
@@ -552,7 +567,7 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
       id: nextId(),
       kind: "transit",
       mode: "flight",
-      carrier: null,
+      carrier: airlineOf(fn),
       number: fn,
       from: p.from,
       to: p.to,
@@ -565,6 +580,54 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
       warnings,
     });
   });
+
+  // Flights written as labeled lines (Delta, many apps):
+  //   Departs DTW / on Sunday, May 16, 2027 at 4:40 PM
+  //   Arrives MUC / on Monday, May 17, 2027 at 6:55 AM
+  // Each label carries its own airport, date and time.
+  const labelRe = /\b(depart(?:s|ure|ing)?|leav(?:es|ing)|from|arriv(?:es|al|ing)?|to)\b[ \t]*(?:from|at|in)?[ \t]*:?[ \t]*(?:[^\n(]{0,40}\()?\b([A-Z]{3})\b/gi;
+  const labels = [...text.matchAll(labelRe)]
+    .map((m) => ({ dep: /^(dep|leav|from)/i.test(m[1]), code: m[2], index: m.index!, end: m.index! + m[0].length }))
+    .filter((l) => l.code === l.code.toUpperCase() && !NOT_AIRPORTS.has(l.code) && airportByCode(l.code));
+  for (let i = 0; i < labels.length; i++) {
+    const dep = labels[i];
+    const arr = labels[i + 1];
+    if (!dep.dep || !arr || arr.dep || arr.code === dep.code) continue;
+    i++;
+    const afterLabel = (index: number, limit: number, hits: Hit[]) => hits.find((h) => h.index >= index && h.index < limit);
+    const nextLabel = labels[i + 1]?.index ?? text.length;
+    const depDate = afterLabel(dep.end, arr.index, dates) ?? [...dates].reverse().find((d) => d.index < dep.index);
+    if (!depDate) continue;
+    const arrDate = afterLabel(arr.end, Math.min(nextLabel, arr.end + 200), dates) ?? depDate;
+    const depTime = afterLabel(dep.end, arr.index, times);
+    const arrTime = afterLabel(arr.end, Math.min(nextLabel, arr.end + 200), times);
+    const key = `${dep.code}${arr.code}${depDate.value}`;
+    if (out.some((c) => c.kind === "transit" && `${c.from}${c.to}${c.departLocal.slice(0, 10)}` === key)) continue;
+    const prevEnd = i >= 2 ? labels[i - 2].end : 0;
+    const fn = flightNumberIn(text.slice(prevEnd, arr.index)) ?? flightNumberIn(text);
+    const departLocal = `${depDate.value}T${depTime?.value ?? "09:00"}`;
+    let arriveLocal = `${arrDate.value}T${arrTime?.value ?? (depTime ? addMinutes(departLocal, 120).slice(11) : "11:00")}`;
+    if (arriveLocal < departLocal) arriveLocal = addMinutes(arriveLocal, 24 * 60);
+    const warnings: string[] = [];
+    if (!depTime || !arrTime) warnings.push("Couldn't read both times. Check them.");
+    if (!fn) warnings.push("No flight number found.");
+    out.push({
+      id: nextId(),
+      kind: "transit",
+      mode: "flight",
+      carrier: airlineOf(fn),
+      number: fn,
+      from: dep.code,
+      to: arr.code,
+      departLocal,
+      departTz: airportTz(dep.code, depDate.value) ?? ctx.defaultTz,
+      arriveLocal,
+      arriveTz: airportTz(arr.code, arrDate.value) ?? ctx.defaultTz,
+      confirmation: conf,
+      found: "Text",
+      warnings,
+    });
+  }
 
   // Stays: a check-in date and a check-out date.
   const cin = /check[- ]?in\b[^\n]{0,60}/i.exec(text);
@@ -600,7 +663,13 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
       text
         .split(/\n/)
         .map((l) => l.trim())
-        .find((l) => l.length > 3 && l.length < 120 && !/^(from|to|subject|date|sent|hi|hello|dear)\b/i.test(l) && /[a-z]/i.test(l)) ?? "Booking";
+        .find(
+          (l) =>
+            l.length > 3 &&
+            l.length < 120 &&
+            !/^(from|to|subject|date|sent|hi|hello|dear|confirmation|booking|reservation|record locator|pnr|reference|ticket (no|number)|flight\s*#|-{3,})/i.test(l) &&
+            /[a-z]/i.test(l),
+        ) ?? "Booking";
     const time = nearest(times, dates[0].index, 200);
     out.push({
       id: nextId(),
