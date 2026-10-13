@@ -751,6 +751,8 @@ export type Database = {
       experience_ratings: TableDef<ExperienceRating, ExperienceRatingInsert, ExperienceRatingUpdate>;
       trip_recommendations: TableDef<TripRecommendation, TripRecommendationInsert, TripRecommendationUpdate>;
       award_availability: ReadOnly<AwardAvailability>;
+      award_availability_history: ReadOnly<{ id: number; origin: string; destination: string; travel_date: ISODate; program: string; cabin: string; data_source: string; change: "opened" | "cheaper" | "pricier" | "closed"; miles: number | null; previous_miles: number | null; seats: number | null; observed_at: string }>;
+      airport_routes: ReadOnly<{ origin: string; destination: string; airline: string; seasonal: boolean; source: string; first_seen: string; last_seen: string }>;
       trip_budget_comfort: TableDef<
         { trip_id: UUID; user_id: UUID; amount: number; updated_at: string },
         { trip_id: UUID; user_id: UUID; amount: number; updated_at?: string },
@@ -776,6 +778,7 @@ export type Database = {
         Returns: { trip_title: string; destination: string | null; start_date: ISODate; end_date: ISODate; invited_by: string; role: TripRole; valid: boolean }[];
       };
       accept_trip_invite: { Args: { p_token: UUID }; Returns: UUID };
+      vote_award_seat: { Args: { p_id: number; p_still: boolean }; Returns: string };
       report_award_seat: {
         Args: { p_origin: string; p_destination: string; p_date: ISODate; p_program: string; p_cabin: string; p_miles: number; p_direct?: boolean };
         Returns: undefined;

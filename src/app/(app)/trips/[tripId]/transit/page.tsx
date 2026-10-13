@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { ImportBanner } from "@/features/import/import-banner";
 import { Suspense } from "react";

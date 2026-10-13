@@ -417,7 +417,7 @@ const NOT_AIRPORTS = new Set(["THE", "AND", "FOR", "YOU", "ARE", "PNR", "USD", "
 
 type Hit = { index: number; value: string };
 
-function datesIn(text: string, year: number): Hit[] {
+export function datesIn(text: string, year: number): Hit[] {
   const hits: Hit[] = [];
   const pad = (n: number) => String(n).padStart(2, "0");
   const ok = (y: number, m: number, d: number) => m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 2000 && y < 2100;

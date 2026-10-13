@@ -5,7 +5,10 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "@/features/awards/regions";
-import { chartPrices } from "@/features/awards/charts";
+import { type ChartPrice, routeAwareChartPrices } from "@/features/awards/charts";
+import { loadNetwork } from "@/features/awards/network";
+import { ReportedVote } from "@/features/awards/reported-vote";
+import { typicalPrices } from "@/features/awards/typical";
 import { ago, exploreAwards } from "@/features/awards/explore";
 import { ReportSeatForm } from "@/features/awards/report-seat-form";
 import { type AwardResult, programFor } from "@/features/awards/search";
@@ -113,6 +116,16 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
   const search = ready
     ? await exploreAwards(supabase, userId, { origin: from, destinations, start: start < today ? today : start, end, cabin, directOnly, sources }, { month, via: via || null })
     : null;
+
+  // Who flies where (WRLD's route network), so chart prices only apply where a partner flies.
+  const [network, typical] = ready
+    ? await Promise.all([loadNetwork(supabase, from, destinations), typicalPrices(supabase, from, destinations, cabin)])
+    : [{ known: new Set<string>(), edges: [] }, new Map()];
+  const priceFor = (dest: string): ChartPrice[] => routeAwareChartPrices(network, from, dest, cabin);
+  const how = (c: ChartPrice) =>
+    c.basis === "route"
+      ? `${c.via ? `via ${c.via}` : "nonstop"} on ${(c.airlines ?? []).slice(0, 2).join(" or ")}${c.seasonal ? ", seasonal" : ""}, ${c.miles.toLocaleString()} miles flown`
+      : `${c.miles.toLocaleString()} miles nonstop distance; routes not checked yet`;
 
   // Group by destination: cheapest first.
   const byDest = new Map<string, AwardResult[]>();
@@ -275,9 +288,22 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
                       <span className="text-muted-foreground"> {best.reported ? "Reported by a traveler" : "Seen"} {ago(best.updatedAt)}.</span>
                     )}
                   </p>
-                  {chartPrices(from, dest, cabin).map((c) => (
+                  {best.reported && /^c\d+$/.test(best.id) && <ReportedVote id={Number(best.id.slice(1))} />}
+                  {(() => {
+                    const t = typical.get(`${dest}|${best.source}`);
+                    return t ? (
+                      <p className="text-xs text-muted-foreground">
+                        Seats with {program.name} on this route have cost{" "}
+                        <strong className="text-foreground">
+                          {t.low === t.high ? formatPoints(t.low) : `${formatPoints(t.low)}–${formatPoints(t.high)}`}
+                        </strong>{" "}
+                        lately ({t.count} sightings in 90 days).
+                      </p>
+                    ) : null;
+                  })()}
+                  {priceFor(dest).map((c) => (
                     <p key={c.source} className="text-xs text-muted-foreground">
-                      Chart price with {c.program}: <strong className="text-foreground">{formatPoints(c.points)}</strong> for partner flights ({c.miles.toLocaleString()} miles nonstop).
+                      Chart price with {c.program}: <strong className="text-foreground">{formatPoints(c.points)}</strong> ({how(c)}).
                     </p>
                   ))}
 
@@ -322,7 +348,7 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
             const withSeats = new Set(groups.map((g) => g.dest));
             const estimates = destinations
               .filter((d) => !withSeats.has(d) && d !== from)
-              .flatMap((d) => chartPrices(from, d, cabin).map((c) => ({ dest: d, ...c })))
+              .flatMap((d) => priceFor(d).map((c) => ({ dest: d, ...c })))
               .sort((a, b) => a.points - b.points);
             if (!estimates.length) return null;
             const aeroplanReach = reachBySlug.get("aircanada_aeroplan");
@@ -352,7 +378,8 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
                       {estimates.slice(0, 20).map((e) => (
                         <tr key={`${e.dest}-${e.source}`} className="border-t">
                           <td className="py-2 pr-3">
-                            {AIRPORT_CITY[e.dest] ?? e.dest} <span className="text-xs text-muted-foreground">{e.dest} · {e.miles.toLocaleString()} mi</span>
+                            {AIRPORT_CITY[e.dest] ?? e.dest} <span className="text-xs text-muted-foreground">{e.dest}</span>
+                            <span className="block text-xs text-muted-foreground">{how(e)}</span>
                           </td>
                           <td className="py-2 pr-3">
                             {programFor(e.source).url ? (
@@ -380,7 +407,13 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
                     </tbody>
                   </table>
                 </div>
-                <p className="text-xs text-muted-foreground">{estimates[0].appliesTo}</p>
+                <p className="text-xs text-muted-foreground">
+                  {estimates[0].appliesTo} Destinations no partner reaches in one stop are left out. Routes from{" "}
+                  <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                    Wikipedia
+                  </a>{" "}
+                  (CC BY-SA), refreshed weekly.
+                </p>
               </section>
             );
           })()}
