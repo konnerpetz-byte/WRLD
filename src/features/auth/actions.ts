@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { safePath } from "@/lib/safe-path";
+
 import { LEGAL_VERSION } from "@/features/legal/version";
 
 import { createClient } from "@/lib/supabase/server";
@@ -16,10 +18,7 @@ const credentials = z.object({
 });
 
 /** Only allow redirects back into this app. */
-function safeNext(value: FormDataEntryValue | null) {
-  const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/trips";
-}
+const safeNext = (value: FormDataEntryValue | null) => safePath(value);
 
 export async function signIn(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentials.safeParse(Object.fromEntries(formData));

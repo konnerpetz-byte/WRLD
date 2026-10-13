@@ -18,7 +18,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const { data: trip } = await supabase.from("trips").select("title").eq("id", item.trip_id).maybeSingle();
 
   const day = item.remind_on.replaceAll("-", "");
-  const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/[,;]/g, (c) => `\\${c}`).replace(/\n/g, "\\n");
+  // Escape for iCalendar text, and drop carriage returns so nothing can start a new line.
+  const esc = (s: string) => s.replace(/\r/g, "").replace(/\\/g, "\\\\").replace(/[,;]/g, (c) => `\\${c}`).replace(/\n/g, "\\n");
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://wrldtrips.com";
   const description = [`For ${trip?.title ?? "your trip"}.`, item.info_url ? `Official site: ${item.info_url}` : null, `Checklist: ${site}/trips/${item.trip_id}/checklist`]
     .filter(Boolean)
@@ -36,7 +37,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     `DTEND:${day}T091500`,
     `SUMMARY:${esc(`WRLD: ${item.title}`)}`,
     `DESCRIPTION:${esc(description)}`,
-    ...(item.info_url ? [`URL:${item.info_url}`] : []),
+    ...(item.info_url && /^https?:\/\/[^\s]+$/.test(item.info_url) ? [`URL:${item.info_url}`] : []),
     "BEGIN:VALARM",
     "ACTION:DISPLAY",
     `DESCRIPTION:${esc(item.title)}`,
