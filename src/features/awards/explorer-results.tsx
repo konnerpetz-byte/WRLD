@@ -130,7 +130,7 @@ function OptionDetail({ o, date }: { o: Option; date: string }) {
           </ul>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
-              {lowest.via === "browser" ? `Searched live on ${o.program === "Atmos Rewards (Alaska)" ? "alaskaair.com" : "the airline's site"}` : lowest.live ? "Live from Seats.aero, updated" : lowest.reported ? "Seen by a traveler" : "Checked"} {ago(lowest.seenAt)}
+              {lowest.live ? "Live from Seats.aero, updated" : lowest.reported ? "Seen by a traveler" : "Checked"} {ago(lowest.seenAt)}
             </span>
             {lowest.reported && <ReportedVote id={lowest.id} />}
           </div>

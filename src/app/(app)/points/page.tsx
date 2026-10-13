@@ -6,13 +6,12 @@ import { monthOptions, parseQuery, runExplorer, type Wallet } from "@/features/a
 import { AboutPrices, DestinationRow } from "@/features/awards/explorer-results";
 import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
 import { LiveLink } from "@/features/awards/live-link";
-import { LiveSearch } from "@/features/awards/live-search";
+import { cashFaresEnabled } from "@/features/awards/cash-fares";
 import { linkedToken, seatsConfig } from "@/features/awards/seats-aero";
 import { fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { ReportSeatForm } from "@/features/awards/report-seat-form";
 import { BANKS } from "@/features/awards/transfers";
-import { airportByCode } from "@/features/places/airports";
 import { requireUserId } from "@/lib/supabase/server";
 
 export const metadata = { title: "Points explorer" };
@@ -51,7 +50,7 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
   for (const r of rates ?? []) if (!rateMap.has(r.quote)) rateMap.set(r.quote, Number(r.rate));
   const fx = fxFrom(rateMap);
 
-  const link = seatsConfig() ? await linkedToken(supabase) : null;
+  const [link, { data: isAdmin }] = await Promise.all([seatsConfig() ? linkedToken(supabase) : Promise.resolve(null), supabase.rpc("is_app_admin")]);
   const result = q.origins.length ? await runExplorer(supabase, userId, q, wallet, fx, link?.access ?? null) : null;
   const notice = sp.seats === "failed" ? "Linking Seats.aero didn't finish. Try again." : null;
 
@@ -109,19 +108,23 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
         <LiveLink connected={Boolean(link)} seats={result?.live.seats ?? 0} error={result?.live.error} notice={notice} />
       )}
 
-      {result && q.cabins.includes("economy") && (
-        <LiveSearch
-          routes={liveRoutes(q.origins[0], result.destinations.map((d) => d.destination), result.searched)}
-          months={q.months.length ? q.months : [...new Set([q.start.slice(0, 7), q.end.slice(0, 7)])]}
-        />
-      )}
-
       {!q.origins.length ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">Enter the airport you&rsquo;re flying from to see where your points go.</p>
       ) : result && result.destinations.length === 0 ? (
-        <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Nothing matches these filters. Try more destinations, another cabin, or fewer programs.
-        </p>
+        <div className="grid gap-3 rounded-2xl border border-dashed p-6 text-sm">
+          <p className="text-base font-medium">No points prices for these routes yet</p>
+          <p className="max-w-[65ch] text-muted-foreground">
+            {cashFaresEnabled()
+              ? "No fares or award seats were found for these dates. Try more months, another cabin, or fewer program filters."
+              : "Airlines price flights within the U.S. and Canada day by day, so there's no published award chart to show. WRLD fills these in from today's fares paid with card points, seats travelers save from airline sites, and live seats if you link Seats.aero."}
+          </p>
+          {!cashFaresEnabled() && isAdmin && (
+            <p className="rounded-lg bg-travel/15 px-3 py-2">
+              <strong>Owner setup:</strong> add <code className="font-mono text-xs">TRAVELPAYOUTS_TOKEN</code> in Vercel (free, from your
+              Travelpayouts profile, API token) to show card-points prices for every route and airline.
+            </p>
+          )}
+        </div>
       ) : result ? (
         <section aria-labelledby="results-h" className="grid gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
@@ -158,12 +161,3 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
 }
 
 
-/**
- * Routes for a live Alaska search: destinations with results first, then the rest of
- * the search in North America and Hawaii, where Alaska and its partners fly most.
- */
-function liveRoutes(origin: string, ranked: string[], searched: string[]) {
-  const near = (code: string) => ["US", "CA", "MX", "CR", "BZ", "GT"].includes(airportByCode(code)?.country ?? "");
-  const order = [...ranked.filter(near), ...searched.filter(near), ...ranked];
-  return [...new Set(order)].filter((d) => d !== origin).slice(0, 30).map((destination) => ({ origin, destination }));
-}

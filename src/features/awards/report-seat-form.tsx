@@ -30,7 +30,7 @@ export function ReportSeatForm({ origin, cabin, programs, minDate }: { origin: s
         <div role="tablist" aria-label="How to add them" className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
           {(
             [
-              ["send", "One click"],
+              ["send", "Save from a site"],
               ["one", "Type it"],
               ["paste", "Paste"],
             ] as const

@@ -56,7 +56,7 @@ export function ShareFromAirline({ programs, home }: { programs: Programs; home:
   if (status === "empty" || !page) {
     return (
       <p className="rounded-xl border border-dashed bg-card p-5 text-sm">
-        Nothing to share yet. On an airline&rsquo;s award results, click the WRLD button (or the &ldquo;Send to WRLD&rdquo; bookmark).{" "}
+        Nothing to share yet. On an airline&rsquo;s award results, click the &ldquo;Save to WRLD&rdquo; bookmark.{" "}
         <Link href="/points#check-live" className="font-medium text-primary underline underline-offset-2">
           Set it up
         </Link>

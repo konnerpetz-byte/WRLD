@@ -1,13 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "WRLD: live award search",
-  "version": "2.0.0",
-  "description": "Live award seats for your WRLD points explorer, searched in your own browser, plus one-click sharing from airline results pages.",
+  "name": "WRLD: Send seats to WRLD",
+  "version": "1.0.0",
+  "description": "On an airline's award results, click to send the dates, points and taxes you see to your WRLD points explorer.",
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://www.alaskaair.com/*"],
   "background": { "service_worker": "background.js" },
-  "content_scripts": [
-    { "matches": ["https://wrldtrips.com/points*", "https://www.wrldtrips.com/points*"], "js": ["relay.js"], "run_at": "document_start" }
-  ],
   "action": { "default_title": "Send these seats to WRLD" }
 }

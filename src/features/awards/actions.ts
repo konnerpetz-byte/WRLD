@@ -159,16 +159,3 @@ export async function disconnectSeatsAero(): Promise<void> {
   revalidatePath("/points");
 }
 
-const browserRows = z.array(z.object({ origin: z.string().regex(/^[A-Z]{3}$/), destination: z.string().regex(/^[A-Z]{3}$/), date: z.iso.date(), miles: z.number().int().min(1000).max(1000000) })).max(1000);
-
-/** Live seats the WRLD extension looked up in the traveler's own browser. */
-export async function saveBrowserSeats(program: string, cabin: string, rows: unknown): Promise<ReportState> {
-  const parsed = browserRows.safeParse(rows);
-  if (!parsed.success || program !== "alaska" || cabin !== "economy") return { error: "Those results didn't look right." };
-  if (!parsed.data.length) return { ok: true, note: "No award seats found on alaskaair.com for these routes and months." };
-  const { supabase } = await requireUserId();
-  const { data, error } = await supabase.rpc("ingest_browser_seats", { p_program: program, p_cabin: cabin, p_rows: parsed.data });
-  if (error) return { error: error.message.includes("enough") ? error.message : "Couldn't save the live results." };
-  revalidatePath("/points");
-  return { ok: true, note: `Added ${Number(data ?? 0).toLocaleString()} live prices from alaskaair.com.` };
-}

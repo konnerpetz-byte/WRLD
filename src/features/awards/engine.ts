@@ -214,7 +214,7 @@ export type SeatDay = {
   reported: boolean;
   /** Live award data: from a linked Seats.aero account, or looked up in a traveler's browser */
   live?: boolean;
-  via?: "seats.aero" | "browser";
+  via?: "seats.aero";
 };
 
 export type Option = {
@@ -297,7 +297,7 @@ export async function runExplorer(
         .limit(1000);
       if (q.directOnly) query = query.eq("direct", true);
       const { data } = await query;
-      return (data ?? []).filter((r) => ((r.data_source !== "community" && r.data_source !== "browser") || r.seen_at >= fresh) && (!q.months.length || q.months.includes(r.travel_date.slice(0, 7))));
+      return (data ?? []).filter((r) => (r.data_source !== "browser" && (r.data_source !== "community" || r.seen_at >= fresh)) && (!q.months.length || q.months.includes(r.travel_date.slice(0, 7))));
     })(),
     liveToken
       ? liveSeats(liveToken, { origins: q.origins, destinations: q.destinations, start: q.start, end: q.end, cabins: q.cabins, sources: liveSources, directOnly: q.directOnly })
@@ -350,8 +350,8 @@ export async function runExplorer(
         seenAt: r.seen_at,
         id: r.id,
         reported: r.data_source === "community",
-        live: r.data_source === "live" || r.data_source === "browser",
-        via: r.data_source === "live" ? ("seats.aero" as const) : r.data_source === "browser" ? ("browser" as const) : undefined,
+        live: r.data_source === "live",
+        via: r.data_source === "live" ? ("seats.aero" as const) : undefined,
       }))
       .sort((a, b) => a.miles - b.miles || a.date.localeCompare(b.date))
       // One price per day: the cheapest.

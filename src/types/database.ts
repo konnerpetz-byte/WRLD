@@ -779,7 +779,6 @@ export type Database = {
       };
       accept_trip_invite: { Args: { p_token: UUID }; Returns: UUID };
       vote_award_seat: { Args: { p_id: number; p_still: boolean }; Returns: string };
-      ingest_browser_seats: { Args: { p_program: string; p_cabin: string; p_rows: unknown }; Returns: number };
       seats_link_save: { Args: { p_access: string; p_refresh: string; p_expires_in: number }; Returns: undefined };
       seats_link_get: { Args: Record<string, never>; Returns: { access_token: string; refresh_token: string; expires_at: string; connected_at: string }[] };
       seats_link_delete: { Args: Record<string, never>; Returns: undefined };
