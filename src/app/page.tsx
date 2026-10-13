@@ -6,11 +6,13 @@ import { LegalLinks } from "@/components/layout/legal-links";
 import { LisbonDayMap, LisbonWalkMap } from "@/components/brand/lisbon-day-map";
 import { WrldMark } from "@/components/brand/wrld-mark";
 import { Wordmark } from "@/components/layout/wordmark";
+import { PartnerScript } from "@/components/partners/partner-script";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
   return (
     <div className="min-h-dvh bg-background">
+      <PartnerScript />
       {/* Translucent bar: the page scrolls under it; a hairline appears only once content is beneath. */}
       <header className="material-light scroll-edge sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">

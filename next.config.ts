@@ -10,16 +10,16 @@ const dev = process.env.NODE_ENV !== "production";
  * allowed, but only from this site. Everything else is locked to the hosts
  * the app really uses: Supabase (sign-in, chat, photos) and the map tiles.
  */
-const csp = [
+const policy = (extra: { script?: string; connect?: string; frame?: string } = {}) => [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}${extra.script ?? ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' https://${supabase} wss://${supabase} https://tiles.openfreemap.org ${mapStyle}`.trim(),
+  `connect-src 'self' https://${supabase} wss://${supabase} https://tiles.openfreemap.org ${mapStyle}${extra.connect ?? ""}`.trim(),
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
-  "frame-src 'none'",
+  extra.frame ? `frame-src${extra.frame}` : "frame-src 'none'",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -28,7 +28,15 @@ const csp = [
   ...(dev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
-const securityHeaders = [
+/**
+ * The public home page also loads the Travelpayouts partner script
+ * (src/components/partners/partner-script.tsx), only for signed-out visitors.
+ * It pulls widgets from hosts Travelpayouts doesn't publish, so this one page
+ * allows HTTPS scripts. No signed-in page does: the app keeps the strict policy.
+ */
+const homeCsp = policy({ script: " https:", connect: " https:", frame: " https:" });
+
+const headersWith = (csp: string) => [
   { key: "Content-Security-Policy", value: csp },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -46,7 +54,10 @@ const nextConfig: NextConfig = {
   // Import bookings accepts files up to 5 MB.
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/", headers: headersWith(homeCsp) },
+      { source: "/:path+", headers: headersWith(policy()) },
+    ];
   },
   // Points wallet and Points flights became one Points explorer.
   async redirects() {
