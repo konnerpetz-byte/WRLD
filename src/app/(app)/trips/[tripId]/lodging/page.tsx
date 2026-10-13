@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { ImportBanner } from "@/features/import/import-banner";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { BedDouble, Trash2 } from "lucide-react";
@@ -41,6 +43,11 @@ async function LodgingPageContent({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_26rem] lg:items-start">
+      {canEdit && (
+        <div className="lg:col-span-2">
+          <ImportBanner tripId={tripId} compact />
+        </div>
+      )}
       <section aria-labelledby="stays">
         <h2 id="stays" className="mb-4 text-xl font-semibold">
           Where you&rsquo;re staying
@@ -113,15 +120,6 @@ async function LodgingPageContent({
           </ul>
         )}
       </section>
-      {canEdit && (
-        <p className="text-sm">
-          Have a confirmation email, PDF or calendar file?{" "}
-          <Link href={`/trips/${tripId}/import`} className="font-medium text-primary underline underline-offset-2">
-            Import it
-          </Link>{" "}
-          instead of typing.
-        </p>
-      )}
       {canEdit && (
         <LodgingForm
           tripId={tripId}

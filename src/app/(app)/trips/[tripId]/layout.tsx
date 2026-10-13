@@ -1,4 +1,4 @@
-import { BellRing, Pencil } from "lucide-react";
+import { BellRing, FileUp, Pencil } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -68,6 +68,13 @@ async function TripHeader({ params }: { params: LayoutProps<"/trips/[tripId]">["
             <Button asChild variant="outline" size="sm">
               <Link href={`/trips/${trip.id}/edit`}>
                 <Pencil aria-hidden="true" /> Edit trip
+              </Link>
+            </Button>
+          )}
+          {canEdit && (
+            <Button asChild size="sm">
+              <Link href={`/trips/${trip.id}/import`}>
+                <FileUp aria-hidden="true" /> Import bookings
               </Link>
             </Button>
           )}

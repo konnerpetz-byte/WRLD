@@ -178,15 +178,17 @@ export default function Home() {
                 }
               />
               <Benefit
-                title="Save it from TikTok"
-                body="Share a reel or TikTok to WRLD and it lands in your trip, ready to drop into a day or discuss in the chat."
+                title="Import what you've booked"
+                body="Paste a confirmation email or drop in a ticket PDF or calendar file. Flights, stays and tickets land on the right day. No typing."
                 example={
-                  <div className="flex items-center gap-3 rounded-md bg-card p-2 text-xs shadow-sm">
-                    <span className="grid size-12 shrink-0 place-items-center rounded bg-sidebar text-lg text-travel" aria-hidden="true">▶</span>
-                    <span>
-                      <span className="block font-semibold">Best pastéis in Belém</span>
-                      <span className="text-muted-foreground">Saved to Lisbon, Day 2</span>
-                    </span>
+                  <div className="grid gap-1.5 text-xs">
+                    <div className="rounded-md bg-card px-2.5 py-1.5 shadow-sm">
+                      <p className="font-semibold">Your flight is confirmed</p>
+                      <p className="truncate text-muted-foreground">UA 958 · DTW → LIS · Nov 2, 6:05 PM</p>
+                    </div>
+                    <p className="flex items-center gap-1.5 rounded-md bg-travel px-2.5 py-1.5 font-medium text-travel-foreground">
+                      <span aria-hidden="true">↓</span> Added to Day 1: lands 7:20 AM
+                    </p>
                   </div>
                 }
               />

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import Link from "next/link";
 
+import { ImportBanner } from "@/features/import/import-banner";
 import { AddPlaceBar } from "@/features/itinerary/add-place-bar";
 import { DayGrid } from "@/features/itinerary/day-grid";
 import { getItinerary, getTrip } from "@/features/trips/queries";
@@ -28,6 +29,9 @@ async function ItineraryPageContent({
   const [{ trip, canEdit }, { days, transit, lodging, votes }] =
     await Promise.all([getTrip(tripId), getItinerary(tripId)]);
 
+  const noTravel = !transit.some((t) => t.booking_status !== "cancelled");
+  const noStays = !lodging.some((l) => l.booking_status !== "cancelled");
+
   const dayOptions = days
     .filter((d) => d.blocks.some((b) => b.status !== "unavailable"))
     .map((d) => ({
@@ -42,14 +46,7 @@ async function ItineraryPageContent({
 
   return (
     <>
-      {canEdit && (
-        <p className="-mt-2 mb-4 text-right text-sm">
-          Already booked something?{" "}
-          <Link href={`/trips/${tripId}/import`} className="font-medium text-primary underline underline-offset-2">
-            Import bookings
-          </Link>
-        </p>
-      )}
+      {canEdit && (noTravel || noStays) && <ImportBanner tripId={tripId} emptyTrip={noTravel && noStays} />}
       {canEdit && (
         <AddPlaceBar
           tripId={tripId}
@@ -57,7 +54,12 @@ async function ItineraryPageContent({
           initialQuery={typeof add === "string" ? add.slice(0, 200) : ""}
         />
       )}
-      {!transit.some((t) => t.direction === "outbound") && (
+      {canEdit && !noTravel && !noStays && (
+        <div className="mb-4">
+          <ImportBanner tripId={tripId} compact />
+        </div>
+      )}
+      {!transit.some((t) => t.direction === "outbound") && !(canEdit && noTravel) && (
         <p className="mb-4 rounded-lg border border-travel bg-travel-soft px-4 py-3 text-sm">
           Add your flight or train there and the first day will start when you
           actually arrive.{" "}
