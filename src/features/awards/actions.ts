@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { airportByCode } from "@/features/places/airports";
 import { requireUserId } from "@/lib/supabase/server";
 
 import { chartPrices } from "./charts";
@@ -149,7 +150,17 @@ export async function readSharedPage(url: string, text: string): Promise<SharedP
   if (!meta.program) return { rows: [], program: null, error: "That page isn't an airline WRLD knows. Open an award search on the airline's site first." };
   const rows = seatsFromText(String(text).slice(0, 200_000), new Date(), meta.date ?? null);
   if (!rows.length) return { ...meta, rows, error: "No award prices found on that page. Wait for the results to load, then try again." };
-  return { ...meta, rows };
+  // Some sites (Delta) drop the route from the address after searching: read it from the page header.
+  const route = meta.origin && meta.destination ? null : routeFromText(String(text).slice(0, 5000));
+  return { ...meta, ...(route ?? {}), rows };
+}
+
+/** "DTW - LAX", "DTW to LAX", "DTW → LAX": the first pair of real airport codes. */
+function routeFromText(text: string): { origin: string; destination: string } | null {
+  for (const m of text.matchAll(/\b([A-Z]{3})\b\s*(?:-|–|—|→|>|to|TO)?\s*\b([A-Z]{3})\b/g)) {
+    if (m[1] !== m[2] && airportByCode(m[1]) && airportByCode(m[2])) return { origin: m[1], destination: m[2] };
+  }
+  return null;
 }
 
 /** Unlinks the traveler's Seats.aero account (tokens are deleted). */

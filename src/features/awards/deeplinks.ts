@@ -100,8 +100,8 @@ export function readAirlineUrl(raw: string): { program: string | null; origin?: 
     return undefined;
   };
   const out: { program: string | null; origin?: string; destination?: string; date?: string; cabin?: Cabin } = { program };
-  const origin = pick("f", "org0", "origin", "from", "O", "orig", "departureAirport")?.toUpperCase();
-  const destination = pick("t", "dest0", "destination", "to", "D", "dest", "arrivalAirport")?.toUpperCase();
+  const origin = pick("f", "org0", "origin", "from", "O", "orig", "departureAirport", "originCity")?.toUpperCase();
+  const destination = pick("t", "dest0", "destination", "to", "D", "dest", "arrivalAirport", "destinationCity")?.toUpperCase();
   const date = pick("d", "departureDate0", "date", "departing", "depart", "OD", "departureDate");
   if (origin && IATA.test(origin)) out.origin = origin;
   if (destination && IATA.test(destination)) out.destination = destination;

@@ -29,9 +29,31 @@ export function seatsFromText(text: string, now = new Date(), fallbackDate?: str
     if (miles >= 1000 && miles <= 1000000) amounts.push({ index: m.index!, miles });
   }
   const cash = [...text.matchAll(CASH_RE)].map((m) => ({ index: m.index!, amount: Number(m[2].replace(/,/g, "")), currency: CASH_CODE[m[1]] }));
-  // Each date takes the cheapest amount between it and the next date, with the cash right after it.
   const rows: PastedSeat[] = [];
+  const feeAfter = (index: number, limit: number) => cash.find((c) => c.index > index && c.index < limit && c.index - index < 60);
+  // Calendar strips (Delta, Air France and others): a row of dates, then a row
+  // of prices in the same order. Pair them by position.
+  const used = new Set<number>();
+  for (let i = 0; i < dates.length; ) {
+    let j = i;
+    while (j + 1 < dates.length && !amounts.some((a) => a.index > dates[j].index && a.index < dates[j + 1].index)) j++;
+    const run = dates.slice(i, j + 1);
+    if (run.length >= 3) {
+      const after = amounts.filter((a) => a.index > run[run.length - 1].index && a.index < (dates[j + 1]?.index ?? text.length)).slice(0, run.length);
+      if (after.length === run.length) {
+        run.forEach((d, k) => {
+          used.add(i + k);
+          if (rows.some((r) => r.date === d.value)) return;
+          const fee = feeAfter(after[k].index, after[k + 1]?.index ?? text.length);
+          rows.push(fee && fee.amount <= 5000 ? { date: d.value, miles: after[k].miles, taxes: fee.amount, taxCurrency: fee.currency } : { date: d.value, miles: after[k].miles });
+        });
+      }
+    }
+    i = j + 1;
+  }
+  // Otherwise each date takes the cheapest amount between it and the next date, with the cash right after it.
   dates.forEach((d, i) => {
+    if (used.has(i)) return;
     const end = dates[i + 1]?.index ?? text.length;
     const inRange = amounts.filter((a) => a.index > d.index && a.index < end);
     if (!inRange.length) return;
