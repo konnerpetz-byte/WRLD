@@ -161,6 +161,33 @@ Seats.aero's API is for personal use unless they approve commercial use in writi
 | Seats.aero partner access | Ask them; not published |
 | Apple / Google developer accounts | $99/yr + $25 |
 
+## 6. Legal and compliance checklist
+
+_Added October 12, 2026. The site now has Privacy, Terms, Cookie, Refund and Accessibility pages, plus required terms consent at signup (the version and time are saved)._
+
+### Before the beta
+- [ ] **Form an LLC** (Michigan is about $50 online). Set `NEXT_PUBLIC_LEGAL_NAME` and `NEXT_PUBLIC_LEGAL_ADDRESS` in Vercel so the policies name the company and a postal address. GDPR and CAN-SPAM both expect one.
+- [ ] **Turn on privacy@wrldtrips.com.** Every policy points to it.
+- [ ] **Make the GitHub repo private.**
+- [ ] **Have a lawyer review** the Terms and Privacy Policy. They were written to match what the app actually does, but they aren't legal advice.
+
+### Before public launch
+- [ ] **Register a DMCA agent** with the U.S. Copyright Office ($6, renew every 3 years). Without one, WRLD loses its safe harbor if someone posts copyrighted reels or photos.
+- [ ] **Upgrade Vercel and Supabase to Pro.** Vercel's free plan doesn't allow commercial use, and free Supabase projects pause when idle.
+- [ ] **Cookie banner:** not needed today. WRLD sets only the strictly necessary sign-in cookies, and Vercel Analytics is cookieless. **A banner becomes required** before adding Google Analytics, Meta or TikTok pixels, ad tags, or chat widgets.
+- [ ] **Third-party images:** Viator photos and reel thumbnails load from other servers and reveal the visitor's IP address. This is disclosed in the Privacy Policy. Proxying them through `next/image` would remove it.
+
+### Before taking money
+- [ ] **Subscriptions** (California and other auto-renewal laws, plus FTC click-to-cancel): clear renewal terms before checkout, an online cancel button, and a renewal reminder email for yearly plans.
+- [ ] **Stripe Tax** or a similar service for sales tax and EU VAT on digital services.
+- [ ] **Seller of travel:** while WRLD only links out to partners, registration isn't needed. If WRLD ever takes payment for travel itself, register in California, Florida, Washington and Hawaii, or use the partner's merchant of record (Viator's booking API does that).
+
+### Ongoing
+- **GDPR (EU and UK users):** honor access and delete requests within 30 days. Account deletion is already self-serve. Sign Data Processing Agreements with Supabase and Vercel (both offer them in their dashboards).
+- **U.S. state privacy laws** (California CCPA and others) apply above revenue or user thresholds WRLD hasn't reached. The policy already says WRLD doesn't sell or share data and honors Global Privacy Control.
+- **Keep the OpenStreetMap credit visible** on maps and the footer.
+- **When a policy changes,** update `LEGAL_VERSION` in `src/features/legal/version.ts` and tell users.
+
 ## Sources
 
 - Viator affiliate program: https://partnerresources.viator.com/travel-commerce/affiliate/
