@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { BedDouble, Trash2 } from "lucide-react";
@@ -112,6 +113,15 @@ async function LodgingPageContent({
           </ul>
         )}
       </section>
+      {canEdit && (
+        <p className="text-sm">
+          Have a confirmation email, PDF or calendar file?{" "}
+          <Link href={`/trips/${tripId}/import`} className="font-medium text-primary underline underline-offset-2">
+            Import it
+          </Link>{" "}
+          instead of typing.
+        </p>
+      )}
       {canEdit && (
         <LodgingForm
           tripId={tripId}

@@ -107,7 +107,8 @@ async function oembed(endpoint: string): Promise<OEmbed | null> {
   }
 }
 
-async function safeFetch(start: string, json = false): Promise<{ html: string; finalUrl: string } | null> {
+/** Fetch a public http(s) page (never private addresses), capped at 512 KB. */
+export async function safeFetch(start: string, json = false): Promise<{ html: string; finalUrl: string } | null> {
   let url = start;
   for (let hop = 0; hop < 4; hop++) {
     if (!(await isPublicUrl(url))) return null;

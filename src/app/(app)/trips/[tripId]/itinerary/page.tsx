@@ -43,6 +43,14 @@ async function ItineraryPageContent({
   return (
     <>
       {canEdit && (
+        <p className="-mt-2 mb-4 text-right text-sm">
+          Already booked something?{" "}
+          <Link href={`/trips/${tripId}/import`} className="font-medium text-primary underline underline-offset-2">
+            Import bookings
+          </Link>
+        </p>
+      )}
+      {canEdit && (
         <AddPlaceBar
           tripId={tripId}
           days={dayOptions}

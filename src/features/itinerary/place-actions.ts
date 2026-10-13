@@ -94,6 +94,10 @@ async function insertItem(
     startTime: string | null;
     /** A bookable listing (Viator…): its price, link and length */
     offer?: { provider: string; ref: string; url: string; price: number | null; currency: string; durationMinutes: number | null } | null;
+    /** Already booked elsewhere (imported): don't go looking for a price. */
+    skipPriceLookup?: boolean;
+    /** Extra columns to store (booking status, link…) */
+    extra?: { booking_status?: "booked" | "held" | "idea"; booking_url?: string | null; description?: string | null };
   },
 ): Promise<ActionState & { itemId?: string }> {
   const { trip, days, items } = loaded;
@@ -162,6 +166,8 @@ async function insertItem(
     };
   } else if (place?.source === "osm") {
     notes.push("Free to visit or price not listed. Add a price if you spend money there.");
+  } else if (input.skipPriceLookup) {
+    // Imported bookings: the traveler adds what they paid.
   } else {
     const match = await lookupActivityPrice({ title: place?.name ?? input.title, destination: day.city, currency: trip.currency });
     if (match) {
@@ -197,6 +203,7 @@ async function insertItem(
     booking_url: place?.ticketsUrl ?? null,
     created_by: userId,
     ...price,
+    ...(input.extra ?? {}),
   }).select("id").single();
   if (error || !inserted) return { error: "Only owners and editors can add to this trip." };
 
@@ -592,5 +599,49 @@ export async function addNamedPlace(tripId: string, blockId: string, _: ActionSt
     startTime: null,
   });
   if (result.ok) refresh(tripId);
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Imported tickets and reservations (from Import bookings)
+// ---------------------------------------------------------------------------
+const importedSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  date: z.iso.date(),
+  time: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
+  address: z.string().trim().max(300).nullable(),
+  url: z.string().trim().max(2000).regex(/^https?:\/\/\S+$/).nullable(),
+  confirmation: z.string().trim().max(40).nullable(),
+});
+
+/** Put an already-booked ticket on its day, in the part of the day its time falls in. */
+export async function importActivity(tripId: string, input: z.input<typeof importedSchema>): Promise<ActionState> {
+  const parsed = importedSchema.safeParse(input);
+  if (!parsed.success) return { error: "Check the name, date and time." };
+  const a = parsed.data;
+  const { supabase, userId } = await requireUserId();
+  const loaded = await loadTrip(supabase, tripId);
+  if (!loaded) return { error: "Trip not found." };
+  const day = loaded.days.find((d) => d.date === a.date);
+  if (!day) return { error: `${a.title}: ${a.date} isn't one of the trip's days.` };
+  const slot: TimeBlockSlot = !a.time ? "afternoon" : a.time < "12:00" ? "morning" : a.time < "17:00" ? "afternoon" : "evening";
+  const block =
+    day.blocks.find((b) => b.slot === slot && b.status !== "unavailable") ??
+    day.blocks.find((b) => b.status !== "unavailable") ??
+    day.blocks[0];
+  if (!block) return { error: `${a.title}: that day has no time set up yet.` };
+  const result = await insertItem(supabase, userId, loaded, block, {
+    title: a.title,
+    place: null,
+    address: a.address,
+    unitPrice: null,
+    startTime: a.time,
+    skipPriceLookup: true,
+    extra: {
+      booking_status: "booked",
+      booking_url: a.url,
+      description: a.confirmation ? `Confirmation ${a.confirmation}` : null,
+    },
+  });
   return result;
 }

@@ -21,7 +21,7 @@ export default function Home() {
               <Link href="/login">Sign in</Link>
             </Button>
             <Button asChild className="max-sm:hidden">
-              <Link href="/signup">Plan a trip, free</Link>
+              <Link href="/signup">Take the quiz, free</Link>
             </Button>
           </div>
         </div>
@@ -31,14 +31,18 @@ export default function Home() {
         {/* Hero: one promise, one action, the product itself */}
         <section className="mx-auto grid max-w-6xl gap-12 px-6 pt-10 pb-20 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:pt-16">
           <div>
-            <h1 className="text-5xl leading-[1.02] font-bold tracking-[-0.035em] sm:text-6xl">Plan the trip you&rsquo;ll actually take.</h1>
+            <h1 className="text-[2.75rem] leading-[1.04] font-bold tracking-[-0.035em] sm:text-[3.5rem]">
+              <span className="block">Take the quiz.</span>
+              <span className="block">Set your budget.</span>
+              <span className="block text-primary">We&rsquo;ll take it from here.</span>
+            </h1>
             <p className="mt-6 max-w-lg text-lg text-muted-foreground">
-              WRLD builds each day around your real flight times, maps your route, and adds every ticket and point to
-              one budget.
+              WRLD plans each day around your real flights and the way you like to travel, then prices the whole trip in cash
+              and points, at a budget everyone in the group can afford.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Button asChild size="lg" className="h-12 bg-travel px-7 text-base text-travel-foreground hover:bg-travel/90">
-                <Link href="/signup">Plan a trip, free</Link>
+                <Link href="/signup">Take the quiz, free</Link>
               </Button>
               <Link href="#how" className="rounded-md px-1 py-2 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 See how it works
@@ -166,7 +170,7 @@ export default function Home() {
               <p className="max-w-md text-2xl font-semibold text-brand-cream">Your next trip, planned around how you travel.</p>
             </div>
             <Button asChild size="lg" className="h-12 bg-travel px-7 text-base text-travel-foreground hover:bg-travel/90">
-              <Link href="/signup">Plan a trip, free</Link>
+              <Link href="/signup">Take the quiz, free</Link>
             </Button>
           </div>
         </section>
@@ -231,6 +235,10 @@ function HeroProduct() {
           <p className="mt-1 flex items-baseline justify-between border-t pt-2 text-sm">
             <span className="text-muted-foreground">Trip total</span>
             <span className="text-lg font-bold">$1,982</span>
+          </p>
+          <p className="-mt-1 flex items-baseline justify-between text-xs">
+            <span className="text-muted-foreground">$496 each for 4</span>
+            <span className="rounded-full bg-open-soft px-2 py-0.5 font-medium text-primary">Fits everyone&rsquo;s budget</span>
           </p>
         </div>
       </div>

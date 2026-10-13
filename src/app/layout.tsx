@@ -19,8 +19,8 @@ const wrldSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: "WRLD — plan the trip you'll actually take", template: "%s · WRLD" },
-  description: "Plan days around real arrival times, map your route, use your points, and see the whole budget.",
+  title: { default: "WRLD: take the quiz, set your budget, we'll take it from here", template: "%s · WRLD" },
+  description: "Trip planning for groups: a day-by-day plan built around your real flights and travel type, priced in cash and points, at a budget everyone can afford.",
   applicationName: "WRLD",
   appleWebApp: { capable: true, title: "WRLD", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },

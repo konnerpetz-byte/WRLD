@@ -106,6 +106,7 @@ const transitSchema = z.object({
   cost: optionalMoney,
   currency: currencyCode,
   points_used: optionalInt,
+  confirmation_code: optionalText,
 });
 
 export async function addTransit(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
