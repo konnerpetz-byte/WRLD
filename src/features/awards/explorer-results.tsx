@@ -26,6 +26,9 @@ const day = (iso: string, opts: Intl.DateTimeFormatOptions = { month: "short", d
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 
 function Tag({ o }: { o: Option }) {
+  if (o.kind === "predicted") {
+    return <span className="inline-flex shrink-0 items-center rounded-full bg-travel/20 px-2 py-0.5 text-xs font-medium">Predicted from today&rsquo;s fare</span>;
+  }
   if (o.kind === "portal" || o.kind === "revenue") {
     return <span className="inline-flex shrink-0 items-center rounded-full bg-travel/20 px-2 py-0.5 text-xs font-medium">Any seat, today&rsquo;s fare</span>;
   }
@@ -235,6 +238,12 @@ export function AboutPrices() {
           <strong className="text-foreground">Open seats</strong> were seen on an airline&rsquo;s site by WRLD travelers in the last three
           days, with the dates and taxes they saw. <strong className="text-foreground">Published prices</strong> are what a program charges
           when a seat is open, from its award chart, on routes its partner airlines really fly.
+        </p>
+        <p>
+          <strong className="text-foreground">Predicted from today&rsquo;s fare</strong>: Delta, United, American and Alaska price awards
+          on their own flights largely from the cash fare. WRLD takes today&rsquo;s lowest fare for that airline and day and shows the
+          miles range it usually works out to. Each price travelers save with WRLD is matched to that day&rsquo;s fare, so the range
+          gets tighter the more WRLD is used.
         </p>
         <p>
           Cash on top includes government taxes, airport charges and booking fees, plus whether the program adds fuel surcharges. Airport

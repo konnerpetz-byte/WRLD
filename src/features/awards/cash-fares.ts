@@ -53,29 +53,41 @@ async function monthFares(origin: string, month: string, direct: boolean): Promi
   cacheLife("hours");
   const token = env("TRAVELPAYOUTS_TOKEN");
   if (!token) return [];
-  const u = new URL("https://api.travelpayouts.com/aviasales/v3/prices_for_dates");
-  u.search = new URLSearchParams({
-    origin,
-    departure_at: month,
-    one_way: "true",
-    direct: String(direct),
-    unique: "true",
-    sorting: "price",
-    currency: "usd",
-    market: "us",
-    limit: "1000",
-  }).toString();
+  // Two passes: one fare per destination (reach), then every cheap fare (more airlines and dates per route).
+  const pass = async (unique: boolean): Promise<Row[]> => {
+    const u = new URL("https://api.travelpayouts.com/aviasales/v3/prices_for_dates");
+    u.search = new URLSearchParams({
+      origin,
+      departure_at: month,
+      one_way: "true",
+      direct: String(direct),
+      unique: String(unique),
+      sorting: "price",
+      currency: "usd",
+      market: "us",
+      limit: "1000",
+    }).toString();
+    try {
+      const res = await fetch(u, { headers: { "X-Access-Token": token, "Accept-Encoding": "gzip, deflate" }, signal: AbortSignal.timeout(12000) });
+      if (!res.ok) return [];
+      const body = (await res.json()) as { success?: boolean; data?: Row[] };
+      return body.success && Array.isArray(body.data) ? body.data : [];
+    } catch {
+      return [];
+    }
+  };
   try {
-    const res = await fetch(u, { headers: { "X-Access-Token": token, "Accept-Encoding": "gzip, deflate" }, signal: AbortSignal.timeout(12000) });
-    if (!res.ok) return [];
-    const body = (await res.json()) as { success?: boolean; data?: Row[] };
-    if (!body.success || !Array.isArray(body.data)) return [];
+    const rows = (await Promise.all([pass(true), pass(false)])).flat();
+    const seen = new Set<string>();
     const out: CashFare[] = [];
-    for (const r of body.data) {
+    for (const r of rows) {
       const dest = String(r.destination_airport ?? r.destination ?? "").toUpperCase();
       const date = String(r.departure_at ?? "").slice(0, 10);
       const price = Number(r.price);
       if (!IATA.test(dest) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(price) || price <= 0 || price > 20000) continue;
+      const k = `${dest}|${date}|${r.airline}|${r.flight_number}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
       out.push({
         origin: String(r.origin_airport ?? origin).toUpperCase(),
         destination: dest,
@@ -143,3 +155,20 @@ export const REVENUE_PROGRAMS: Record<string, { source: string; low: number; hig
   WN: { source: "southwest", low: 1.2, high: 1.4 },
   B6: { source: "jetblue", low: 1.3, high: 1.5 },
 };
+
+/**
+ * Dynamic-priced programs: no chart, the airline sets the miles price for its
+ * own flights largely from the cash fare. WRLD predicts it from today's fare.
+ * Starting values bracket NerdWallet's 2026 medians (Delta and United 1.2
+ * cents, American 1.7, Alaska 1.4); WRLD replaces them with what its own
+ * travelers' saved prices show once there are enough (award_fare_rates).
+ */
+export const PREDICTED_PROGRAMS: Record<string, { source: string; low: number; high: number }> = {
+  DL: { source: "delta", low: 1.0, high: 1.4 },
+  UA: { source: "united", low: 1.0, high: 1.4 },
+  AA: { source: "american", low: 1.3, high: 1.9 },
+  AS: { source: "alaska", low: 1.2, high: 1.6 },
+};
+export const CARRIER_OF: Record<string, string> = Object.fromEntries(
+  Object.entries({ ...REVENUE_PROGRAMS, ...PREDICTED_PROGRAMS }).map(([code, p]) => [p.source, code]),
+);

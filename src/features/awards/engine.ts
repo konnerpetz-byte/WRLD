@@ -7,7 +7,7 @@ import { type ChartPrice, routeAwareChartPrices } from "./charts";
 import { estimateFees, type FeeEstimate, type Fx } from "./fees";
 import { loadNetwork } from "./network";
 import { liveSeats } from "./seats-aero";
-import { type CashFare, cashFares, PORTAL_CENTS, PORTALS, REVENUE_PROGRAMS } from "./cash-fares";
+import { CARRIER_OF, type CashFare, cashFares, PORTAL_CENTS, PORTALS, PREDICTED_PROGRAMS, REVENUE_PROGRAMS } from "./cash-fares";
 import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "./regions";
 import { programFor } from "./search";
 import { BANKS, bankPointsFor, ratioLabel } from "./transfers";
@@ -226,8 +226,14 @@ export type Option = {
   program: string;
   points: number;
   /** "seats": real seats (traveler reports or licensed data); "chart": published price when a seat opens */
-  /** seats: real award seats; chart: published price; portal: card points for today's cash fare; revenue: Southwest/JetBlue points from the fare */
-  kind: "seats" | "chart" | "portal" | "revenue";
+  /**
+   * seats: real award seats; chart: published price; portal: card points for today's cash fare;
+   * revenue: Southwest/JetBlue points from the fare; predicted: dynamic-priced programs
+   * (Delta, United, American, Alaska) predicted from the fare by WRLD's model
+   */
+  kind: "seats" | "chart" | "portal" | "revenue" | "predicted";
+  /** For revenue and predicted options: cents per point used, and whether WRLD's own data set it */
+  model?: { low: number; high: number; learned: number | null };
   /** For portal and revenue options: the cash fares behind them */
   fares?: CashFare[];
   /** Revenue programs price within a range */
@@ -280,7 +286,7 @@ export async function runExplorer(
   }
   const liveSources = allowed ? [...allowed] : null;
   const wantsEconomy = q.cabins.includes("economy");
-  const [typical, seatRows, live, fares] = await Promise.all([
+  const [typical, seatRows, live, fares, learned] = await Promise.all([
     typicalPrices(supabase, q.origins, q.destinations, q.cabins),
     (async () => {
       let query = supabase
@@ -303,7 +309,27 @@ export async function runExplorer(
       ? liveSeats(liveToken, { origins: q.origins, destinations: q.destinations, start: q.start, end: q.end, cabins: q.cabins, sources: liveSources, directOnly: q.directOnly })
       : Promise.resolve(null),
     wantsEconomy ? cashFares({ origins: q.origins, months: q.months, start: q.start, end: q.end, directOnly: q.directOnly }) : Promise.resolve([] as CashFare[]),
+    wantsEconomy
+      ? Promise.resolve(supabase.rpc("award_fare_rates")).then(
+          ({ data }) => new Map((data ?? []).map((r) => [r.program, { low: Number(r.low), high: Number(r.high), n: r.n }])),
+          () => new Map<string, { low: number; high: number; n: number }>(),
+        )
+      : Promise.resolve(new Map<string, { low: number; high: number; n: number }>()),
   ]);
+
+  // Teach the model: award prices travelers saved, matched with the cash fare for the same flight day.
+  {
+    const obs = seatRows
+      .filter((r) => r.data_source === "community" && r.cabin === "economy" && CARRIER_OF[r.program])
+      .flatMap((r) => {
+        const f = fares
+          .filter((x) => x.origin === r.origin && x.destination === r.destination && x.date === r.travel_date && x.airline === CARRIER_OF[r.program])
+          .sort((a, b) => a.price - b.price)[0];
+        return f ? [{ program: r.program, origin: r.origin, destination: r.destination, travel_date: r.travel_date, miles: r.miles, fare_usd: f.price }] : [];
+      })
+      .slice(0, 200);
+    if (obs.length) void Promise.resolve(supabase.rpc("award_fare_observe", { p_rows: obs })).then(() => undefined, () => undefined);
+  }
   const inMonths = (date: string) => !q.months.length || q.months.includes(date.slice(0, 7));
   // Live seats join the same groups as traveler reports (same route, cabin and program).
   type Row = (typeof seatRows)[number];
@@ -462,31 +488,56 @@ export async function runExplorer(
           },
         });
       }
-      // Southwest and JetBlue price awards from the fare: show them when they fly it.
-      for (const [code, rev] of Object.entries(REVENUE_PROGRAMS)) {
-        if (!ok(rev.source)) continue;
-        const theirs = perDay.filter((f) => f.airline === code);
+      // Programs that price from the fare, on their own flights: Southwest and JetBlue
+      // (fixed rate) and Delta, United, American and Alaska (WRLD's prediction).
+      const o = airportByCode(origin);
+      const d = airportByCode(destination);
+      const domestic = o?.country === "US" && d?.country === "US";
+      for (const [code, base] of Object.entries({ ...REVENUE_PROGRAMS, ...PREDICTED_PROGRAMS })) {
+        if (!ok(base.source)) continue;
+        const theirs = [...new Map(list.filter((f) => f.airline === code).sort((a, b) => b.price - a.price).map((f) => [f.date, f])).values()].sort(
+          (a, b) => a.price - b.price,
+        );
         if (!theirs.length) continue;
+        const predicted = code in PREDICTED_PROGRAMS;
+        const seen = learned.get(base.source);
+        const rate = seen ? { low: seen.low, high: seen.high } : base;
+        // What the points pay for: the fare minus U.S. taxes (7.5% ticket tax, $5.60 security fee) at home, or minus typical international taxes.
+        const pointsPart = (price: number) => (domestic ? Math.max(0, (price - 5.6) / 1.075) : Math.max(0, price * 0.8));
+        const pts = (price: number, cents: number) => Math.max(500, Math.round(pointsPart(price) / (cents / 100) / 100) * 100);
         const f = theirs[0];
-        // Fare minus U.S. taxes (7.5% ticket tax, $5.60 security fee) is what the points pay for.
-        const base = Math.max(0, (f.price - 5.6) / 1.075);
-        const low = Math.round(base / (rev.high / 100) / 100) * 100;
-        const high = Math.round(base / (rev.low / 100) / 100) * 100;
-        const fees = { low: 6, high: 6, lines: [{ label: "U.S. September 11th Security Fee", low: 6, high: 6 }], surcharge: { level: "none" as const, text: `${programFor(rev.source).name} doesn't add fuel surcharges.` }, plusSurcharges: false };
+        const low = pts(f.price, rate.high);
+        const high = pts(f.price, rate.low);
+        const fees =
+          domestic || !o || !d
+            ? { low: 6, high: 6, lines: [{ label: "U.S. September 11th Security Fee", low: 6, high: 6 }], surcharge: { level: "none" as const, text: `${programFor(base.source).name} doesn't add fuel surcharges on its own flights.` }, plusSurcharges: false }
+            : estimateFees({ origin: o, destination: d, cabin: "economy", source: base.source, airlines: [airlineName(code)], fx });
+        const key = `${route}|economy|${base.source}`;
+        if (options.some((x) => x.key === key && x.kind === "seats")) continue; // real seats already shown
+        const steps = directionsFor({ source: base.source, points: high, origin, destination, cabin: "economy", date: f.date, airlines: [airlineName(code)], wallet, banks: q.banks });
         options.push({
-          key: `${route}|economy|${rev.source}`,
+          key: `${key}|fare`,
           origin,
           destination,
           cabin: "economy",
-          source: rev.source,
-          program: programFor(rev.source).name,
+          source: base.source,
+          program: programFor(base.source).name,
           points: low,
           pointsHigh: high,
-          kind: "revenue",
-          days: theirs.map((x) => ({ date: x.date, miles: Math.round(Math.max(0, (x.price - 5.6) / 1.075) / (rev.high / 100) / 100) * 100, taxes: null, taxCurrency: null, seenAt: new Date().toISOString(), id: 0, reported: false })),
+          kind: predicted ? "predicted" : "revenue",
+          model: { low: rate.low, high: rate.high, learned: seen?.n ?? null },
+          days: theirs.map((x) => ({ date: x.date, miles: pts(x.price, rate.high), taxes: null, taxCurrency: null, seenAt: new Date().toISOString(), id: 0, reported: false })),
           fares: theirs,
-          cash: { low: 6, high: 6, reported: false, estimate: fees },
-          directions: directionsFor({ source: rev.source, points: high, origin, destination, cabin: "economy", date: f.date, airlines: [airlineName(code)], wallet, banks: q.banks }),
+          cash: { low: fees.low, high: fees.high, reported: false, estimate: fees },
+          directions: predicted
+            ? {
+                ...steps,
+                steps: [
+                  ...steps.steps,
+                  `${programFor(base.source).name} sets award prices close to the cash fare ($${f.price.toFixed(0)} today), so expect about ${low.toLocaleString("en-US")} to ${high.toLocaleString("en-US")} miles. ${seen ? `Based on ${seen.n} prices WRLD travelers saved.` : "WRLD's starting estimate; it sharpens as travelers save real prices."}`,
+                ],
+              }
+            : steps,
         });
       }
     }
