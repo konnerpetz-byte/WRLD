@@ -75,4 +75,10 @@ export const SOURCE_PROGRAM: Record<string, { name: string; slug?: string; url: 
   eva: { name: "EVA Infinity MileageLands", url: "https://www.evaair.com" },
   thai: { name: "Thai Royal Orchid Plus", url: "https://www.thaiairways.com" },
   southwest: { name: "Southwest Rapid Rewards", slug: "southwest_rapid_rewards", url: "https://www.southwest.com" },
+  lufthansa: { name: "Lufthansa Miles & More", url: "https://www.miles-and-more.com" },
+  ethiopian: { name: "Ethiopian ShebaMiles", url: "https://www.ethiopianairlines.com" },
+  saudia: { name: "Saudia AlFursan", url: "https://www.saudia.com" },
+  azul: { name: "Azul Fidelidade", url: "https://www.voeazul.com.br" },
+  frontier: { name: "Frontier Miles", url: "https://www.flyfrontier.com" },
+  spirit: { name: "Spirit Free Spirit", url: "https://www.spirit.com" },
 };

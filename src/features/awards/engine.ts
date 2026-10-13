@@ -6,6 +6,7 @@ import type { requireUserId } from "@/lib/supabase/server";
 import { type ChartPrice, routeAwareChartPrices } from "./charts";
 import { estimateFees, type FeeEstimate, type Fx } from "./fees";
 import { loadNetwork } from "./network";
+import { liveSeats } from "./seats-aero";
 import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "./regions";
 import { programFor } from "./search";
 import { BANKS, bankPointsFor, ratioLabel } from "./transfers";
@@ -202,7 +203,17 @@ export function directionsFor(o: {
 }
 
 // ---------------------------------------------------------------- Results
-export type SeatDay = { date: string; miles: number; taxes: number | null; taxCurrency: string | null; seenAt: string; id: number; reported: boolean };
+export type SeatDay = {
+  date: string;
+  miles: number;
+  taxes: number | null;
+  taxCurrency: string | null;
+  seenAt: string;
+  id: number;
+  reported: boolean;
+  /** From the traveler's linked Seats.aero account (live award data) */
+  live?: boolean;
+};
 
 export type Option = {
   key: string;
@@ -224,10 +235,23 @@ export type Option = {
 
 export type DestinationResult = { destination: string; city: string; options: Option[] };
 
-export type ExplorerResult = { destinations: DestinationResult[]; seatsSeen: number; routesKnown: number };
+export type ExplorerResult = {
+  destinations: DestinationResult[];
+  seatsSeen: number;
+  routesKnown: number;
+  /** Live search through the traveler's linked Seats.aero account */
+  live: { connected: boolean; seats: number; error?: string };
+};
 
-export async function runExplorer(supabase: Supabase, userId: string, q: ExplorerQuery, wallet: Wallet, fx: Fx): Promise<ExplorerResult> {
-  if (!q.origins.length || !q.destinations.length) return { destinations: [], seatsSeen: 0, routesKnown: 0 };
+export async function runExplorer(
+  supabase: Supabase,
+  userId: string,
+  q: ExplorerQuery,
+  wallet: Wallet,
+  fx: Fx,
+  liveToken: string | null = null,
+): Promise<ExplorerResult> {
+  if (!q.origins.length || !q.destinations.length) return { destinations: [], seatsSeen: 0, routesKnown: 0, live: { connected: Boolean(liveToken), seats: 0 } };
   const allowed = allowedPrograms(q, wallet);
   const ok = (source: string) => !allowed || allowed.has(source);
 
@@ -238,8 +262,15 @@ export async function runExplorer(supabase: Supabase, userId: string, q: Explore
     .then(() => undefined, () => undefined);
 
   const fresh = new Date(Date.now() - 3 * 86400000).toISOString();
-  const [network, typical, seatRows] = await Promise.all([
-    loadNetwork(supabase, q.origins, q.destinations),
+  const network = await loadNetwork(supabase, q.origins, q.destinations);
+  // "Anywhere" really means anywhere: add every airport the origins fly to nonstop (WRLD's route network).
+  if (q.regions.includes("anywhere")) {
+    const nonstop = network.edges.filter((e) => q.origins.includes(e.origin)).map((e) => e.destination);
+    const inbound = network.edges.filter((e) => q.origins.includes(e.destination)).map((e) => e.origin);
+    q = { ...q, destinations: [...new Set([...q.destinations, ...nonstop, ...inbound])].filter((d) => !q.origins.includes(d) && airportByCode(d)).slice(0, 400) };
+  }
+  const liveSources = allowed ? [...allowed] : null;
+  const [typical, seatRows, live] = await Promise.all([
     typicalPrices(supabase, q.origins, q.destinations, q.cabins),
     (async () => {
       let query = supabase
@@ -258,7 +289,31 @@ export async function runExplorer(supabase: Supabase, userId: string, q: Explore
       const { data } = await query;
       return (data ?? []).filter((r) => (r.data_source !== "community" || r.seen_at >= fresh) && (!q.months.length || q.months.includes(r.travel_date.slice(0, 7))));
     })(),
+    liveToken
+      ? liveSeats(liveToken, { origins: q.origins, destinations: q.destinations, start: q.start, end: q.end, cabins: q.cabins, sources: liveSources, directOnly: q.directOnly })
+      : Promise.resolve(null),
   ]);
+  const inMonths = (date: string) => !q.months.length || q.months.includes(date.slice(0, 7));
+  // Live seats join the same groups as traveler reports (same route, cabin and program).
+  type Row = (typeof seatRows)[number];
+  const liveRows: Row[] = (live?.seats ?? [])
+    .filter((x) => inMonths(x.date))
+    .map((x) => ({
+      id: 0,
+      origin: x.origin,
+      destination: x.destination,
+      travel_date: x.date,
+      program: x.source,
+      cabin: x.cabin,
+      miles: x.miles,
+      airlines: x.airlines,
+      direct: x.direct,
+      data_source: "live",
+      seen_at: x.updatedAt ?? new Date().toISOString(),
+      taxes: x.taxes,
+      tax_currency: x.taxCurrency,
+    }));
+  seatRows.push(...liveRows);
 
   const single = q.start === q.end ? q.start : null;
   const options: Option[] = [];
@@ -276,8 +331,19 @@ export async function runExplorer(supabase: Supabase, userId: string, q: Explore
     const d = airportByCode(destination);
     if (!o || !d) continue;
     const days = rows
-      .map((r) => ({ date: r.travel_date, miles: r.miles, taxes: r.taxes === null ? null : Number(r.taxes), taxCurrency: r.tax_currency, seenAt: r.seen_at, id: r.id, reported: r.data_source === "community" }))
-      .sort((a, b) => a.miles - b.miles || a.date.localeCompare(b.date));
+      .map((r) => ({
+        date: r.travel_date,
+        miles: r.miles,
+        taxes: r.taxes === null ? null : Number(r.taxes),
+        taxCurrency: r.tax_currency,
+        seenAt: r.seen_at,
+        id: r.id,
+        reported: r.data_source === "community",
+        live: r.data_source === "live",
+      }))
+      .sort((a, b) => a.miles - b.miles || a.date.localeCompare(b.date))
+      // One price per day: the cheapest.
+      .filter((d, i, all) => all.findIndex((x) => x.date === d.date) === i);
     const best = days[0];
     const airlines = (rows.find((r) => r.airlines)?.airlines ?? "").split(/,\s*/).filter(Boolean);
     const estimate = estimateFees({ origin: o, destination: d, cabin, source, airlines, fx });
@@ -346,5 +412,10 @@ export async function runExplorer(supabase: Supabase, userId: string, q: Explore
     }))
     .sort((a, b) => Math.min(...a.options.map(score)) - Math.min(...b.options.map(score)));
 
-  return { destinations, seatsSeen: seatRows.length, routesKnown: network.known.size };
+  return {
+    destinations,
+    seatsSeen: seatRows.length,
+    routesKnown: network.known.size,
+    live: { connected: Boolean(liveToken), seats: liveRows.length, error: live?.error },
+  };
 }

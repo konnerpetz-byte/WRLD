@@ -151,3 +151,10 @@ export async function readSharedPage(url: string, text: string): Promise<SharedP
   if (!rows.length) return { ...meta, rows, error: "No award prices found on that page. Wait for the results to load, then try again." };
   return { ...meta, rows };
 }
+
+/** Unlinks the traveler's Seats.aero account (tokens are deleted). */
+export async function disconnectSeatsAero(): Promise<void> {
+  const { supabase } = await requireUserId();
+  await supabase.rpc("seats_link_delete");
+  revalidatePath("/points");
+}

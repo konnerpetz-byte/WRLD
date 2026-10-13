@@ -118,6 +118,11 @@ export default function PrivacyPage() {
           <strong>AwardWallet</strong>, only if you connect it.
         </li>
         <li>
+          <strong>Seats.aero</strong>, only if you link your Seats.aero account: WRLD sends your Points explorer searches (airports, dates,
+          cabins, programs) to Seats.aero with your own access token to show live award seats. Your Seats.aero password never reaches
+          WRLD; the access token is stored encrypted and deleted when you disconnect.
+        </li>
+        <li>
           <strong>For legal reasons:</strong> if the law requires it, or to protect people&rsquo;s safety or WRLD.
         </li>
       </ul>

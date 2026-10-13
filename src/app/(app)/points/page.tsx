@@ -5,6 +5,8 @@ import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { monthOptions, parseQuery, runExplorer, type Wallet } from "@/features/awards/engine";
 import { AboutPrices, DestinationRow } from "@/features/awards/explorer-results";
 import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
+import { LiveLink } from "@/features/awards/live-link";
+import { linkedToken, seatsConfig } from "@/features/awards/seats-aero";
 import { fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { ReportSeatForm } from "@/features/awards/report-seat-form";
@@ -47,7 +49,9 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
   for (const r of rates ?? []) if (!rateMap.has(r.quote)) rateMap.set(r.quote, Number(r.rate));
   const fx = fxFrom(rateMap);
 
-  const result = q.origins.length ? await runExplorer(supabase, userId, q, wallet, fx) : null;
+  const link = seatsConfig() ? await linkedToken(supabase) : null;
+  const result = q.origins.length ? await runExplorer(supabase, userId, q, wallet, fx, link?.access ?? null) : null;
+  const notice = sp.seats === "failed" ? "Linking Seats.aero didn't finish. Try again." : null;
 
   const months = monthOptions();
   const initial: FilterState = {
@@ -98,6 +102,10 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
           .sort((a, b) => a.label.localeCompare(b.label))}
         hasWallet={balances.size > 0}
       />
+
+      {seatsConfig() && (
+        <LiveLink connected={Boolean(link)} seats={result?.live.seats ?? 0} error={result?.live.error} notice={notice} />
+      )}
 
       {!q.origins.length ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">Enter the airport you&rsquo;re flying from to see where your points go.</p>

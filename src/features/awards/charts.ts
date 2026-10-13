@@ -234,11 +234,33 @@ export type Network = { known: Set<string>; edges: RouteEdge[] };
 
 type Leg = { from: string; to: string; airlines: string[]; seasonal: boolean };
 
+// Index of the network by airport pair and by airport, built once per search.
+const indexes = new WeakMap<Network, { pairs: Map<string, RouteEdge[]>; near: Map<string, Set<string>> }>();
+function indexOf(network: Network) {
+  let ix = indexes.get(network);
+  if (!ix) {
+    const pairs = new Map<string, RouteEdge[]>();
+    const near = new Map<string, Set<string>>();
+    for (const e of network.edges) {
+      const key = e.origin < e.destination ? `${e.origin}|${e.destination}` : `${e.destination}|${e.origin}`;
+      const list = pairs.get(key);
+      if (list) list.push(e);
+      else pairs.set(key, [e]);
+      if (!near.has(e.origin)) near.set(e.origin, new Set());
+      if (!near.has(e.destination)) near.set(e.destination, new Set());
+      near.get(e.origin)!.add(e.destination);
+      near.get(e.destination)!.add(e.origin);
+    }
+    ix = { pairs, near };
+    indexes.set(network, ix);
+  }
+  return ix;
+}
+
 function legs(network: Network, from: string, to: string, accept: (airline: string) => boolean): Leg | null {
   // Routes are listed on both airports' pages; either direction is evidence of the flight.
-  const hits = network.edges.filter(
-    (e) => ((e.origin === from && e.destination === to) || (e.origin === to && e.destination === from)) && accept(e.airline),
-  );
+  const key = from < to ? `${from}|${to}` : `${to}|${from}`;
+  const hits = (indexOf(network).pairs.get(key) ?? []).filter((e) => accept(e.airline));
   if (!hits.length) return null;
   return { from, to, airlines: [...new Set(hits.map((h) => h.airline))], seasonal: hits.every((h) => h.seasonal) };
 }
@@ -267,11 +289,7 @@ export function routeAwareChartPrices(network: Network, origin: string, destinat
     const nonstop = legs(network, origin, destination, p.covers);
     if (nonstop) best = { miles: direct, via: null, airlines: nonstop.airlines, seasonal: nonstop.seasonal };
     if (!best) {
-      const hubs = new Set<string>();
-      for (const e of network.edges) {
-        if (e.origin === origin) hubs.add(e.destination);
-        if (e.destination === origin) hubs.add(e.origin);
-      }
+      const hubs = indexOf(network).near.get(origin) ?? new Set<string>();
       for (const h of hubs) {
         if (h === destination) continue;
         const first = legs(network, origin, h, p.covers);

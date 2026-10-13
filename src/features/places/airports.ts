@@ -55,7 +55,9 @@ export function nearestAirports(at: { latitude: number; longitude: number }, lim
     .map((x) => toAirport(x.r, Math.round(x.km)));
 }
 
+let BY_CODE: Map<string, Row> | null = null;
 export function airportByCode(code: string): Airport | null {
-  const r = AIRPORTS.find((a) => a[0] === code.toUpperCase());
+  BY_CODE ??= new Map(AIRPORTS.map((a) => [a[0], a]));
+  const r = BY_CODE.get(code.toUpperCase());
   return r ? toAirport(r) : null;
 }

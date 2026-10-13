@@ -19,6 +19,9 @@ const day = (iso: string, opts: Intl.DateTimeFormatOptions = { month: "short", d
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 
 function Tag({ o }: { o: Option }) {
+  if (o.days.some((d) => d.live)) {
+    return <span className="inline-flex shrink-0 items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Live seats</span>;
+  }
   return o.kind === "seats" ? (
     <span className="inline-flex shrink-0 items-center rounded-full bg-open-soft px-2 py-0.5 text-xs font-medium text-primary">Open seats</span>
   ) : (
@@ -111,7 +114,7 @@ function OptionDetail({ o, date }: { o: Option; date: string }) {
           </ul>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
-              {lowest.reported ? "Seen by a traveler" : "Checked"} {ago(lowest.seenAt)}
+              {lowest.live ? "Live from Seats.aero, updated" : lowest.reported ? "Seen by a traveler" : "Checked"} {ago(lowest.seenAt)}
             </span>
             {lowest.reported && <ReportedVote id={lowest.id} />}
           </div>
