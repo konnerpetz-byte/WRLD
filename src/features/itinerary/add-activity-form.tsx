@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlaceSearch } from "@/features/attractions/place-search";
-import { BookableSuggestions } from "@/features/experiences/bookable-suggestions";
 import type { PlaceSuggestion } from "@/features/attractions/types";
 import type { ActionState } from "@/features/trips/actions";
 import { addActivity } from "./place-actions";
@@ -147,11 +146,6 @@ export function AddActivityForm({
           </p>
         )}
       </form>
-      {!title && (
-        <div className="rounded-md bg-muted/60 p-2">
-          <BookableSuggestions tripId={tripId} blockId={timeBlockId} />
-        </div>
-      )}
     </div>
   );
 }

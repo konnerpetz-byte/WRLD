@@ -25,7 +25,7 @@ const SLOTS: TimeBlockSlot[] = ["morning", "afternoon", "evening"];
 const NEAR_KM = 120;
 
 const pickSchema = z.object({
-  source: z.preprocess(blankToNull, z.enum(["official", "wikidata", "nearby"]).nullable()),
+  source: z.preprocess(blankToNull, z.enum(["official", "wikidata", "nearby", "osm"]).nullable()),
   ref: z.preprocess(blankToNull, z.string().max(64).nullable()),
 });
 
@@ -63,8 +63,16 @@ async function loadTrip(supabase: Supabase, tripId: string) {
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof loadTrip>>>;
 
-async function resolvePick(supabase: Supabase, source: string | null, ref: string | null, near: Point | null) {
+async function resolvePick(supabase: Supabase, source: string | null, ref: string | null, near: Point | null, name?: string) {
   if (!source || !ref) return null;
+  if (source === "osm") {
+    // An OpenStreetMap place from the category search: the ref is its coordinates.
+    const m = ref.match(/^(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/);
+    if (!m || !name) return null;
+    const p = { latitude: Number(m[1]), longitude: Number(m[2]) };
+    if (Math.abs(p.latitude) > 90 || Math.abs(p.longitude) > 180) return null;
+    return namedSuggestion({ name, ...p, address: null });
+  }
   if (source === "official") {
     const { data } = await supabase.from("attractions").select("*").eq("id", ref).maybeSingle();
     return data ? fromAttraction(data as Attraction, near) : null;
@@ -152,6 +160,8 @@ async function insertItem(
       provider_ref: place.ref,
       price_checked_at: new Date().toISOString(),
     };
+  } else if (place?.source === "osm") {
+    notes.push("Free to visit or price not listed. Add a price if you spend money there.");
   } else {
     const match = await lookupActivityPrice({ title: place?.name ?? input.title, destination: day.city, currency: trip.currency });
     if (match) {
@@ -222,7 +232,7 @@ export async function addActivity(tripId: string, _: ActionState, formData: Form
   if (!block) return { error: "That part of the day no longer exists. Refresh and try again." };
   const day = loaded.days.find((d) => d.id === block.day_id)!;
 
-  const place = await resolvePick(supabase, input.source, input.ref, day.point);
+  const place = await resolvePick(supabase, input.source, input.ref, day.point, input.title);
   const result = await insertItem(supabase, userId, loaded, block, {
     title: input.title,
     place,
@@ -252,7 +262,7 @@ export async function addPlace(tripId: string, _: ActionState, formData: FormDat
   if (!loaded) return { error: "Trip not found." };
 
   const anchor = loaded.days.find((d) => d.id === input.day_id)?.point ?? loaded.days.find((d) => d.point)?.point ?? null;
-  let place = await resolvePick(supabase, input.source, input.ref, anchor);
+  let place = await resolvePick(supabase, input.source, input.ref, anchor, input.title);
   if (!place) {
     // Typed without picking a suggestion: use the best official match if there is one.
     const { data } = await supabase.rpc("search_attractions", { p_query: input.title, p_limit: 1 });
@@ -329,7 +339,7 @@ export async function addNearby(tripId: string, fromItemId: string, formData: Fo
   if (!fromBlock) return { error: "Couldn't find that day." };
   const day = loaded.days.find((d) => d.id === fromBlock.day_id)!;
 
-  const place = await resolvePick(supabase, parsed.data.source, parsed.data.ref, day.point);
+  const place = await resolvePick(supabase, parsed.data.source, parsed.data.ref, day.point, parsed.data.title);
   // Same block if it still has room after what's there, else the next usable block that day.
   const order = SLOTS.slice(SLOTS.indexOf(fromBlock.slot));
   const block =
@@ -472,7 +482,7 @@ export async function addExperience(tripId: string, blockId: string, _: ActionSt
 
 /** From the Travel type carousel: put a bookable listing on the best free block in that city. */
 export async function addOfferToTrip(tripId: string, city: string, offerId: string, _: ActionState, formData: FormData): Promise<ActionState> {
-  void formData;
+  const dayId = String(formData.get("day_id") ?? "").slice(0, 64) || null;
   const { supabase, userId } = await requireUserId();
   const loaded = await loadTrip(supabase, tripId);
   if (!loaded) return { error: "Trip not found." };
@@ -486,8 +496,9 @@ export async function addOfferToTrip(tripId: string, city: string, offerId: stri
   const offer = result.offers.find((o) => o.id === offerId);
   if (!offer) return { error: "That listing isn't available anymore." };
 
+  const chosen = dayId ? loaded.days.filter((d) => d.id === dayId) : [];
   const inCity = loaded.days.filter((d) => d.city === city);
-  const days = inCity.length ? inCity : loaded.days;
+  const days = chosen.length ? chosen : inCity.length ? inCity : loaded.days;
   const order: TimeBlockSlot[] = offer.slot ? [offer.slot, ...SLOTS.filter((s) => s !== offer.slot)] : ["afternoon", "morning", "evening"];
   const busy = new Set(loaded.items.map((i) => i.time_block_id));
   let block: TimeBlock | undefined;
@@ -528,7 +539,7 @@ const namedSchema = z.object({
 
 function namedSuggestion(p: { name: string; latitude: number; longitude: number; address: string | null }, bestSlot: TimeBlockSlot | null = null): PlaceSuggestion {
   return {
-    source: "nearby", ref: "osm", name: p.name, detail: null, latitude: p.latitude, longitude: p.longitude, address: p.address,
+    source: "osm", ref: `${p.latitude},${p.longitude}`, name: p.name, detail: null, latitude: p.latitude, longitude: p.longitude, address: p.address,
     officialUrl: null, ticketsUrl: null, timedEntry: false, bestSlot, suggestedStart: null, durationMinutes: null,
     price: null, currency: null, priceNote: null, hoursNote: null, visitNote: null, km: null,
   };
@@ -536,13 +547,18 @@ function namedSuggestion(p: { name: string; latitude: number; longitude: number;
 
 /** One-tap add from recommendation cards: picks the best day (nearest city) and part of the day. */
 export async function addNamedPlaceToTrip(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = namedSchema.extend({ slot: z.enum(["morning", "afternoon", "evening"]).nullable().catch(null) }).safeParse(Object.fromEntries(formData));
+  const parsed = namedSchema
+    .extend({
+      slot: z.enum(["morning", "afternoon", "evening"]).nullable().catch(null),
+      day_id: z.preprocess(blankToNull, z.string().max(64).nullable()).catch(null),
+    })
+    .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Couldn't add that place." };
   const { supabase, userId } = await requireUserId();
   const loaded = await loadTrip(supabase, tripId);
   if (!loaded) return { error: "Trip not found." };
   const place = namedSuggestion(parsed.data, parsed.data.slot);
-  const block = chooseBlock(loaded, place, null);
+  const block = chooseBlock(loaded, place, parsed.data.day_id) ?? chooseBlock(loaded, place, null);
   if (!block) return { error: "Every part of the trip is taken by travel. Add more days on Edit trip." };
   const result = await insertItem(supabase, userId, loaded, block, { title: place.name, place, address: place.address, unitPrice: null, startTime: null });
   if (result.ok) {

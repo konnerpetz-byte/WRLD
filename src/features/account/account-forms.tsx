@@ -289,7 +289,7 @@ export function DeleteAccountForm({ ownedSharedTrips }: { ownedSharedTrips: stri
     <form action={action} className="grid gap-3">
       <p className="text-sm">This permanently deletes:</p>
       <ul className="list-disc pl-5 text-sm text-muted-foreground">
-        <li>your profile, photo, phone and address</li>
+        <li>your profile and photo</li>
         <li>trips you created, with everything planned on them</li>
         <li>your points wallet, travel type and saved spots</li>
       </ul>

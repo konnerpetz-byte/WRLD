@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LegalLinks } from "@/components/layout/legal-links";
 import { Wordmark } from "@/components/layout/wordmark";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +21,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <DepartureStrip />
       </aside>
       <main className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-sm">{children}</div>
+        <div className="w-full max-w-sm">
+          {children}
+          <LegalLinks className="mt-10 text-muted-foreground" />
+        </div>
       </main>
     </div>
   );

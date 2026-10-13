@@ -4,17 +4,16 @@ import { BarChart3, LogOut } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { LegalLinks } from "@/components/layout/legal-links";
 import { signOut } from "@/features/auth/actions";
 import {
   AvatarUpload,
   DeleteAccountForm,
-  DetailsForm,
   EmailForm,
   PasswordForm,
   ProfileForm,
 } from "@/features/account/account-forms";
 import { requireUserId } from "@/lib/supabase/server";
-import type { AccountDetails } from "@/types/database";
 
 export const metadata = { title: "Account" };
 
@@ -31,7 +30,6 @@ async function AccountPageContent() {
   const [
     { data: user },
     { data: profile },
-    { data: details },
     { data: countries },
     { data: currencies },
     { data: owned },
@@ -39,11 +37,6 @@ async function AccountPageContent() {
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("profiles").select("*").eq("id", userId).single(),
-    supabase
-      .from("account_details")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle(),
     supabase
       .from("countries")
       .select("code, name, currency_code")
@@ -113,16 +106,8 @@ async function AccountPageContent() {
         />
       </Section>
 
-      <Section
-        id="contact"
-        title="Contact and address"
-        note="Private to you. Used to fill in bookings later."
-      >
+      <Section id="contact" title="Email">
         <EmailForm email={user.user?.email ?? ""} />
-        <DetailsForm
-          details={(details as AccountDetails | null) ?? null}
-          countries={countries ?? []}
-        />
       </Section>
 
       <Section id="security" title="Password">
@@ -140,6 +125,7 @@ async function AccountPageContent() {
           </Link>
           .
         </p>
+        <LegalLinks className="text-muted-foreground" />
         <DeleteAccountForm ownedSharedTrips={ownedSharedTrips} />
       </Section>
     </div>

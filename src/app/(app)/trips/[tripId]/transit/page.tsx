@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { deleteTransit } from "@/features/trips/actions";
 import { getItinerary, getTrip } from "@/features/trips/queries";
 import { allTimezones } from "@/features/trips/timezones";
+import { EditableLeg } from "@/features/trips/editable-leg";
 import { TransitForm } from "@/features/trips/transit-form";
 import { findTicketsLinks, MODE, placeLabel } from "@/features/transit/modes";
 import { formatMoney, formatPoints } from "@/lib/format";
@@ -49,6 +50,7 @@ async function TransitPageContent({
     getTrip(tripId),
     getItinerary(tripId),
   ]);
+  const zones = allTimezones();
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_26rem] lg:items-start">
@@ -71,9 +73,15 @@ async function TransitPageContent({
               const toPlace = placeLabel(leg.destination_code, leg.destination_name);
               const links = mode.usesCodes || leg.mode === "car" ? [] : findTicketsLinks(leg.mode, fromPlace, toPlace).slice(0, 1);
               return (
-                <li
+                <EditableLeg
                   key={leg.id}
-                  className="perforated grid gap-3 rounded-xl border bg-card p-4 pl-6 sm:grid-cols-[1fr_auto]"
+                  leg={leg}
+                  tripId={tripId}
+                  tripTimezone={trip.timezone}
+                  tripCurrency={trip.currency}
+                  timezones={zones}
+                  canEdit={canEdit}
+                  label={`${mode.label} ${leg.service_number ?? ""} from ${fromPlace ?? ""}`.replace(/\s+/g, " ").trim()}
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -150,7 +158,7 @@ async function TransitPageContent({
                       </form>
                     )}
                   </div>
-                </li>
+                </EditableLeg>
               );
             })}
           </ul>
@@ -161,7 +169,7 @@ async function TransitPageContent({
           tripId={tripId}
           tripTimezone={trip.timezone}
           tripCurrency={trip.currency}
-          timezones={allTimezones()}
+          timezones={zones}
         />
       )}
     </div>

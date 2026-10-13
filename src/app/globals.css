@@ -34,10 +34,10 @@
   --accent-foreground: #1d2b26;
   --destructive: #b42318;
   --border: #e3d6c9;
-  --input: #d9cabb;
+  --input: #877869; /* form field borders: 4.3:1 on white (WCAG non-text contrast) */
   --ring: #5e7f73;
 
-  --brand: #5e7f73;
+  --brand: #4d6d61; /* cream text on it: 4.8:1 */
   --brand-cream: #fbe8d8;
   --travel: #f0a35a;
   --travel-foreground: #4a2a08;
@@ -68,10 +68,10 @@
   --accent-foreground: #ede6dd;
   --destructive: #f97066;
   --border: #2c3d36;
-  --input: #34473f;
+  --input: #71877d;
   --ring: #a9c9bc;
 
-  --brand: #7fa294;
+  --brand: #46665a;
   --brand-cream: #fbe8d8;
   --travel: #f0a35a;
   --travel-foreground: #2b1804;

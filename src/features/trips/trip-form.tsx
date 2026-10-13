@@ -55,15 +55,14 @@ export function TripForm({
       ? initialStops.map((s, i) => ({ ...s, key: `stop-${i}` }))
       : [{ key: "stop-0", city: "", country_code: "", latitude: null, longitude: null, arrive_date: "", leave_date: "" }],
   );
-  const [currency, setCurrency] = useState(initial?.currency ?? "");
+  const [currency, setCurrency] = useState(initial?.currency ?? "USD");
   // Same keys on the server and in the browser; new stops count up from here.
   const nextKey = useRef(Math.max(1, initialStops?.length ?? 0));
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const update = (key: string, patch: Partial<StopDraft>) =>
     setStops((all) => all.map((s) => (s.key === key ? { ...s, ...patch } : s)));
-  const firstCountryCurrency = countries.find((c) => c.code === stops[0]?.country_code)?.currency_code;
-  const shownCurrency = currency || firstCountryCurrency || "";
+  const shownCurrency = currency;
   const start = stops[0]?.arrive_date;
   const end = stops.reduce((max, s) => (s.leave_date > max ? s.leave_date : max), "");
 
@@ -242,7 +241,6 @@ export function TripForm({
         <div className="grid gap-2">
           <Label htmlFor="currency">Trip currency</Label>
           <NativeSelect id="currency" name="currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            <option value="">{firstCountryCurrency ? `${firstCountryCurrency} (first country)` : "Your home currency"}</option>
             {currencies.map((c) => (
               <option key={c.code} value={c.code}>
                 {c.code} — {c.name}

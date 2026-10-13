@@ -7,6 +7,7 @@ import { geocode } from "@/features/places/geocode";
 import { zonedTimeToUtc } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 import { BOOKING_STATUSES, EXPENSE_CATEGORIES, TRANSIT_DIRECTIONS, TRANSIT_MODES } from "@/types/database";
+import { airportByCode } from "@/features/places/airports";
 import { MODE } from "@/features/transit/modes";
 
 export type ActionState = { error?: string; ok?: boolean; note?: string; needsConfirm?: boolean };
@@ -108,6 +109,15 @@ const transitSchema = z.object({
 });
 
 export async function addTransit(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  return saveTransit(tripId, null, formData);
+}
+
+/** Edit one leg on its own: times, places, type, cost. */
+export async function updateTransit(tripId: string, legId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  return saveTransit(tripId, legId, formData);
+}
+
+async function saveTransit(tripId: string, legId: string | null, formData: FormData): Promise<ActionState> {
   const parsed = transitSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { depart_local, arrive_local, ...rest } = parsed.data;
@@ -116,30 +126,48 @@ export async function addTransit(tripId: string, _: ActionState, formData: FormD
   const arrive_at = zonedTimeToUtc(arrive_local, rest.destination_timezone);
   if (arrive_at < depart_at) return { error: "Arrival is before departure. Check the times and time zones." };
 
+  // Flights use airport codes; everything else uses place names. Clear the other kind so edits stay consistent.
+  const codes = rest.mode === "flight";
+  const originCode = codes ? (rest.origin_code?.toUpperCase() ?? null) : null;
+  const destinationCode = codes ? (rest.destination_code?.toUpperCase() ?? null) : null;
+  const originName = codes ? null : (rest.origin_name ?? null);
+  const destinationName = codes ? null : (rest.destination_name ?? null);
+
   const { supabase, userId } = await requireUserId();
-  // Find each end on the map: "LIS airport", "Piraeus ferry terminal", "Lisboa Oriente bus station".
+  // Find each end on the map: known airports from our list, else "Piraeus ferry terminal", "Lisboa Oriente bus station".
   const hint = MODE[rest.mode].geocodeHint;
-  const lookup = (code: string | null | undefined, name: string | null | undefined) => {
+  const lookup = async (code: string | null, name: string | null) => {
+    if (code) {
+      const airport = airportByCode(code);
+      if (airport) return { latitude: airport.latitude, longitude: airport.longitude };
+    }
     const place = code ?? name;
     if (!place) return null;
     const words = hint.split(" ").at(-1) ?? "";
     const query = hint && !place.toLowerCase().includes(words) ? `${place} ${hint}` : place;
-    return geocode(query).then((hit) => hit ?? (query !== place ? geocode(place) : null));
+    return (await geocode(query)) ?? (query !== place ? await geocode(place) : null);
   };
-  const [from, to] = await Promise.all([lookup(rest.origin_code, rest.origin_name), lookup(rest.destination_code, rest.destination_name)]);
-  const { error } = await supabase.from("transit_segments").insert({
+  const [from, to] = await Promise.all([lookup(originCode, originName), lookup(destinationCode, destinationName)]);
+  // Time to get to and from the terminal, by type (same as the database defaults), so changing the type updates it.
+  const BUFFERS = { flight: [120, 90], train: [30, 20], bus: [20, 15], ferry: [45, 20], car: [0, 0] } as const;
+  const row = {
     ...rest,
+    buffer_before_minutes: BUFFERS[rest.mode][0],
+    buffer_after_minutes: BUFFERS[rest.mode][1],
+    origin_code: originCode,
+    destination_code: destinationCode,
+    origin_name: originName,
+    destination_name: destinationName,
     origin_latitude: from?.latitude ?? null,
     origin_longitude: from?.longitude ?? null,
     destination_latitude: to?.latitude ?? null,
     destination_longitude: to?.longitude ?? null,
-    origin_code: rest.origin_code?.toUpperCase() ?? null,
-    destination_code: rest.destination_code?.toUpperCase() ?? null,
-    trip_id: tripId,
     depart_at,
     arrive_at,
-    created_by: userId,
-  });
+  };
+  const { error } = legId
+    ? await supabase.from("transit_segments").update(row).eq("id", legId).eq("trip_id", tripId)
+    : await supabase.from("transit_segments").insert({ ...row, trip_id: tripId, created_by: userId });
   if (error) return { error: "Couldn't save this leg." };
   refresh(tripId);
   return { ok: true };

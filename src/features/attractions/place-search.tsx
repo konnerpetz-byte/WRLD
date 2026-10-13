@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Clock, ExternalLink, Globe } from "lucide-react";
+import { BadgeCheck, Clock, ExternalLink, Globe, MapPin } from "lucide-react";
 
 import { Autocomplete } from "@/components/autocomplete";
 import { formatClock } from "@/features/itinerary/schedule";
@@ -72,6 +72,8 @@ function SuggestionLine({ place }: { place: PlaceSuggestion }) {
       <span className="flex items-center gap-1.5 font-medium">
         {place.source === "official" ? (
           <BadgeCheck className="size-3.5 shrink-0 text-primary" aria-label="Official listing" />
+        ) : place.source === "osm" ? (
+          <MapPin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : (
           <Globe className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         )}
@@ -83,7 +85,8 @@ function SuggestionLine({ place }: { place: PlaceSuggestion }) {
           place.source === "official" && place.bestSlot
             ? `${SLOT_LABEL[place.bestSlot]}${place.suggestedStart ? ` from ${formatClock(place.suggestedStart)}` : ""}`
             : null,
-          place.price !== null ? formatMoney(place.price, place.currency ?? "EUR") : null,
+          place.price !== null ? formatMoney(place.price, place.currency ?? "USD") : null,
+          place.source === "osm" && place.km != null ? (place.km < 1 ? `${Math.round(place.km * 1000)} m away` : `${place.km} km away`) : null,
           place.source !== "official" && place.officialUrl ? hostOf(place.officialUrl) : null,
         ]
           .filter(Boolean)
@@ -95,6 +98,17 @@ function SuggestionLine({ place }: { place: PlaceSuggestion }) {
 
 function PickedCard({ place }: { place: PlaceSuggestion }) {
   const official = place.source === "official";
+  if (place.source === "osm") {
+    return (
+      <div className="grid gap-1 rounded-md border border-primary/30 bg-open-soft p-2.5 text-xs">
+        <p className="flex items-center gap-1.5 font-medium text-foreground">
+          <MapPin className="size-3.5" aria-hidden="true" />
+          {place.address ?? place.detail ?? "Place from OpenStreetMap"}
+        </p>
+        <p className="text-muted-foreground">Free to visit, or price not listed. Add a price if you&rsquo;ll spend money there.</p>
+      </div>
+    );
+  }
   return (
     <div className="grid gap-1 rounded-md border border-primary/30 bg-open-soft p-2.5 text-xs">
       <p className="flex items-center gap-1.5 font-medium text-foreground">
@@ -115,7 +129,7 @@ function PickedCard({ place }: { place: PlaceSuggestion }) {
       )}
       {place.price !== null && (
         <p>
-          {formatMoney(place.price, place.currency ?? "EUR")} per adult{place.priceNote ? ` — ${place.priceNote}` : ""}
+          {formatMoney(place.price, place.currency ?? "USD")} per adult{place.priceNote ? ` — ${place.priceNote}` : ""}
         </p>
       )}
       {place.hoursNote && <p className="text-muted-foreground">{place.hoursNote}</p>}

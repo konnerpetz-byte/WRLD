@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { LEGAL_VERSION } from "@/features/legal/version";
+
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; message?: string };
@@ -32,14 +34,14 @@ export async function signIn(_: AuthState, formData: FormData): Promise<AuthStat
 
 export async function signUp(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentials
-    .extend({ full_name: z.string().trim().min(1, "Enter your name.").max(80) })
+    .extend({
+      full_name: z.string().trim().min(1, "Enter your name.").max(80),
+      accept_terms: z.literal("on", { error: "Please agree to the Terms and Privacy Policy to create an account." }),
+    })
     .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const h = await headers();
-  // Country from the hosting platform's geolocation header (Vercel, Cloudflare).
-  // The database turns it into a home currency; unknown → USD.
-  const country = h.get("x-vercel-ip-country") ?? h.get("cf-ipcountry") ?? undefined;
   const origin = h.get("origin") ?? `https://${h.get("host")}`;
 
   // Coming from an invite link → straight back to it; otherwise the quiz.
@@ -49,7 +51,8 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      data: { full_name: parsed.data.full_name, country },
+      // Record of consent: which version of the Terms and Privacy Policy they agreed to, and when.
+      data: { full_name: parsed.data.full_name, terms_version: LEGAL_VERSION, terms_accepted_at: new Date().toISOString() },
       emailRedirectTo: `${origin}/auth/confirm?next=${encodeURIComponent(next)}`,
     },
   });

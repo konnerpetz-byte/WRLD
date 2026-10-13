@@ -36,6 +36,33 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
         />
       </div>
 
+      {mode === "signup" && (
+        <div className="flex items-start gap-3">
+          <input
+            id="accept_terms"
+            name="accept_terms"
+            type="checkbox"
+            required
+            className="mt-0.5 size-5 shrink-0 accent-primary"
+            aria-describedby="accept_terms_note"
+          />
+          <Label htmlFor="accept_terms" className="block text-sm leading-snug font-normal">
+            I agree to the{" "}
+            <Link href="/terms" target="_blank" className="font-medium text-primary underline underline-offset-4">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" target="_blank" className="font-medium text-primary underline underline-offset-4">
+              Privacy Policy
+            </Link>
+            .
+            <span id="accept_terms_note" className="mt-1 block text-xs text-muted-foreground">
+              You must be at least 13 (16 in the EU and UK). We don&rsquo;t send marketing email.
+            </span>
+          </Label>
+        </div>
+      )}
+
       {state.error && (
         <p role="alert" className="text-sm text-destructive">
           {state.error}

@@ -39,7 +39,7 @@ export async function suggestionsForBlock(
 ): Promise<(SuggestionResult & { city: string; ideas: IdeaWithPlaces[]; near: string | null }) | null> {
   const { data: block } = await supabase
     .from("time_blocks")
-    .select("slot, day_id, available_minutes, trip_id")
+    .select("slot, day_id, available_minutes, trip_id, starts_at")
     .eq("id", blockId)
     .eq("trip_id", tripId)
     .maybeSingle();
@@ -64,9 +64,77 @@ export async function suggestionsForBlock(
       availableMinutes: block.available_minutes,
       limit,
     }),
-    ideasForBlock(supabase, userId, tripId, blockId, block.slot, interests, stop?.latitude != null && stop.longitude != null ? { latitude: stop.latitude, longitude: stop.longitude } : null),
+    ideasNear(supabase, userId, tripId, block.slot, block.starts_at, interests, stop?.latitude != null && stop.longitude != null ? { latitude: stop.latitude, longitude: stop.longitude } : null),
   ]);
   return { ...result, city, ideas: picks.ideas, near: picks.near };
+}
+
+export type BudgetFit = {
+  currency: string;
+  /** What's left per person per remaining day; null when no budget is set */
+  perPersonPerDay: number | null;
+  /** Budget already used up */
+  over: boolean;
+};
+
+/** Remaining trip budget spread over the days left, per person. */
+export async function budgetFit(supabase: Supabase, tripId: string, today: string): Promise<BudgetFit | null> {
+  const [{ data: o }, { count }] = await Promise.all([
+    supabase.from("trip_budget_overview").select("budget, remaining, party_size, currency").eq("trip_id", tripId).maybeSingle(),
+    supabase.from("trip_days").select("id", { count: "exact", head: true }).eq("trip_id", tripId).gte("date", today),
+  ]);
+  if (!o) return null;
+  if (o.budget == null || o.remaining == null) return { currency: o.currency, perPersonPerDay: null, over: false };
+  const remaining = Number(o.remaining);
+  const days = Math.max(1, count ?? 1);
+  const per = remaining / Math.max(1, o.party_size) / days;
+  return { currency: o.currency, perPersonPerDay: Math.max(0, Math.round(per)), over: remaining <= 0 };
+}
+
+/** "Fits your budget" / "Over budget" for a price per person (null price = free or unknown). */
+export function budgetLabel(price: number | null, fit: BudgetFit | null): { label: string; fits: boolean } | null {
+  if (!fit || fit.perPersonPerDay === null) return null;
+  if (price === null || price === 0) return { label: "Free or pay as you go", fits: true };
+  if (fit.over) return { label: "Over your budget", fits: false };
+  // An activity shouldn't eat more than about half a day's remaining spend.
+  return price <= fit.perPersonPerDay * 0.5 ? { label: "Fits your budget", fits: true } : { label: "Above your daily budget", fits: false };
+}
+
+/**
+ * Recommendations for the whole trip ("Add a place"): the chosen day's city
+ * (or the next upcoming day), bookable experiences and named places for the
+ * traveler's type, ranked so things that fit the budget come first.
+ */
+export async function suggestionsForTrip(supabase: Supabase, userId: string, tripId: string, dayId: string | null, today: string, limit = 6) {
+  const { data: trip } = await supabase.from("trips").select("currency, destination").eq("id", tripId).maybeSingle();
+  if (!trip) return null;
+  let q = supabase.from("trip_days").select("id, date, stop_id").eq("trip_id", tripId).order("date").limit(1);
+  q = dayId ? q.eq("id", dayId) : q.gte("date", today);
+  let { data: days } = await q;
+  if (!days?.length && !dayId) ({ data: days } = await supabase.from("trip_days").select("id, date, stop_id").eq("trip_id", tripId).order("date").limit(1));
+  const day = days?.[0];
+  const { data: stop } = day?.stop_id
+    ? await supabase.from("trip_stops").select("city, latitude, longitude").eq("id", day.stop_id).maybeSingle()
+    : { data: null };
+  const city = stop?.city ?? trip.destination?.split(" · ")[0] ?? null;
+  if (!city) return null;
+  const { data: firstBlock } = day
+    ? await supabase.from("time_blocks").select("starts_at").eq("day_id", day.id).order("starts_at").limit(1).maybeSingle()
+    : { data: null };
+
+  const interests = await myInterests(supabase, userId);
+  const point = stop?.latitude != null && stop.longitude != null ? { latitude: stop.latitude, longitude: stop.longitude } : null;
+  const [result, picks, fit] = await Promise.all([
+    suggestExperiences({ city, currency: trip.currency, interests, limit: limit * 2 }),
+    ideasNear(supabase, userId, tripId, null, firstBlock?.starts_at ?? null, interests, point, 4),
+    budgetFit(supabase, tripId, today),
+  ]);
+  const offers = result.offers
+    .map((o) => ({ ...o, budget: budgetLabel(o.price, fit) }))
+    // Budget-friendly first, then the interest score.
+    .sort((a, b) => Number(b.budget?.fits ?? true) - Number(a.budget?.fits ?? true) || b.score - a.score)
+    .slice(0, limit);
+  return { ...result, offers, city, ideas: picks.ideas, near: picks.near, budget: fit };
 }
 
 /**
@@ -74,33 +142,31 @@ export async function suggestionsForBlock(
  * this part of the day, each with real places near that night's stay (or
  * the city center when no stay is booked).
  */
-async function ideasForBlock(
+async function ideasNear(
   supabase: Supabase,
   userId: string,
   tripId: string,
-  blockId: string,
-  slot: TimeBlockSlot,
+  slot: TimeBlockSlot | null,
+  at: string | null,
   interests: { tag: string; weight: number }[],
   cityPoint: { latitude: number; longitude: number } | null,
+  count = 3,
 ): Promise<{ ideas: IdeaWithPlaces[]; near: string | null }> {
-  const [{ data: profile }, { data: block }] = await Promise.all([
-    supabase.from("traveler_profiles").select("compass_x, compass_y").eq("user_id", userId).maybeSingle(),
-    supabase.from("time_blocks").select("starts_at").eq("id", blockId).maybeSingle(),
-  ]);
-  const { data: stays } = block
+  const { data: profile } = await supabase.from("traveler_profiles").select("compass_x, compass_y").eq("user_id", userId).maybeSingle();
+  const { data: stays } = at
     ? await supabase
         .from("lodging")
         .select("name, latitude, longitude")
         .eq("trip_id", tripId)
         .neq("booking_status", "cancelled")
-        .lte("check_in_at", block.starts_at)
-        .gt("check_out_at", block.starts_at)
+        .lte("check_in_at", at)
+        .gt("check_out_at", at)
         .not("latitude", "is", null)
         .limit(1)
     : { data: [] };
   const stay = stays?.[0];
-  const at = stay?.latitude != null && stay.longitude != null ? { latitude: stay.latitude, longitude: stay.longitude } : cityPoint;
-  if (!at) return { ideas: [], near: null };
+  const point = stay?.latitude != null && stay.longitude != null ? { latitude: stay.latitude, longitude: stay.longitude } : cityPoint;
+  if (!point) return { ideas: [], near: null };
 
   const weight = new Map(interests.map((i) => [i.tag, i.weight]));
   const label = new Map(interests.map((i) => [i.tag, (i as { label?: string }).label ?? i.tag]));
@@ -111,17 +177,17 @@ async function ideasForBlock(
       const hits = idea.tags.filter((t) => weight.has(t)).sort((a, b) => (weight.get(b) ?? 0) - (weight.get(a) ?? 0));
       const tagValue = Math.min(1, hits.reduce((s, t) => s + (weight.get(t) ?? 0), 0) / (maxW * 2));
       const compass = 1 - Math.min(1, Math.hypot(idea.x - me.x, idea.y - me.y) / Math.hypot(4, 4));
-      const fit = SLOT_FIT[slot].indexOf(idea.id);
-      const score = 55 * tagValue + 30 * compass + (fit >= 0 ? 15 - fit : -20);
+      const fit = slot ? SLOT_FIT[slot].indexOf(idea.id) : -1;
+      const score = 55 * tagValue + 30 * compass + (slot ? (fit >= 0 ? 15 - fit : -20) : 0);
       return { idea, score, hits };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
+    .slice(0, count + 2);
 
-  const withPlaces = await Promise.all(ranked.map(async (r) => ({ ...r, places: await namedPlaces(r.idea.id, at.latitude, at.longitude, 3) })));
+  const withPlaces = await Promise.all(ranked.map(async (r) => ({ ...r, places: await namedPlaces(r.idea.id, point.latitude, point.longitude, 3) })));
   const ideas = withPlaces
     .filter((r) => r.places.length)
-    .slice(0, 3)
+    .slice(0, count)
     .map((r) => ({
       id: r.idea.id,
       title: r.idea.title.replace(/ (above|near|in) \{city\}/, "").replaceAll("{city}'s", "The city's").replaceAll("{city}", "the city"),
