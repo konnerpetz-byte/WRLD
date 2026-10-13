@@ -5,7 +5,8 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "@/features/awards/regions";
-import { type AwardResult, programFor, searchAwards } from "@/features/awards/search";
+import { ago, exploreAwards } from "@/features/awards/explore";
+import { type AwardResult, programFor } from "@/features/awards/search";
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 
@@ -108,7 +109,7 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
   const search = ready
-    ? await searchAwards({ origin: from, destinations, start: start < today ? today : start, end, cabin, directOnly, sources })
+    ? await exploreAwards(supabase, userId, { origin: from, destinations, start: start < today ? today : start, end, cabin, directOnly, sources }, { month, via: via || null })
     : null;
 
   // Group by destination: cheapest first.
@@ -209,10 +210,20 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
           Award search isn&apos;t connected yet. It turns on once WRLD has a Seats.aero partner key.
         </p>
       )}
-      {search?.mode === "sample" && (
+      {search?.sample && (
         <p className="rounded-lg bg-travel/15 px-4 py-2 text-sm" role="note">
           <strong>Sample results.</strong> These seats and prices are made up so you can try the explorer. Real availability appears once
           Seats.aero access is approved.
+        </p>
+      )}
+      {search && !search.sample && search.oldestSeen && (
+        <p className="text-sm text-muted-foreground" role="note">
+          From WRLD&apos;s award cache. Checked {ago(search.oldestSeen)} or more recently; seats can disappear at any time.
+        </p>
+      )}
+      {search && search.queued.length > 0 && search.mode === "cache" && (
+        <p className="text-sm text-muted-foreground" role="note">
+          {search.queued.length} destination{search.queued.length === 1 ? " is" : "s are"} new to WRLD and will be checked in the next 15 minutes.
         </p>
       )}
       {search?.error && (
@@ -258,6 +269,7 @@ async function FlightsContent({ searchParams }: { searchParams: PageProps<"/poin
                     {new Date(`${best.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
                     {best.airlines ? `, flying ${best.airlines}` : ""}
                     {best.direct ? ", nonstop" : ""}.
+                    {best.updatedAt && <span className="text-muted-foreground"> Seen {ago(best.updatedAt)}.</span>}
                   </p>
 
                   {canBook ? (

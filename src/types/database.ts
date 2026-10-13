@@ -632,6 +632,36 @@ type InsertOf<Row, Req extends keyof Row> = Pick<Row, Req> & Partial<Omit<Row, R
 type UpdateOf<Row> = Partial<Omit<Row, 'id' | 'created_at'>>;
 type ReadOnly<Row> = { Row: Row; Insert: never; Update: never; Relationships: [] };
 
+/** Award engine: one cached seat offer (written by the award-refresh worker). */
+export type AwardAvailability = {
+  id: number;
+  origin: string;
+  destination: string;
+  travel_date: ISODate;
+  program: string;
+  cabin: "economy" | "premium" | "business" | "first";
+  miles: number;
+  taxes: number | null;
+  tax_currency: string | null;
+  seats: number | null;
+  airlines: string;
+  direct: boolean;
+  data_source: string;
+  first_seen_at: string;
+  seen_at: string;
+  closed_at: string | null;
+};
+export type AwardSearchLog = {
+  id: number;
+  user_id: UUID;
+  origin: string;
+  destinations: string[];
+  cabin: AwardAvailability["cabin"];
+  month: ISODate;
+  via: string | null;
+  created_at: string;
+};
+
 
 export type ProfileInsert = InsertOf<Profile, 'id'>;
 export type ProfileUpdate = UpdateOf<Profile>;
@@ -720,6 +750,8 @@ export type Database = {
       traveler_interests: TableDef<TravelerInterest, TravelerInterestInsert, TravelerInterestUpdate>;
       experience_ratings: TableDef<ExperienceRating, ExperienceRatingInsert, ExperienceRatingUpdate>;
       trip_recommendations: TableDef<TripRecommendation, TripRecommendationInsert, TripRecommendationUpdate>;
+      award_availability: ReadOnly<AwardAvailability>;
+      award_searches: TableDef<AwardSearchLog, Pick<AwardSearchLog, "user_id" | "origin" | "destinations" | "cabin" | "month" | "via">, never>;
     };
     Views: {
       wallet_reachable_points: { Row: WalletReachablePoints; Relationships: [] };
@@ -739,6 +771,10 @@ export type Database = {
         Returns: { trip_title: string; destination: string | null; start_date: ISODate; end_date: ISODate; invited_by: string; role: TripRole; valid: boolean }[];
       };
       accept_trip_invite: { Args: { p_token: UUID }; Returns: UUID };
+      request_award_routes: {
+        Args: { p_origin: string; p_destinations: string[]; p_cabin: string };
+        Returns: { destination: string; checked_at: string | null }[];
+      };
       mark_chat_read: { Args: { p_trip_id: UUID }; Returns: undefined };
       touch_activity: { Args: Record<string, never>; Returns: undefined };
       is_app_admin: { Args: Record<string, never>; Returns: boolean };
