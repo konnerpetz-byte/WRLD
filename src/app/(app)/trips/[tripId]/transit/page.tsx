@@ -2,7 +2,11 @@
 import { ImportBanner } from "@/features/import/import-banner";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { ExternalLink, Trash2 } from "lucide-react";
+import { ArrowRight, ExternalLink, Trash2 } from "lucide-react";
+import Link from "next/link";
+
+import { pointsOrCashUrl, tripAirport } from "@/features/onboarding/progress";
+import { requireUserId } from "@/lib/supabase/server";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +18,7 @@ import { TransitForm } from "@/features/trips/transit-form";
 import { findTicketsLinks, MODE, placeLabel } from "@/features/transit/modes";
 import { formatMoney, formatPoints } from "@/lib/format";
 
-export const metadata = { title: "Getting around" };
+export const metadata = { title: "Flights & transit" };
 
 const DIRECTION = {
   outbound: "Getting there",
@@ -48,14 +52,35 @@ async function TransitPageContent({
   params,
 }: PageProps<"/trips/[tripId]/transit">) {
   const { tripId } = await params;
-  const [{ trip, canEdit }, { transit }] = await Promise.all([
+  const { supabase, userId } = await requireUserId();
+  const [{ trip, canEdit, stops }, { transit }, { data: profile }] = await Promise.all([
     getTrip(tripId),
     getItinerary(tripId),
+    supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
   ]);
+  const home = profile?.home_airport ?? null;
+  const there = tripAirport(stops);
+  const needsFlight = !transit.some((l) => l.mode === "flight" && l.direction === "outbound");
   const zones = allTimezones();
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_26rem] lg:items-start">
+      {canEdit && needsFlight && (
+        <Link
+          href={pointsOrCashUrl({ from: home, to: there, date: trip.start_date, tripId })}
+          className="group flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sidebar px-5 py-4 text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring lg:col-span-2"
+        >
+          <span>
+            <span className="block font-semibold text-brand-cream">Not booked yet? Points or cash</span>
+            <span className="block text-sm text-sidebar-foreground/80">
+              The cheapest way to fly {home ?? "from home"} to {there ?? "your first stop"}: your points, a card travel site, or cash.
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-travel px-4 py-2 text-sm font-medium text-travel-foreground">
+            Compare <ArrowRight className="size-4 transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
+          </span>
+        </Link>
+      )}
       {canEdit && (
         <div className="lg:col-span-2">
           <ImportBanner tripId={tripId} compact />

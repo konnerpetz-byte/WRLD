@@ -14,7 +14,7 @@ import { ReportSeatForm } from "@/features/awards/report-seat-form";
 import { BANKS } from "@/features/awards/transfers";
 import { requireUserId } from "@/lib/supabase/server";
 
-export const metadata = { title: "Points explorer" };
+export const metadata = { title: "Points or cash" };
 
 export default function PointsExplorerPage({ searchParams }: PageProps<"/points">) {
   return (
@@ -50,7 +50,12 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
   for (const r of rates ?? []) if (!rateMap.has(r.quote)) rateMap.set(r.quote, Number(r.rate));
   const fx = fxFrom(rateMap);
 
-  const [link, { data: isAdmin }] = await Promise.all([seatsConfig() ? linkedToken(supabase) : Promise.resolve(null), supabase.rpc("is_app_admin")]);
+  const tripId = sp.trip && /^[0-9a-f-]{36}$/i.test(sp.trip) ? sp.trip : null;
+  const [link, { data: isAdmin }, { data: forTrip }] = await Promise.all([
+    seatsConfig() ? linkedToken(supabase) : Promise.resolve(null),
+    supabase.rpc("is_app_admin"),
+    tripId ? supabase.from("trips").select("id, title").eq("id", tripId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
   const result = q.origins.length ? await runExplorer(supabase, userId, q, wallet, fx, link?.access ?? null) : null;
   const notice = sp.seats === "failed" ? "Linking Seats.aero didn't finish. Try again." : null;
 
@@ -69,6 +74,7 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
     mine: q.mine,
     direct: q.directOnly,
     sort: q.sort,
+    trip: forTrip?.id,
   };
 
   const when = q.months.length
@@ -79,8 +85,21 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
 
   return (
     <div className="grid gap-6">
+      {forTrip && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-open-soft px-4 py-3 text-sm">
+          <span>
+            For your trip <strong>{forTrip.title}</strong>. Booked it? Add the flight so your days fit around it.
+          </span>
+          <Link href={`/trips/${forTrip.id}/transit`} className="font-medium text-primary underline underline-offset-2">
+            Add the flight
+          </Link>
+          <Link href={`/trips/${forTrip.id}`} className="font-medium text-primary underline underline-offset-2">
+            Back to the plan
+          </Link>
+        </p>
+      )}
       <p className="max-w-[60ch] text-muted-foreground">
-        What each trip costs in points, the cash on top, and exactly which points to move where.
+        What a flight costs in points, the cash on top, and exactly which points to move where. Every price says how WRLD knows it.
         {!home && !sp.from && (
           <>
             {" "}

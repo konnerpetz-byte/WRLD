@@ -5,14 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { href: "/points", label: "Explore flights", icon: Plane },
+  { href: "/points", label: "Compare flights", icon: Plane },
   { href: "/points/wallet", label: "My points", icon: Wallet },
 ];
 
 export function PointsTabs() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Points explorer" className="flex gap-1 border-b">
+    <nav aria-label="Points or cash" className="flex gap-1 border-b">
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = pathname === href;
         return (

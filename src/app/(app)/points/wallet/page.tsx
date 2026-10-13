@@ -1,3 +1,5 @@
+import { HomeAirportForm } from "@/features/onboarding/home-airport-form";
+import Link from "next/link";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { Link2, ShieldCheck, Trash2 } from "lucide-react";
@@ -32,12 +34,14 @@ export default function WalletPage() {
 }
 
 async function WalletPageContent() {
-  const { supabase } = await requireUserId();
+  const { supabase, userId } = await requireUserId();
   const [
     { data: accounts },
     { data: programs },
     { data: connections },
     { data: reachable },
+    { data: profile },
+    { count: tripCount },
   ] = await Promise.all([
     supabase
       .from("loyalty_accounts")
@@ -52,7 +56,10 @@ async function WalletPageContent() {
       .from("wallet_reachable_points")
       .select("*")
       .eq("route", "transfer"),
+    supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
+    supabase.from("trips").select("id", { count: "exact", head: true }),
   ]);
+  const ready = Boolean(accounts?.length) && Boolean(profile?.home_airport);
   const programById = new Map((programs ?? []).map((p) => [p.id, p]));
   const connection = connections?.[0];
   const connectReady = Boolean(
@@ -70,10 +77,24 @@ async function WalletPageContent() {
 
   return (
     <div className="grid gap-10">
-      <p className="text-muted-foreground">
-        Every airline, hotel and credit card balance in one place. The flight
-        explorer uses these to tell you what your points can book.
-      </p>
+      <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <p className="max-w-prose text-muted-foreground">
+          Every airline, hotel and credit card balance in one place. Points or cash uses these to tell you which ones pay for a flight.
+        </p>
+        <HomeAirportForm current={profile?.home_airport ?? null} />
+      </div>
+      {ready && !tripCount && (
+        <Link
+          href="/trips/new"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-open-soft px-5 py-4 focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <span>
+            <span className="block text-sm text-muted-foreground">Points added. Next:</span>
+            <span className="block font-semibold">Start a trip, and WRLD will show how to pay for its flights.</span>
+          </span>
+          <span className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Plan a trip</span>
+        </Link>
+      )}
 
       <section
         aria-labelledby="connect"

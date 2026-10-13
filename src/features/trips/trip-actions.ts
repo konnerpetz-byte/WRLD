@@ -132,7 +132,7 @@ export async function createTrip(_: ActionState, formData: FormData): Promise<Ac
     .insert(stops.map((s) => ({ ...withoutId(s), trip_id: data.id })));
   if (stopError) return { error: "The trip was created, but its cities didn't save. Open it and add them again." };
 
-  redirect(`/trips/${data.id}/itinerary`);
+  redirect(`/trips/${data.id}`);
 }
 
 export async function updateTrip(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {

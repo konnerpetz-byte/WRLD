@@ -3,8 +3,9 @@ import Link from "next/link";
 
 import { LegalLinks } from "@/components/layout/legal-links";
 
-import { LisbonDayMap, LisbonWalkMap } from "@/components/brand/lisbon-day-map";
+import { LisbonDayMap } from "@/components/brand/lisbon-day-map";
 import { WrldMark } from "@/components/brand/wrld-mark";
+import { TravelTypeBadge } from "@/features/traveler-profile/travel-type-icon";
 import { Wordmark } from "@/components/layout/wordmark";
 import { Button } from "@/components/ui/button";
 
@@ -22,7 +23,7 @@ export default function Home() {
               <Link href="/login">Sign in</Link>
             </Button>
             <Button asChild className="max-sm:hidden">
-              <Link href="/signup">Take the quiz, free</Link>
+              <Link href="/signup">Start free</Link>
             </Button>
           </div>
         </div>
@@ -32,18 +33,18 @@ export default function Home() {
         {/* Hero: one promise, one action, the product itself */}
         <section className="mx-auto grid max-w-6xl gap-12 px-6 pt-10 pb-20 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:pt-16">
           <div>
-            <h1 className="text-[2.75rem] leading-[1.04] font-bold tracking-[-0.035em] sm:text-[3.5rem]">
-              <span className="block">Take the quiz.</span>
-              <span className="block">Set your budget.</span>
-              <span className="block text-primary">We&rsquo;ll take it from here.</span>
+            <p className="text-xs font-semibold tracking-[0.12em] text-primary uppercase">For points travelers and their friends</p>
+            <h1 className="mt-3 text-[2.75rem] leading-[1.04] font-bold tracking-[-0.035em] sm:text-[3.5rem]">
+              <span className="block">Plan the trip.</span>
+              <span className="block text-primary">Pay with the points you have.</span>
             </h1>
             <p className="mt-6 max-w-lg text-lg text-muted-foreground">
-              WRLD plans each day around your real flights and the way you like to travel, then prices the whole trip in cash
-              and points, at a budget everyone in the group can afford.
+              WRLD plans each day around your real flights, shows whether points or cash is cheaper for every flight, and keeps
+              the whole group on one budget.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Button asChild size="lg" className="h-12 bg-travel px-7 text-base text-travel-foreground hover:bg-travel/90">
-                <Link href="/signup">Take the quiz, free</Link>
+                <Link href="/signup">Start free</Link>
               </Button>
               <Link href="#how" className="rounded-md px-1 py-2 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 See how it works
@@ -74,16 +75,51 @@ export default function Home() {
           </figcaption>
         </figure>
 
-        {/* Three concrete benefits, each shown with a real example */}
+        {/* The guided path: the same four steps a new account walks through */}
         <section id="how" aria-labelledby="how-title" className="border-t bg-card">
           <div className="mx-auto max-w-6xl px-6 py-20">
             <h2 id="how-title" className="max-w-2xl text-3xl font-bold sm:text-4xl">
-              Built around the parts other planners skip.
+              Four steps from &ldquo;where should we go?&rdquo; to booked.
             </h2>
-            <div className="mt-12 grid gap-10 md:grid-cols-3">
+            <p className="mt-3 max-w-xl text-muted-foreground">WRLD walks you through them, in order, the first time you sign in.</p>
+            <ol className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
               <Benefit
-                title="Days start when you land"
-                body="Add your flight and WRLD blocks out the time before you land and after you leave. An 11 PM arrival becomes a check-in, not a wasted evening."
+                n={1}
+                title="Find your travel type"
+                body="Ten quick questions. Every suggestion after that fits how you like to travel."
+                example={
+                  <div className="flex items-center gap-3 text-xs">
+                    <TravelTypeBadge type="flaneur" size={48} />
+                    <span>
+                      <span className="block text-muted-foreground">You are</span>
+                      <span className="block text-base font-semibold">The Flâneur</span>
+                    </span>
+                  </div>
+                }
+              />
+              <Benefit
+                n={2}
+                title="Add your points"
+                body="Card and airline balances, typed in once. No logins. WRLD tells you which ones can pay for each flight."
+                example={
+                  <div className="grid gap-1 text-xs">
+                    {[
+                      ["Chase Ultimate Rewards", "84,000"],
+                      ["Amex Membership Rewards", "52,500"],
+                      ["Delta SkyMiles", "31,200"],
+                    ].map(([n, b]) => (
+                      <p key={n} className="flex justify-between gap-2 rounded bg-card px-2 py-1 shadow-sm">
+                        <span className="truncate">{n}</span>
+                        <span className="font-semibold tabular-nums">{b}</span>
+                      </p>
+                    ))}
+                  </div>
+                }
+              />
+              <Benefit
+                n={3}
+                title="Start a trip with friends"
+                body="Cities and dates. Invite the group to vote, chat and split costs. Days start when you land."
                 example={
                   <div className="grid grid-cols-3 gap-1.5">
                     <div className="hatched h-12 rounded-md border" />
@@ -96,13 +132,35 @@ export default function Home() {
                 }
               />
               <Benefit
-                title="See your route"
-                body="Every activity lands on a map in the order you'll visit it, starting from your hotel, so a day that zig-zags across town is obvious before you go."
-                example={<LisbonWalkMap className="h-24 w-full rounded-md" />}
+                n={4}
+                title="Points or cash"
+                body="The cheapest way to pay for each flight, and every price says how WRLD knows it."
+                example={
+                  <div className="rounded-md bg-card px-3 py-2 text-xs shadow-sm">
+                    <p className="flex justify-between font-semibold">
+                      <span>DTW → LIS</span>
+                      <span>61,200 pts</span>
+                    </p>
+                    <p className="text-muted-foreground">Chase Travel, any seat · or $612 cash</p>
+                    <p className="mt-1.5 w-fit rounded-full bg-travel/20 px-1.5 py-0.5 font-medium">Any seat, today&rsquo;s fare</p>
+                  </div>
+                }
               />
+            </ol>
+            <p className="mt-8 text-xs text-muted-foreground">Examples. Prices and balances change.</p>
+          </div>
+        </section>
+
+        {/* What only WRLD does: the gaps the award tools and trip planners leave */}
+        <section aria-labelledby="more-title" className="border-t">
+          <div className="mx-auto max-w-6xl px-6 py-20">
+            <h2 id="more-title" className="max-w-2xl text-3xl font-bold sm:text-4xl">
+              Award tools stop at the flight. Trip planners skip the points. WRLD does both.
+            </h2>
+            <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
               <Benefit
-                title="Know the total"
-                body="Ticket prices are looked up and multiplied by your group. Flights, stays and points add up as you plan."
+                title="One budget, cash and points"
+                body="Flights, stays and tickets add up for the whole group, in dollars and points, with what's left per person each day."
                 example={
                   <div className="rounded-md bg-sidebar px-3 py-2 text-sidebar-foreground">
                     <p className="text-[11px]">This trip costs</p>
@@ -111,48 +169,14 @@ export default function Home() {
                   </div>
                 }
               />
-            </div>
-          </div>
-        </section>
-
-        {/* What sets WRLD apart: points, group, official tickets, saved reels */}
-        <section aria-labelledby="more-title" className="border-t">
-          <div className="mx-auto max-w-6xl px-6 py-20">
-            <p className="text-xs font-semibold tracking-[0.12em] text-primary uppercase">For points travelers and their friends</p>
-            <h2 id="more-title" className="mt-2 max-w-2xl text-3xl font-bold sm:text-4xl">
-              One app from &ldquo;where should we go?&rdquo; to the last ticket.
-            </h2>
-            <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
               <Benefit
-                title="Points explorer"
-                body="See where your miles and card points can fly you from home, cheapest first, and which balance covers it."
+                title="Prices you can trust"
+                body="Seen on the airline's site, any seat at today's fare, or predicted: each price is labelled, so you never move points on a guess."
                 example={
-                  <div className="rounded-md bg-card px-3 py-2 text-xs shadow-sm">
-                    <p className="flex justify-between font-semibold">
-                      <span>Lisbon</span>
-                      <span>60k</span>
-                    </p>
-                    <p className="text-muted-foreground">Business, nonstop</p>
-                    <p className="mt-1.5 rounded bg-open-soft px-1.5 py-0.5 font-medium text-primary">Your Chase points can book this</p>
-                  </div>
-                }
-              />
-              <Benefit
-                title="Plan as a group"
-                body="Invite friends, chat in the trip, vote on plans and split costs. WRLD shows how your travel types fit together."
-                example={
-                  <div className="flex items-center gap-3">
-                    <div className="flex -space-x-2" aria-hidden="true">
-                      {["K", "S", "A"].map((l, i) => (
-                        <span key={l} className={`grid size-9 place-items-center rounded-full border-2 border-background text-sm font-semibold ${["bg-brand text-brand-cream", "bg-travel text-travel-foreground", "bg-sidebar text-sidebar-foreground"][i]}`}>
-                          {l}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="text-xs">
-                      <p className="text-2xl leading-none font-bold">82</p>
-                      <p className="text-muted-foreground">Good match</p>
-                    </div>
+                  <div className="flex flex-wrap gap-1.5 text-[11px] font-medium">
+                    <span className="rounded-full bg-open-soft px-2 py-0.5 text-primary">Seen on the airline&rsquo;s site</span>
+                    <span className="rounded-full bg-travel/20 px-2 py-0.5">Any seat, today&rsquo;s fare</span>
+                    <span className="rounded-full border border-dashed border-travel-ink/40 px-2 py-0.5 text-travel-ink">Predicted</span>
                   </div>
                 }
               />
@@ -179,7 +203,7 @@ export default function Home() {
               />
               <Benefit
                 title="Import what you've booked"
-                body="Paste a confirmation email or drop in a ticket PDF or calendar file. Flights, stays and tickets land on the right day. No typing."
+                body="Paste a confirmation email or drop in a ticket PDF or calendar file. Flights, stays and tickets land on the right day."
                 example={
                   <div className="grid gap-1.5 text-xs">
                     <div className="rounded-md bg-card px-2.5 py-1.5 shadow-sm">
@@ -233,10 +257,10 @@ export default function Home() {
           <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <WrldMark className="size-14 shrink-0" />
-              <p className="max-w-md text-2xl font-semibold text-brand-cream">Your next trip, planned around how you travel.</p>
+              <p className="max-w-md text-2xl font-semibold text-brand-cream">Your next trip, paid for with the points you already have.</p>
             </div>
             <Button asChild size="lg" className="h-12 bg-travel px-7 text-base text-travel-foreground hover:bg-travel/90">
-              <Link href="/signup">Take the quiz, free</Link>
+              <Link href="/signup">Start free</Link>
             </Button>
           </div>
         </section>
@@ -264,14 +288,22 @@ const TRIPS = [
   { src: "/photos/paestum-temple.webp", place: "Paestum, Italy", type: "For history buffs", alt: "A Greek temple at Paestum under a summer sky", focus: "72% 55%" },
 ];
 
-function Benefit({ title, body, example }: { title: string; body: string; example: React.ReactNode }) {
+function Benefit({ n, title, body, example }: { n?: number; title: string; body: string; example: React.ReactNode }) {
+  const Tag = n ? "li" : "div";
   return (
-    <div className="grid content-start gap-4">
+    <Tag className="grid content-start gap-4">
       {/* Fixed height keeps every heading on the same line across the row. */}
       <div className="flex h-32 items-center rounded-xl border bg-background p-3 [&>*]:w-full">{example}</div>
-      <h3 className="text-xl font-semibold">{title}</h3>
+      <h3 className="flex items-baseline gap-2 text-xl font-semibold">
+        {n ? (
+          <span className="grid size-7 shrink-0 place-items-center self-center rounded-full bg-primary text-sm text-primary-foreground" aria-hidden="true">
+            {n}
+          </span>
+        ) : null}
+        {title}
+      </h3>
       <p className="text-muted-foreground">{body}</p>
-    </div>
+    </Tag>
   );
 }
 
@@ -279,6 +311,7 @@ function Benefit({ title, body, example }: { title: string; body: string; exampl
 function HeroProduct() {
   return (
     <figure className="relative rounded-2xl bg-brand p-4 shadow-[0_30px_60px_-30px_rgb(29_43_38/0.6)] sm:p-5" aria-label="Example: a day in Lisbon">
+      <figcaption className="absolute -top-3 left-5 rounded-full bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground shadow-sm">Example trip</figcaption>
       <div className="grid gap-3 sm:grid-cols-[1.45fr_1fr]">
         <LisbonDayMap className="aspect-[3/2] w-full self-center rounded-xl" />
         <div className="grid content-start gap-2 rounded-xl bg-card p-3">

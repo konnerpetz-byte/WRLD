@@ -49,6 +49,22 @@ async function ProfilePageContent({ searchParams }: PageProps<"/profile">) {
 
   return (
     <div className="mx-auto grid max-w-5xl gap-12">
+      {justFinished && type && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-sidebar px-5 py-4 text-sidebar-foreground">
+          <p>
+            <span className="block text-sm text-sidebar-foreground/80">Step 1 of 4 done. Next:</span>
+            <span className="block font-semibold text-brand-cream">Add your points, so WRLD knows what can pay for your flights.</span>
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/points/wallet" className="inline-flex min-h-10 items-center rounded-full bg-travel px-5 text-sm font-medium text-travel-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-travel">
+              Add your points
+            </Link>
+            <Link href="/trips" className="rounded text-sm font-medium text-brand-cream underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-travel">
+              Later
+            </Link>
+          </div>
+        </div>
+      )}
       <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-center">
         <div>
           {type ? (

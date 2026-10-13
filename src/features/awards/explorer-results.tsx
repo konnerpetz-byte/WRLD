@@ -25,21 +25,15 @@ const PORTAL_LINKS = [
 const day = (iso: string, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 
+/** Every price says how WRLD knows it, from surest to least sure. */
 function Tag({ o }: { o: Option }) {
-  if (o.kind === "predicted") {
-    return <span className="inline-flex shrink-0 items-center rounded-full bg-travel/20 px-2 py-0.5 text-xs font-medium">Predicted from today&rsquo;s fare</span>;
-  }
-  if (o.kind === "portal" || o.kind === "revenue") {
-    return <span className="inline-flex shrink-0 items-center rounded-full bg-travel/20 px-2 py-0.5 text-xs font-medium">Any seat, today&rsquo;s fare</span>;
-  }
-  if (o.days.some((d) => d.live)) {
-    return <span className="inline-flex shrink-0 items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Live seats</span>;
-  }
-  return o.kind === "seats" ? (
-    <span className="inline-flex shrink-0 items-center rounded-full bg-open-soft px-2 py-0.5 text-xs font-medium text-primary">Open seats</span>
-  ) : (
-    <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Published price</span>
-  );
+  const chip = "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium";
+  if (o.days.some((d) => d.live)) return <span className={`${chip} bg-primary text-primary-foreground`}>Live seats</span>;
+  if (o.kind === "seats") return <span className={`${chip} bg-open-soft text-primary`}>Seen on the airline&rsquo;s site</span>;
+  if (o.kind === "portal") return <span className={`${chip} bg-travel/20`}>Any seat, today&rsquo;s fare</span>;
+  if (o.kind === "revenue") return <span className={`${chip} bg-travel/20`}>Set by today&rsquo;s fare</span>;
+  if (o.kind === "predicted") return <span className={`${chip} border border-dashed border-travel-ink/40 text-travel-ink`}>Predicted from today&rsquo;s fare</span>;
+  return <span className={`${chip} bg-muted font-normal text-muted-foreground`}>If a seat opens</span>;
 }
 
 function Cost({ o, size = "md" }: { o: Option; size?: "md" | "lg" }) {
@@ -235,9 +229,10 @@ export function AboutPrices() {
       </summary>
       <div className="mt-3 grid max-w-[70ch] gap-3 text-muted-foreground">
         <p>
-          <strong className="text-foreground">Open seats</strong> were seen on an airline&rsquo;s site by WRLD travelers in the last three
-          days, with the dates and taxes they saw. <strong className="text-foreground">Published prices</strong> are what a program charges
-          when a seat is open, from its award chart, on routes its partner airlines really fly.
+          <strong className="text-foreground">Seen on the airline&rsquo;s site</strong>: WRLD travelers saw these seats in the last three
+          days, with the dates and taxes shown. <strong className="text-foreground">Any seat, today&rsquo;s fare</strong>: card travel sites
+          (Chase, Amex, Capital One, Citi) pay for any seat at 1 cent a point. <strong className="text-foreground">If a seat opens</strong>:
+          the program&rsquo;s published chart price, on routes its partner airlines really fly; check the seat before moving points.
         </p>
         <p>
           <strong className="text-foreground">Predicted from today&rsquo;s fare</strong>: Delta prices awards on its own flights at

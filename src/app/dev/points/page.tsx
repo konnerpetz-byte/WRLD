@@ -70,7 +70,7 @@ async function Preview() {
   const months = monthOptions();
   return (
     <main className="mx-auto grid max-w-5xl gap-6 p-6">
-      <h1 className="text-4xl font-semibold">Points explorer</h1>
+      <h1 className="text-4xl font-semibold">Points or cash</h1>
       <ExplorerFilters
         initial={{ from: "DTW", to: ["europe"], codes: "", dateMode: "months", months: [months[1].value], start: "", end: "", cabins: ["business"], banks: [], programs: [], mine: false, direct: false, sort: "points" }}
         regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}

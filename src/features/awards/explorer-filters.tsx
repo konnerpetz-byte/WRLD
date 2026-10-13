@@ -20,10 +20,13 @@ export type FilterState = {
   mine: boolean;
   direct: boolean;
   sort: string;
+  /** The trip this search is for, kept so the page can link back to it. */
+  trip?: string;
 };
 
 function toParams(s: FilterState) {
   const p = new URLSearchParams();
+  if (s.trip) p.set("trip", s.trip);
   if (s.from.trim()) p.set("from", s.from.toUpperCase().replace(/\s+/g, ""));
   if (s.to.length) p.set("to", s.to.join(","));
   if (s.codes.trim()) p.set("codes", s.codes.toUpperCase().replace(/[^A-Z,]/g, ""));

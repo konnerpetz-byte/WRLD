@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+// In the order a trip comes together: the plan, the days, getting there, staying, the people, the money.
 const TABS = [
+  { slug: "", label: "Plan" },
   { slug: "itinerary", label: "Itinerary" },
   { slug: "map", label: "Map" },
-  { slug: "group", label: "Group" },
-  { slug: "saved", label: "Saved" },
-  { slug: "transit", label: "Getting around" },
+  { slug: "transit", label: "Flights & transit" },
   { slug: "lodging", label: "Stays" },
+  { slug: "group", label: "Group" },
   { slug: "budget", label: "Budget" },
+  { slug: "saved", label: "Saved" },
   { slug: "checklist", label: "Checklist" },
 ];
 
@@ -26,11 +28,11 @@ export function TripTabs({ unread = 0 }: { unread?: number }) {
   return (
     <nav ref={navRef} aria-label="Trip sections" className="edge-fade-x flex scroll-px-4 gap-1 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {TABS.map(({ slug, label }) => {
-        const href = `/trips/${tripId}/${slug}`;
-        const active = pathname.startsWith(href);
+        const href = slug ? `/trips/${tripId}/${slug}` : `/trips/${tripId}`;
+        const active = slug ? pathname.startsWith(href) : pathname === href;
         return (
           <Link
-            key={slug}
+            key={slug || "plan"}
             href={href}
             aria-current={active ? "page" : undefined}
             className={`-mb-px border-b-2 px-4 py-2.5 text-sm whitespace-nowrap transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${

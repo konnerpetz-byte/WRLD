@@ -25,7 +25,7 @@ async function ImportContent({ params }: PageProps<"/trips/[tripId]/import">) {
         <h2 className="text-2xl font-semibold">Import bookings</h2>
         <p className="mt-1 text-muted-foreground">
           Already booked flights, a hotel or tickets? Bring them in and WRLD puts each one on the right day: flights and trains under
-          Getting around, places to sleep under Stays, and tickets into the itinerary.
+          Flights &amp; transit, places to sleep under Stays, and tickets into the itinerary.
         </p>
       </div>
       {canEdit ? (

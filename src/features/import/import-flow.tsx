@@ -106,7 +106,7 @@ function Review({
             <Link href={`/trips/${tripId}/itinerary`}>See the itinerary</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href={`/trips/${tripId}/transit`}>Getting around</Link>
+            <Link href={`/trips/${tripId}/transit`}>Flights &amp; transit</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href={`/trips/${tripId}/lodging`}>Stays</Link>

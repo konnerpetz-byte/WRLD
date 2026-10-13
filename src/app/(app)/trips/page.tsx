@@ -5,6 +5,8 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { startSteps } from "@/features/onboarding/progress";
+import { StepList } from "@/features/onboarding/step-list";
 import { formatDateRange, formatMoney } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 import type { Trip } from "@/types/database";
@@ -39,8 +41,8 @@ export default function TripsPage(props: PageProps<"/trips">) {
 
 async function TripsPageContent({ searchParams }: PageProps<"/trips">) {
   const { show } = await searchParams;
-  const { supabase } = await requireUserId();
-  const [{ data: trips }, { data: budgets }, { data: stops }] =
+  const { supabase, userId } = await requireUserId();
+  const [{ data: trips }, { data: budgets }, { data: stops }, steps] =
     await Promise.all([
       supabase.from("trips").select("*").order("start_date"),
       supabase
@@ -51,6 +53,7 @@ async function TripsPageContent({ searchParams }: PageProps<"/trips">) {
         .select("trip_id, city, arrive_date, position")
         .order("arrive_date")
         .order("position"),
+      startSteps(supabase, userId),
     ]);
   const totals = new Map((budgets ?? []).map((b) => [b.trip_id, b]));
 
@@ -111,8 +114,19 @@ async function TripsPageContent({ searchParams }: PageProps<"/trips">) {
         </Button>
       </header>
 
+      {steps && (
+        <div className="mb-8">
+          <StepList
+            id="get-started"
+            title="Get started"
+            intro="Four steps from “where should we go?” to knowing exactly how to pay for the flights."
+            steps={steps}
+          />
+        </div>
+      )}
+
       {!trips?.length ? (
-        <div className="rounded-xl border border-dashed bg-card p-10 text-center">
+        steps ? null : <div className="rounded-xl border border-dashed bg-card p-10 text-center">
           <h2 className="text-xl font-semibold">Where to first?</h2>
           <p className="mx-auto mt-2 max-w-md text-muted-foreground">
             Add the cities and dates. Your days and time blocks are set up for
@@ -201,7 +215,7 @@ function TripSection({
           {rows.map((trip) => (
             <li key={trip.id}>
               <Link
-                href={`/trips/${trip.id}/itinerary`}
+                href={`/trips/${trip.id}`}
                 className="grid gap-1 px-5 py-4 hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-6"
               >
                 <span className="min-w-0">

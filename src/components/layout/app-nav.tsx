@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/trips", label: "Trips", short: "Trips", icon: Luggage },
+  { href: "/points", label: "Points or cash", short: "Points", icon: Plane },
   { href: "/saved", label: "Saved spots", short: "Saved", icon: Bookmark },
-  { href: "/points", label: "Points explorer", short: "Points", icon: Plane },
   { href: "/profile", label: "Travel type", short: "Travel type", icon: Compass },
   { href: "/account", label: "Account", short: "Account", icon: CircleUserRound },
 ];
