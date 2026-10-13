@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* Follow the device's light/dark setting */
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 /*
   WRLD brand palette — built from the logo's two colors
@@ -16,6 +17,7 @@
   Proportions follow 60-30-10: cream neutrals 60%, sage/pine 30%, sunrise 10%.
 */
 :root {
+  color-scheme: light;
   --radius: 0.75rem;
 
   --background: #fdf6f0;
@@ -49,40 +51,60 @@
 
   --sidebar: #253a33;
   --sidebar-foreground: #e9e1d6;
+
+  /* Drawn marketing maps */
+  --map-land: #f7eee5;
+  --map-street: #e6d8ca;
+  --map-water: #c9dad2;
+  --map-route: var(--brand);
+  --map-park: #e6ead9;
+  --map-label: #5f7269;
+  --travel-ink: #8f4f0e;
 }
 
-.dark {
-  --background: #121c18;
-  --foreground: #ede6dd;
-  --card: #1a2722;
-  --card-foreground: #ede6dd;
-  --popover: #1a2722;
-  --popover-foreground: #ede6dd;
-  --primary: #a9c9bc;
-  --primary-foreground: #122019;
-  --secondary: #22322c;
-  --secondary-foreground: #ede6dd;
-  --muted: #1f2e28;
-  --muted-foreground: #a3b1aa;
-  --accent: #22322c;
-  --accent-foreground: #ede6dd;
-  --destructive: #f97066;
-  --border: #2c3d36;
-  --input: #71877d;
-  --ring: #a9c9bc;
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #121c18;
+    --foreground: #ede6dd;
+    --card: #1a2722;
+    --card-foreground: #ede6dd;
+    --popover: #1a2722;
+    --popover-foreground: #ede6dd;
+    --primary: #a9c9bc;
+    --primary-foreground: #122019;
+    --secondary: #22322c;
+    --secondary-foreground: #ede6dd;
+    --muted: #1f2e28;
+    --muted-foreground: #a3b1aa;
+    --accent: #22322c;
+    --accent-foreground: #ede6dd;
+    --destructive: #f97066;
+    --border: #2c3d36;
+    --input: #71877d;
+    --ring: #a9c9bc;
 
-  --brand: #46665a;
-  --brand-cream: #fbe8d8;
-  --travel: #f0a35a;
-  --travel-foreground: #2b1804;
-  --travel-soft: #3a2a18;
-  --open: #a9c9bc;
-  --open-foreground: #122019;
-  --open-soft: #1f2f28;
-  --hatch: #2c3d36;
+    --brand: #46665a;
+    --brand-cream: #fbe8d8;
+    --travel: #f0a35a;
+    --travel-foreground: #2b1804;
+    --travel-soft: #3a2a18;
+    --open: #a9c9bc;
+    --open-foreground: #122019;
+    --open-soft: #1f2f28;
+    --hatch: #2c3d36;
 
-  --sidebar: #0e1713;
-  --sidebar-foreground: #d8d0c6;
+    --sidebar: #0e1713;
+    --sidebar-foreground: #d8d0c6;
+
+    --map-land: #24332d;
+    --map-street: #33463e;
+    --map-water: #1d3b3f;
+    --map-route: #8fb5a6;
+    --map-park: #263a2f;
+    --map-label: #9fb3aa;
+    --travel-ink: #f0a35a;
+  }
 }
 
 @theme inline {
@@ -136,12 +158,182 @@
     padding-right: env(safe-area-inset-right, 0px);
     -webkit-tap-highlight-color: transparent;
   }
+  html {
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Anchor jumps glide, and land below the sticky header */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+  section[id],
+  h2[id],
+  h3[id] {
+    scroll-margin-top: 5rem;
+  }
+  p,
+  li {
+    text-wrap: pretty;
+  }
+  /* Tracking is size-specific: tighter as type grows, body left at 0 */
   h1, h2, h3 {
-    @apply font-display tracking-tight;
+    @apply font-display;
     text-wrap: balance;
   }
   h1 {
-    letter-spacing: -0.025em;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+  }
+  h2 {
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  h3 {
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Materials: translucent chrome that content scrolls under.
+   Heavier (dark) for structure, lighter for page chrome.
+------------------------------------------------------------------- */
+@layer components {
+.material-light {
+  background: color-mix(in oklab, var(--background) 74%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+.material-dark {
+  background: color-mix(in oklab, var(--sidebar) 84%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .material-light {
+    background: var(--background);
+    backdrop-filter: none;
+  }
+  .material-dark {
+    background: var(--sidebar);
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .material-light {
+    background: var(--background);
+    backdrop-filter: none;
+    border-color: var(--foreground);
+  }
+  .material-dark {
+    background: var(--sidebar);
+    backdrop-filter: none;
+  }
+}
+}
+
+/* Scroll edge on sticky bars: no divider at the top of the page, a hairline once content scrolls beneath */
+@supports (animation-timeline: scroll()) {
+  .scroll-edge {
+    animation: scroll-edge linear both;
+    animation-timeline: scroll();
+    animation-range: 0 48px;
+  }
+  @keyframes scroll-edge {
+    from {
+      box-shadow: 0 1px 0 transparent;
+    }
+    to {
+      box-shadow: 0 1px 0 var(--border);
+    }
+  }
+}
+@supports not (animation-timeline: scroll()) {
+  .scroll-edge {
+    box-shadow: 0 1px 0 var(--border);
+  }
+}
+
+/* Scroll edge: a soft fade where a row of tabs runs off screen, instead of a hard cut */
+.edge-fade-x {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+@media (min-width: 64rem) {
+  .edge-fade-x {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Sheets: materialize (scale + fade) instead of popping in.
+   A critically damped curve: quick, no overshoot.
+------------------------------------------------------------------- */
+dialog.sheet {
+  opacity: 0;
+  transform: translateY(12px) scale(0.97);
+  transition:
+    opacity 180ms ease-out,
+    transform 380ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    overlay 380ms allow-discrete,
+    display 380ms allow-discrete;
+}
+dialog.sheet[open] {
+  opacity: 1;
+  transform: none;
+}
+@starting-style {
+  dialog.sheet[open] {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+dialog.sheet::backdrop {
+  background: rgb(10 18 15 / 0);
+  -webkit-backdrop-filter: blur(0);
+  backdrop-filter: blur(0);
+  transition:
+    background 300ms ease-out,
+    backdrop-filter 300ms ease-out,
+    overlay 300ms allow-discrete,
+    display 300ms allow-discrete;
+}
+dialog.sheet[open]::backdrop {
+  background: rgb(10 18 15 / 0.45);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+@starting-style {
+  dialog.sheet[open]::backdrop {
+    background: rgb(10 18 15 / 0);
+    backdrop-filter: blur(0);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion: keep fades that explain what happened,
+   drop movement, scaling, looping and smooth scrolling.
+------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  dialog.sheet,
+  dialog.sheet[open] {
+    transform: none;
+  }
+  @starting-style {
+    dialog.sheet[open] {
+      transform: none;
+    }
   }
 }
 

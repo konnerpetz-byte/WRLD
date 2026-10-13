@@ -27,7 +27,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#253a33",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#253a33" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1713" },
+  ],
   // Draw edge to edge on phones; content pads itself with the safe-area insets.
   viewportFit: "cover",
 };

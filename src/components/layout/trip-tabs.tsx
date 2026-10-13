@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 const TABS = [
   { slug: "itinerary", label: "Itinerary" },
@@ -17,8 +18,13 @@ const TABS = [
 export function TripTabs({ unread = 0 }: { unread?: number }) {
   const pathname = usePathname();
   const { tripId } = useParams<{ tripId: string }>();
+  const navRef = useRef<HTMLElement>(null);
+  // On phones the row scrolls: keep the current tab in view so you always know where you are.
+  useEffect(() => {
+    navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [pathname]);
   return (
-    <nav aria-label="Trip sections" className="flex gap-1 overflow-x-auto border-b">
+    <nav ref={navRef} aria-label="Trip sections" className="edge-fade-x flex scroll-px-4 gap-1 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {TABS.map(({ slug, label }) => {
         const href = `/trips/${tripId}/${slug}`;
         const active = pathname.startsWith(href);
@@ -27,7 +33,7 @@ export function TripTabs({ unread = 0 }: { unread?: number }) {
             key={slug}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-ring ${
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm whitespace-nowrap transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${
               active ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >

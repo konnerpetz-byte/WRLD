@@ -150,7 +150,7 @@ export function PlaceRecommendations({ tripId, dayId, dayLabel }: { tripId: stri
       {loading ? (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Loading recommendations">
           {Array.from({ length: 4 }, (_, i) => (
-            <li key={i} className="h-44 animate-pulse rounded-xl bg-muted" />
+            <li key={i} className="h-44 animate-pulse rounded-2xl bg-muted" />
           ))}
         </ul>
       ) : (
@@ -169,10 +169,10 @@ export function PlaceRecommendations({ tripId, dayId, dayLabel }: { tripId: stri
                       <button
                         type="button"
                         onClick={() => setOpen({ kind: "idea", idea })}
-                        className="group grid h-full w-full content-start overflow-hidden rounded-xl border bg-background text-left transition hover:border-primary hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        className="group grid h-full w-full content-start overflow-hidden rounded-2xl border bg-background text-left transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/60 hover:shadow-[0_8px_24px_-12px_rgb(29_43_38/0.35)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-[0.98]"
                       >
                         <span className={`grid h-24 place-items-center bg-gradient-to-br ${art.tone}`} aria-hidden="true">
-                          <Icon className="size-9 transition group-hover:scale-110" strokeWidth={1.5} />
+                          <Icon className="size-9 transition-transform duration-300 ease-out motion-safe:group-hover:scale-110" strokeWidth={1.5} />
                         </span>
                         <span className="grid gap-1 p-3">
                           <span className="text-sm leading-snug font-semibold">{idea.title}</span>
@@ -198,12 +198,12 @@ export function PlaceRecommendations({ tripId, dayId, dayLabel }: { tripId: stri
                     <button
                       type="button"
                       onClick={() => setOpen({ kind: "offer", offer: o })}
-                      className="group grid h-full w-full content-start overflow-hidden rounded-xl border bg-background text-left transition hover:border-primary hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      className="group grid h-full w-full content-start overflow-hidden rounded-2xl border bg-background text-left transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/60 hover:shadow-[0_8px_24px_-12px_rgb(29_43_38/0.35)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-[0.98]"
                     >
                       <span className="relative block h-24 overflow-hidden bg-muted">
                         {o.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element -- provider photo at a fixed size
-                          <img src={o.imageUrl} alt="" className="size-full object-cover transition group-hover:scale-105" referrerPolicy="no-referrer" loading="lazy" />
+                          <img src={o.imageUrl} alt="" className="size-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover:scale-105" referrerPolicy="no-referrer" loading="lazy" />
                         ) : (
                           <span className={`grid size-full place-items-center bg-gradient-to-br ${FALLBACK_ART.tone}`} aria-hidden="true">
                             <Landmark className="size-9" strokeWidth={1.5} />
@@ -285,7 +285,15 @@ function DetailsSheet({
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      // Grow out of the card that was tapped, so it's clear where the sheet came from.
+      const trigger = document.activeElement instanceof HTMLElement ? document.activeElement.getBoundingClientRect() : null;
+      d.showModal();
+      if (trigger) {
+        const box = d.getBoundingClientRect();
+        d.style.transformOrigin = `${trigger.left + trigger.width / 2 - box.left}px ${trigger.top + trigger.height / 2 - box.top}px`;
+      }
+    }
     if (!open && d.open) d.close();
   }, [open]);
 
@@ -297,7 +305,7 @@ function DetailsSheet({
         if (e.target === ref.current) onClose(); // click on the backdrop
       }}
       aria-labelledby="rec-details-title"
-      className="m-auto w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/50"
+      className="sheet m-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-3xl border bg-card p-0 text-card-foreground shadow-[0_24px_80px_-20px_rgb(10_18_15/0.55)]"
     >
       {open?.kind === "idea" && <IdeaDetails idea={open.idea} tripId={tripId} dayId={dayId} onClose={onClose} />}
       {open?.kind === "offer" && <OfferDetails offer={open.offer} tripId={tripId} dayId={dayId} city={city} onClose={onClose} />}
@@ -307,7 +315,7 @@ function DetailsSheet({
 
 function CloseButton({ onClose }: { onClose: () => void }) {
   return (
-    <Button type="button" variant="secondary" size="icon" onClick={onClose} className="absolute top-3 right-3 size-9 rounded-full shadow" aria-label="Close details">
+    <Button type="button" variant="ghost" size="icon" onClick={onClose} className="material-light absolute top-3 right-3 size-9 rounded-full border border-white/40 shadow-sm" aria-label="Close details">
       <X aria-hidden="true" />
     </Button>
   );

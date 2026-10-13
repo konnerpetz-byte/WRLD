@@ -37,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </form>
         </div>
       </aside>
-      <main className="min-w-0 px-4 pt-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-8 lg:px-12">{children}</main>
+      <main className="min-w-0 px-4 pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-8 lg:px-12 lg:pb-[max(2rem,env(safe-area-inset-bottom))]">{children}</main>
     </div>
   );
 }

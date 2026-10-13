@@ -5,11 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/trips", label: "Trips", icon: Luggage },
-  { href: "/saved", label: "Saved spots", icon: Bookmark },
-  { href: "/points", label: "Points explorer", icon: Plane },
-  { href: "/profile", label: "Travel type", icon: Compass },
-  { href: "/account", label: "Account", icon: CircleUserRound },
+  { href: "/trips", label: "Trips", short: "Trips", icon: Luggage },
+  { href: "/saved", label: "Saved spots", short: "Saved", icon: Bookmark },
+  { href: "/points", label: "Points explorer", short: "Points", icon: Plane },
+  { href: "/profile", label: "Travel type", short: "Travel type", icon: Compass },
+  { href: "/account", label: "Account", short: "Account", icon: CircleUserRound },
 ];
 
 export function AppNav() {
@@ -17,23 +17,33 @@ export function AppNav() {
   return <NavLinks pathname={pathname} />;
 }
 
-/** Same links with nothing highlighted; shown until the current path is known. */
+/**
+ * Same links with nothing highlighted; shown until the current path is known.
+ * Phones: a labeled tab bar along the bottom, within thumb reach, on a
+ * translucent material that content scrolls under. Desktop: the sidebar list.
+ */
 export function NavLinks({ pathname = "" }: { pathname?: string }) {
   return (
-    <nav aria-label="Main" className="flex gap-0.5 sm:gap-1 lg:flex-col">
-      {LINKS.map(({ href, label, icon: Icon }) => {
+    <nav
+      aria-label="Main"
+      className="material-dark fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-white/10 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] lg:static lg:flex lg:flex-col lg:gap-1 lg:border-0 lg:bg-transparent lg:p-0 lg:[-webkit-backdrop-filter:none] lg:[backdrop-filter:none]"
+    >
+      {LINKS.map(({ href, label, short, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-md px-2 py-2 text-sm sm:px-3 transition-colors focus-visible:outline-2 focus-visible:outline-travel ${
-              active ? "bg-white/10 font-medium text-white" : "text-sidebar-foreground/80 hover:bg-white/5 hover:text-white"
+            className={`flex flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[11px] leading-none font-medium transition-[color,background-color,transform] duration-150 focus-visible:outline-2 focus-visible:outline-travel motion-safe:active:scale-95 lg:flex-row lg:gap-3 lg:px-3 lg:py-2 lg:text-sm lg:leading-normal lg:font-normal ${
+              active ? "text-white lg:bg-white/10 lg:font-medium" : "text-sidebar-foreground/75 hover:text-white lg:hover:bg-white/5"
             }`}
           >
-            <Icon className="size-4" aria-hidden="true" />
-            <span className="max-lg:sr-only">{label}</span>
+            <span className={`grid h-7 w-12 place-items-center rounded-full transition-colors lg:size-auto ${active ? "bg-white/15 lg:bg-transparent" : ""}`}>
+              <Icon className="size-[1.15rem] lg:size-4" aria-hidden="true" />
+            </span>
+            <span className="max-w-full truncate lg:hidden">{short}</span>
+            <span className="max-lg:hidden">{label}</span>
           </Link>
         );
       })}

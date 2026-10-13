@@ -33,7 +33,7 @@ export function DayGrid({
 
   return (
     <div className="grid gap-3">
-      <div className="sticky top-0 z-10 hidden grid-cols-[8rem_repeat(3,minmax(0,1fr))] gap-3 bg-background/95 py-2 text-sm text-muted-foreground backdrop-blur lg:grid">
+      <div className="sticky top-0 z-10 hidden grid-cols-[8rem_repeat(3,minmax(0,1fr))] gap-3 material-light py-2 text-sm text-muted-foreground lg:grid">
         <span />
         {(Object.keys(SLOT_LABEL) as (keyof typeof SLOT_LABEL)[]).map((slot) => (
           <span key={slot}>

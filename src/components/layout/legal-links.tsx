@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
@@ -10,15 +13,27 @@ const LINKS = [
   { href: "/accessibility", label: "Accessibility" },
 ];
 
-/** Footer links to the legal pages. */
+/** Links to the legal pages; the page you're on is marked. */
 export function LegalLinks({ className }: { className?: string }) {
+  const pathname = usePathname();
   return (
     <nav aria-label="Legal" className={cn("flex flex-wrap gap-x-4 gap-y-2 text-sm", className)}>
-      {LINKS.map((l) => (
-        <Link key={l.href} href={l.href} className="underline-offset-4 hover:underline focus-visible:underline">
-          {l.label}
-        </Link>
-      ))}
+      {LINKS.map((l) => {
+        const current = pathname === l.href;
+        return (
+          <Link
+            key={l.href}
+            href={l.href}
+            aria-current={current ? "page" : undefined}
+            className={cn(
+              "rounded-sm underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              current && "font-medium text-foreground underline decoration-primary decoration-2",
+            )}
+          >
+            {l.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

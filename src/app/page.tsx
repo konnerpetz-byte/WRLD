@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { LegalLinks } from "@/components/layout/legal-links";
 
+import { LisbonDayMap, LisbonWalkMap } from "@/components/brand/lisbon-day-map";
 import { WrldMark } from "@/components/brand/wrld-mark";
 import { Wordmark } from "@/components/layout/wordmark";
 import { Button } from "@/components/ui/button";
@@ -9,18 +10,28 @@ import { Button } from "@/components/ui/button";
 export default function Home() {
   return (
     <div className="min-h-dvh bg-background">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <Wordmark className="text-foreground" />
-        <Button asChild variant="ghost">
-          <Link href="/login">Sign in</Link>
-        </Button>
+      {/* Translucent bar: the page scrolls under it; a hairline appears only once content is beneath. */}
+      <header className="material-light scroll-edge sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
+          <Link href="/" aria-label="WRLD home" className="rounded-md text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+            <Wordmark />
+          </Link>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button asChild variant="ghost">
+              <Link href="/login">Sign in</Link>
+            </Button>
+            <Button asChild className="max-sm:hidden">
+              <Link href="/signup">Plan a trip, free</Link>
+            </Button>
+          </div>
+        </div>
       </header>
 
       <main>
         {/* Hero: one promise, one action, the product itself */}
-        <section className="mx-auto grid max-w-6xl gap-12 px-6 pt-10 pb-20 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:pt-16">
+        <section className="mx-auto grid max-w-6xl gap-12 px-6 pt-10 pb-20 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:pt-16">
           <div>
-            <h1 className="text-5xl leading-[1.02] font-bold sm:text-6xl">Plan the trip you&rsquo;ll actually take.</h1>
+            <h1 className="text-5xl leading-[1.02] font-bold tracking-[-0.035em] sm:text-6xl">Plan the trip you&rsquo;ll actually take.</h1>
             <p className="mt-6 max-w-lg text-lg text-muted-foreground">
               WRLD builds each day around your real flight times, maps your route, and adds every ticket and point to
               one budget.
@@ -29,7 +40,7 @@ export default function Home() {
               <Button asChild size="lg" className="h-12 bg-travel px-7 text-base text-travel-foreground hover:bg-travel/90">
                 <Link href="/signup">Plan a trip, free</Link>
               </Button>
-              <Link href="#how" className="font-medium text-primary underline-offset-4 hover:underline">
+              <Link href="#how" className="rounded-md px-1 py-2 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 See how it works
               </Link>
             </div>
@@ -61,7 +72,7 @@ export default function Home() {
               <Benefit
                 title="See your route"
                 body="Every activity lands on a map in the order you'll visit it, starting from your hotel, so a day that zig-zags across town is obvious before you go."
-                example={<MiniMap className="h-24 w-full rounded-md" />}
+                example={<LisbonWalkMap className="h-24 w-full rounded-md" />}
               />
               <Benefit
                 title="Know the total"
@@ -81,7 +92,7 @@ export default function Home() {
         {/* What sets WRLD apart: points, group, official tickets, saved reels */}
         <section aria-labelledby="more-title" className="border-t">
           <div className="mx-auto max-w-6xl px-6 py-20">
-            <p className="text-sm font-semibold tracking-wide text-primary uppercase">For points travelers and their friends</p>
+            <p className="text-xs font-semibold tracking-[0.12em] text-primary uppercase">For points travelers and their friends</p>
             <h2 id="more-title" className="mt-2 max-w-2xl text-3xl font-bold sm:text-4xl">
               One app from &ldquo;where should we go?&rdquo; to the last ticket.
             </h2>
@@ -190,12 +201,12 @@ function Benefit({ title, body, example }: { title: string; body: string; exampl
 function HeroProduct() {
   return (
     <figure className="relative rounded-2xl bg-brand p-4 shadow-[0_30px_60px_-30px_rgb(29_43_38/0.6)] sm:p-5" aria-label="Example: a day in Lisbon">
-      <div className="grid gap-3 sm:grid-cols-[1.1fr_1fr]">
-        <MiniMap className="aspect-[3/2] w-full self-center rounded-xl" />
+      <div className="grid gap-3 sm:grid-cols-[1.45fr_1fr]">
+        <LisbonDayMap className="aspect-[3/2] w-full self-center rounded-xl" />
         <div className="grid content-start gap-2 rounded-xl bg-card p-3">
           <p className="flex items-baseline justify-between text-sm">
             <span className="font-semibold">Mon, Nov 2</span>
-            <span className="text-xs text-muted-foreground">4.1 mi</span>
+            <span className="text-xs text-muted-foreground">31 mi</span>
           </p>
           {[
             ["◆", "Memmo Alfama", "Start the day here", "stay"],
@@ -224,37 +235,5 @@ function HeroProduct() {
         </div>
       </div>
     </figure>
-  );
-}
-
-/** A drawn (not live) map for marketing: water, streets, a numbered route. */
-function MiniMap({ className = "", fit = "slice" }: { className?: string; fit?: "slice" | "meet" }) {
-  const pins: [number, number, string, string][] = [
-    [62, 124, "◆", "var(--sidebar)"],
-    [118, 92, "1", "var(--brand)"],
-    [196, 74, "2", "var(--brand)"],
-    [232, 124, "3", "var(--brand)"],
-  ];
-  return (
-    <svg viewBox="0 0 300 200" className={className} role="img" aria-label="Map with a numbered route between four stops" preserveAspectRatio={`xMidYMid ${fit}`} style={{ background: "#F7EEE5" }}>
-      <rect width="300" height="200" fill="#F7EEE5" />
-      <path d="M0 160 C60 150 110 175 170 168 S260 150 300 158 V200 H0Z" fill="#C9DAD2" />
-      <g stroke="#E6D8CA" strokeWidth="6" fill="none" strokeLinecap="round">
-        <path d="M-10 40 L310 70" />
-        <path d="M40 -10 L90 210" />
-        <path d="M150 -10 L170 150" />
-        <path d="M-10 110 L310 100" />
-        <path d="M240 -10 L260 150" />
-      </g>
-      <path d="M62 124 L118 92 L196 74 L232 124 L62 124" fill="none" stroke="var(--brand)" strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />
-      {pins.map(([x, y, label, fill]) => (
-        <g key={label} transform={`translate(${x} ${y})`}>
-          <circle r="11" fill={fill} stroke="#FBE8D8" strokeWidth="2.5" />
-          <text textAnchor="middle" dy="4" fontSize="11" fontWeight="700" fill="#FBE8D8">
-            {label}
-          </text>
-        </g>
-      ))}
-    </svg>
   );
 }

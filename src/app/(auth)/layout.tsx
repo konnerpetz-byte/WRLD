@@ -20,8 +20,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
         <DepartureStrip />
       </aside>
-      <main className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-sm">
+      <main className="flex flex-col items-center justify-center p-6 pt-[max(1.5rem,env(safe-area-inset-top))] sm:p-10">
+        {/* On phones the brand panel is hidden, so keep a way home at the top. */}
+        <Link href="/" aria-label="WRLD home" className="mb-10 self-start rounded-md text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring lg:hidden">
+          <Wordmark />
+        </Link>
+        <div className="w-full max-w-sm max-lg:my-auto">
           {children}
           <LegalLinks className="mt-10 text-muted-foreground" />
         </div>
