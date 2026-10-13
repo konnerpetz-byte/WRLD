@@ -1,436 +1,391 @@
-import { Check, ExternalLink, Plane } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, Info, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { Button } from "@/components/ui/button";
-import { AIRPORT_CITY, CABINS, type Cabin, REGIONS, type RegionKey, SOURCE_PROGRAM } from "@/features/awards/regions";
-import { type ChartPrice, routeAwareChartPrices } from "@/features/awards/charts";
-import { loadNetwork } from "@/features/awards/network";
+import { ago } from "@/features/awards/explore";
+import { type DestinationResult, monthOptions, type Option, parseQuery, runExplorer, type Wallet } from "@/features/awards/engine";
+import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
+import { feeRange, fxFrom } from "@/features/awards/fees";
+import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { ReportedVote } from "@/features/awards/reported-vote";
-import { typicalPrices } from "@/features/awards/typical";
-import { ago, exploreAwards } from "@/features/awards/explore";
 import { ReportSeatForm } from "@/features/awards/report-seat-form";
-import { type AwardResult, programFor } from "@/features/awards/search";
+import { programFor } from "@/features/awards/search";
+import { BANKS } from "@/features/awards/transfers";
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
 
 export const metadata = { title: "Points explorer" };
 
-type Params = { from?: string; to?: string; month?: string; cabin?: string; direct?: string; via?: string };
-
-export default function FlightsPage({ searchParams }: PageProps<"/points">) {
+export default function PointsExplorerPage({ searchParams }: PageProps<"/points">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <FlightsContent searchParams={searchParams} />
+      <Explorer searchParams={searchParams} />
     </Suspense>
   );
 }
 
-const IATA = /^[A-Z]{3}$/;
+const day = (iso: string, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 
-function monthOptions() {
-  const now = new Date();
-  return Array.from({ length: 11 }, (_, i) => {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
-    return {
-      value: d.toISOString().slice(0, 7),
-      label: d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
-    };
-  });
-}
-
-async function FlightsContent({ searchParams }: { searchParams: PageProps<"/points">["searchParams"] }) {
+async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["searchParams"] }) {
   const { supabase, userId } = await requireUserId();
-  const sp = (await searchParams) as Params;
+  const sp = (await searchParams) as Record<string, string | undefined>;
 
-  const [{ data: profile }, { data: reach }, { data: programs }, { data: partners }] = await Promise.all([
+  const [{ data: profile }, { data: accounts }, { data: rates }] = await Promise.all([
     supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
-    supabase.from("wallet_reachable_points").select("target_program_id, via_program_id, route, points").eq("user_id", userId),
-    supabase.from("loyalty_programs").select("id, slug, name, kind"),
-    supabase.from("transfer_partners").select("from_program_id, to_program_id, ratio_from, ratio_to"),
+    supabase.from("loyalty_accounts").select("balance, program:loyalty_programs(slug)").eq("user_id", userId),
+    supabase.from("exchange_rates").select("quote, rate, as_of").order("as_of", { ascending: false }).limit(400),
   ]);
 
   const home = profile?.home_airport?.toUpperCase() ?? null;
-  const from = (sp.from ?? home ?? "").toUpperCase();
-  const to = sp.to ?? "europe";
+  const q = parseQuery(sp, home);
+
+  const balances = new Map<string, number>();
+  for (const a of accounts ?? []) {
+    const slug = (a.program as unknown as { slug: string } | null)?.slug;
+    if (slug) balances.set(slug, (balances.get(slug) ?? 0) + Number(a.balance ?? 0));
+  }
+  const wallet: Wallet = { balances };
+  const rateMap = new Map<string, number>();
+  for (const r of rates ?? []) if (!rateMap.has(r.quote)) rateMap.set(r.quote, Number(r.rate));
+  const fx = fxFrom(rateMap);
+
+  const result = q.origins.length ? await runExplorer(supabase, userId, q, wallet, fx) : null;
+
   const months = monthOptions();
-  const month = months.some((m) => m.value === sp.month) ? sp.month! : months[1].value;
-  const cabin: Cabin = sp.cabin && sp.cabin in CABINS ? (sp.cabin as Cabin) : "business";
-  const directOnly = sp.direct === "1";
+  const initial: FilterState = {
+    from: q.origins.join(", "),
+    to: q.regions,
+    codes: q.codes.join(", "),
+    dateMode: q.months.length ? "months" : "dates",
+    months: q.months.length ? q.months : [months[1].value],
+    start: q.start,
+    end: q.end,
+    cabins: q.cabins,
+    banks: q.banks,
+    programs: q.programs,
+    mine: q.mine,
+    direct: q.directOnly,
+    sort: q.sort,
+  };
 
-  const destinations =
-    to in REGIONS
-      ? [...REGIONS[to as RegionKey].airports]
-      : to
-          .toUpperCase()
-          .split(/[\s,]+/)
-          .filter((c) => IATA.test(c))
-          .slice(0, 20);
-
-  // What the traveler's wallet can reach in each program (own balance + card transfers).
-  const nameById = new Map((programs ?? []).map((p) => [p.id, p]));
-  const reachBySlug = new Map<string, { total: number; ways: string[] }>();
-  for (const r of reach ?? []) {
-    const target = nameById.get(r.target_program_id);
-    if (!target || !r.points) continue;
-    const entry = reachBySlug.get(target.slug) ?? { total: 0, ways: [] };
-    entry.total += Number(r.points);
-    entry.ways.push(r.route === "direct" ? `${formatPoints(r.points)} in ${target.name}` : `${formatPoints(r.points)} from ${nameById.get(r.via_program_id)?.name ?? "a card"}`);
-    reachBySlug.set(target.slug, entry);
-  }
-
-  // "Explore by": everything, what your wallet can reach, one bank's transfer partners, or one program.
-  const sourceBySlug = new Map(Object.entries(SOURCE_PROGRAM).filter(([, p]) => p.slug).map(([source, p]) => [p.slug!, source]));
-  const banks = (programs ?? []).filter((p) => p.kind === "bank");
-  const bankPartners = (bankId: string) =>
-    (partners ?? [])
-      .filter((t) => t.from_program_id === bankId)
-      .map((t) => ({ slug: nameById.get(t.to_program_id)?.slug ?? "", ratio: `${t.ratio_from}:${t.ratio_to}` }))
-      .filter((t) => sourceBySlug.has(t.slug));
-  const via = sp.via ?? "";
-  let sources: string[] = [];
-  let viaNote: string | null = null;
-  if (via === "mine") {
-    sources = [...reachBySlug.keys()].map((slug) => sourceBySlug.get(slug)).filter((x): x is string => Boolean(x));
-    viaNote = sources.length
-      ? `Only programs your points can reach: ${sources.map((src) => programFor(src).name).join(", ")}.`
-      : "Add balances on the My points tab to filter by what you can book.";
-  } else if (via.startsWith("bank:")) {
-    const bank = banks.find((b) => b.slug === via.slice(5));
-    if (bank) {
-      const list = bankPartners(bank.id);
-      sources = list.map((t) => sourceBySlug.get(t.slug)!);
-      viaNote = `Seats you can book by moving ${bank.name} to: ${list.map((t) => `${programFor(sourceBySlug.get(t.slug)!).name}${t.ratio === "1:1" ? "" : ` (${t.ratio})`}`).join(", ")}.`;
-    }
-  } else if (via.startsWith("program:") && SOURCE_PROGRAM[via.slice(8)]) {
-    sources = [via.slice(8)];
-  }
-  const filterEmpty = (via === "mine" || via.startsWith("bank:")) && !sources.length;
-
-  const ready = IATA.test(from) && destinations.length > 0 && !filterEmpty;
-  const [y, m] = month.split("-").map(Number);
-  const start = `${month}-01`;
-  const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  const search = ready
-    ? await exploreAwards(supabase, userId, { origin: from, destinations, start: start < today ? today : start, end, cabin, directOnly, sources }, { month, via: via || null })
-    : null;
-
-  // Who flies where (WRLD's route network), so chart prices only apply where a partner flies.
-  const [network, typical] = ready
-    ? await Promise.all([loadNetwork(supabase, from, destinations), typicalPrices(supabase, from, destinations, cabin)])
-    : [{ known: new Set<string>(), edges: [] }, new Map()];
-  const priceFor = (dest: string): ChartPrice[] => routeAwareChartPrices(network, from, dest, cabin);
-  const how = (c: ChartPrice) =>
-    c.basis === "route"
-      ? `${c.via ? `via ${c.via}` : "nonstop"} on ${(c.airlines ?? []).slice(0, 2).join(" or ")}${c.seasonal ? ", seasonal" : ""}, ${c.miles.toLocaleString()} miles flown`
-      : `${c.miles.toLocaleString()} miles nonstop distance; routes not checked yet`;
-
-  // Group by destination: cheapest first.
-  const byDest = new Map<string, AwardResult[]>();
-  for (const r of search?.results ?? []) byDest.set(r.destination, [...(byDest.get(r.destination) ?? []), r]);
-  const groups = [...byDest.entries()]
-    .map(([dest, rs]) => ({ dest, results: rs.sort((a, b) => a.miles - b.miles || a.date.localeCompare(b.date)) }))
-    .sort((a, b) => a.results[0].miles - b.results[0].miles);
+  const when = q.months.length
+    ? q.months.map((m) => months.find((o) => o.value === m)?.label ?? m).join(", ")
+    : q.start === q.end
+      ? day(q.start, { month: "short", day: "numeric", year: "numeric" })
+      : `${day(q.start)} – ${day(q.end, { month: "short", day: "numeric", year: "numeric" })}`;
 
   return (
-    <div className="grid gap-8">
+    <div className="grid gap-6">
       <p className="text-muted-foreground">
-        Where your miles and card points can take you from {home ? <strong>{home}</strong> : "your home airport"}: the cheapest award seats by destination and date.
+        Where your miles and card points can take you: what each trip costs in points, the taxes and fees on top, and exactly which points to
+        move where.
       </p>
 
-      {!home && (
+      <HowItWorks />
+
+      {!home && !sp.from && (
         <p className="rounded-xl border border-dashed bg-card p-4 text-sm">
           Set your home airport in{" "}
           <Link href="/account" className="font-medium text-primary underline underline-offset-2">
             Account
           </Link>{" "}
-          so this page starts from it every time.
+          so the explorer starts from it every time.
         </p>
       )}
 
-      <form className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[6rem_1fr_1fr_1fr_1.3fr_auto] lg:items-end" action="/points">
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">From</span>
-          <input name="from" defaultValue={from} placeholder="DTW" maxLength={3} required pattern="[A-Za-z]{3}" className="h-9 rounded-md border bg-background px-3 uppercase" />
-        </label>
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">To</span>
-          <select name="to" defaultValue={to in REGIONS ? to : "europe"} className="h-9 rounded-md border bg-background px-2">
-            {Object.entries(REGIONS).map(([key, r]) => (
-              <option key={key} value={key}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Month</span>
-          <select name="month" defaultValue={month} className="h-9 rounded-md border bg-background px-2">
-            {months.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Cabin</span>
-          <select name="cabin" defaultValue={cabin} className="h-9 rounded-md border bg-background px-2">
-            {Object.entries(CABINS).map(([key, c]) => (
-              <option key={key} value={key}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Explore by</span>
-          <select name="via" defaultValue={via} className="h-9 rounded-md border bg-background px-2">
-            <option value="">All programs</option>
-            <option value="mine">Programs my points can reach</option>
-            <optgroup label="Credit card points">
-              {banks.map((b) => (
-                <option key={b.slug} value={`bank:${b.slug}`}>
-                  {b.name}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Airline programs">
-              {Object.entries(SOURCE_PROGRAM)
-                .sort((a, b) => a[1].name.localeCompare(b[1].name))
-                .map(([source, p]) => (
-                  <option key={source} value={`program:${source}`}>
-                    {p.name}
-                  </option>
-                ))}
-            </optgroup>
-          </select>
-        </label>
-        <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-1">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="direct" value="1" defaultChecked={directOnly} className="size-4" /> Nonstop
-          </label>
-          <Button type="submit">
-            <Plane aria-hidden="true" /> Search
-          </Button>
-        </div>
-      </form>
+      <ExplorerFilters
+        initial={initial}
+        regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
+        monthOptions={months}
+        cabins={Object.entries(CABINS).map(([value, c]) => ({ value, label: c.label }))}
+        banks={BANKS.map((b) => ({ value: b.key, label: b.name.replace(/ (Ultimate Rewards|Membership Rewards|ThankYou Points|Rewards|Miles)$/, "") }))}
+        programs={Object.entries(SOURCE_PROGRAM)
+          .map(([value, p]) => ({ value, label: p.name }))
+          .sort((a, b) => a.label.localeCompare(b.label))}
+        hasWallet={balances.size > 0}
+      />
 
-      {viaNote && <p className="text-sm text-muted-foreground">{viaNote}</p>}
-
-      {search?.mode === "off" && (
+      {!q.origins.length ? (
+        <p className="rounded-xl border border-dashed bg-card p-6 text-sm">Enter the airport you&rsquo;re flying from to start.</p>
+      ) : result && result.destinations.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-card p-6 text-sm">
-          Award search isn&apos;t connected yet. It turns on once WRLD has a Seats.aero partner key.
+          Nothing matches these filters. Try more destinations, another cabin, or fewer program filters.
         </p>
-      )}
-      {search?.sample && (
-        <p className="rounded-lg bg-travel/15 px-4 py-2 text-sm" role="note">
-          <strong>Sample results.</strong> These seats and prices are made up so you can try the explorer. Real availability appears once
-          Seats.aero access is approved.
-        </p>
-      )}
-      {search && !search.sample && search.oldestSeen && (
-        <p className="text-sm text-muted-foreground" role="note">
-          From WRLD&apos;s award cache. Checked {ago(search.oldestSeen)} or more recently; seats can disappear at any time.
-        </p>
-      )}
-      {search && search.queued.length > 0 && search.mode === "cache" && (
-        <p className="text-sm text-muted-foreground" role="note">
-          {search.queued.length} destination{search.queued.length === 1 ? " is" : "s are"} new to WRLD and will be checked in the next 15 minutes.
-        </p>
-      )}
-      {search?.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {search.error}
-        </p>
-      )}
-
-      {search && search.mode !== "off" && (
+      ) : result ? (
         <section aria-labelledby="results-h" className="grid gap-4">
-          <h2 id="results-h" className="text-xl font-semibold">
-            {groups.length
-              ? `${groups.length} destinations with ${CABINS[cabin].label.toLowerCase()} seats from ${from}`
-              : `No ${CABINS[cabin].label.toLowerCase()} award seats found from ${from} that month`}
-          </h2>
-          <ul className="grid gap-4 md:grid-cols-2">
-            {groups.map(({ dest, results }) => {
-              const best = results[0];
-              const program = programFor(best.source);
-              const wallet = program.slug ? reachBySlug.get(program.slug) : undefined;
-              const canBook = wallet && wallet.total >= best.miles;
-              const dates = [...new Map(results.map((r) => [r.date, r])).values()].sort((a, b) => a.date.localeCompare(b.date));
-              return (
-                <li key={dest} className="grid gap-3 rounded-2xl border bg-card p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-semibold">
-                        {AIRPORT_CITY[dest] ?? dest} <span className="text-sm font-normal text-muted-foreground">{dest}</span>
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {results.length} seat{results.length === 1 ? "" : "s"} on {dates.length} day{dates.length === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">from</p>
-                      <p className="font-display text-2xl font-semibold tabular-nums">{formatPoints(best.miles)}</p>
-                      <p className="text-xs text-muted-foreground">miles, one way</p>
-                    </div>
-                  </div>
-
-                  <p className="text-sm">
-                    Cheapest with <strong>{program.name}</strong> on{" "}
-                    {new Date(`${best.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
-                    {best.airlines ? `, flying ${best.airlines}` : ""}
-                    {best.direct ? ", nonstop" : ""}.
-                    {best.updatedAt && (
-                      <span className="text-muted-foreground"> {best.reported ? "Reported by a traveler" : "Seen"} {ago(best.updatedAt)}.</span>
-                    )}
-                  </p>
-                  {best.reported && /^c\d+$/.test(best.id) && <ReportedVote id={Number(best.id.slice(1))} />}
-                  {(() => {
-                    const t = typical.get(`${dest}|${best.source}`);
-                    return t ? (
-                      <p className="text-xs text-muted-foreground">
-                        Seats with {program.name} on this route have cost{" "}
-                        <strong className="text-foreground">
-                          {t.low === t.high ? formatPoints(t.low) : `${formatPoints(t.low)}–${formatPoints(t.high)}`}
-                        </strong>{" "}
-                        lately ({t.count} sightings in 90 days).
-                      </p>
-                    ) : null;
-                  })()}
-                  {priceFor(dest).map((c) => (
-                    <p key={c.source} className="text-xs text-muted-foreground">
-                      Chart price with {c.program}: <strong className="text-foreground">{formatPoints(c.points)}</strong> ({how(c)}).
-                    </p>
-                  ))}
-
-                  {canBook ? (
-                    <p className="flex items-start gap-2 rounded-lg bg-open-soft px-3 py-2 text-sm text-primary">
-                      <Check className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                      <span>
-                        <strong>Your points can book this.</strong> {wallet!.ways.join(" · ")}
-                      </span>
-                    </p>
-                  ) : wallet ? (
-                    <p className="text-sm text-muted-foreground">
-                      You can reach {formatPoints(wallet.total)} {program.name} miles; {formatPoints(best.miles - wallet.total)} short.
-                    </p>
-                  ) : null}
-
-                  <ul className="flex flex-wrap gap-1.5" aria-label="Days with seats">
-                    {dates.slice(0, 12).map((r) => (
-                      <li key={r.date} className="rounded-md border px-2 py-1 text-xs tabular-nums">
-                        {new Date(`${r.date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
-                        <span className="ml-1 font-medium">{Math.round(r.miles / 1000)}k</span>
-                      </li>
-                    ))}
-                    {dates.length > 12 && <li className="px-1 py-1 text-xs text-muted-foreground">+{dates.length - 12} more</li>}
-                  </ul>
-
-                  {program.url && (
-                    <a
-                      href={program.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex w-fit items-center gap-1 text-sm font-medium text-primary underline underline-offset-2"
-                    >
-                      Book with {program.name} <ExternalLink className="size-3.5" aria-hidden="true" />
-                    </a>
-                  )}
-                </li>
-              );
-            })}
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="results-h" className="text-xl font-semibold">
+              {result.destinations.length} destination{result.destinations.length === 1 ? "" : "s"} from {q.origins.join(", ")} · {when}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {result.seatsSeen ? `${result.seatsSeen} open seat${result.seatsSeen === 1 ? "" : "s"} reported` : "No open seats reported yet for these dates"}
+            </p>
+          </div>
+          <ul className="grid gap-4 lg:grid-cols-2">
+            {result.destinations.slice(0, 40).map((d) => (
+              <DestinationCard key={d.destination} d={d} />
+            ))}
           </ul>
-          {(() => {
-            const withSeats = new Set(groups.map((g) => g.dest));
-            const estimates = destinations
-              .filter((d) => !withSeats.has(d) && d !== from)
-              .flatMap((d) => priceFor(d).map((c) => ({ dest: d, ...c })))
-              .sort((a, b) => a.points - b.points);
-            if (!estimates.length) return null;
-            const aeroplanReach = reachBySlug.get("aircanada_aeroplan");
-            return (
-              <section aria-labelledby="chart-h" className="grid gap-3 rounded-2xl border bg-card p-4">
-                <div>
-                  <h3 id="chart-h" className="text-lg font-semibold">
-                    No seats seen yet? Here&rsquo;s what they cost when they open
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    From the published Aeroplan partner chart (checked {estimates[0].checkedOn}). Search the program to see if seats are open, then
-                    share what you find below.
-                  </p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <caption className="sr-only">Chart prices by destination</caption>
-                    <thead className="text-xs text-muted-foreground">
-                      <tr>
-                        <th scope="col" className="py-1.5 pr-3 font-medium">Destination</th>
-                        <th scope="col" className="py-1.5 pr-3 font-medium">Program</th>
-                        <th scope="col" className="py-1.5 pr-3 text-right font-medium">Points, one way</th>
-                        <th scope="col" className="py-1.5 font-medium">Your points</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {estimates.slice(0, 20).map((e) => (
-                        <tr key={`${e.dest}-${e.source}`} className="border-t">
-                          <td className="py-2 pr-3">
-                            {AIRPORT_CITY[e.dest] ?? e.dest} <span className="text-xs text-muted-foreground">{e.dest}</span>
-                            <span className="block text-xs text-muted-foreground">{how(e)}</span>
-                          </td>
-                          <td className="py-2 pr-3">
-                            {programFor(e.source).url ? (
-                              <a href={programFor(e.source).url} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
-                                {e.program}
-                              </a>
-                            ) : (
-                              e.program
-                            )}
-                          </td>
-                          <td className="py-2 pr-3 text-right font-semibold tabular-nums">{formatPoints(e.points)}</td>
-                          <td className="py-2 text-xs">
-                            {aeroplanReach && e.source === "aeroplan" ? (
-                              aeroplanReach.total >= e.points ? (
-                                <span className="font-medium text-primary">You can cover this</span>
-                              ) : (
-                                <span className="text-muted-foreground">{formatPoints(e.points - aeroplanReach.total)} short</span>
-                              )
-                            ) : (
-                              <span className="text-muted-foreground">Add balances to check</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {estimates[0].appliesTo} Destinations no partner reaches in one stop are left out. Routes from{" "}
-                  <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-                    Wikipedia
-                  </a>{" "}
-                  (CC BY-SA), refreshed weekly.
-                </p>
-              </section>
-            );
-          })()}
-          <p className="text-xs text-muted-foreground">
-            Award seats change by the minute and taxes are extra. Confirm on the airline&apos;s site before moving points: transfers usually can&apos;t be undone.
-            Card transfer ratios last checked September 2026.
-          </p>
+          {result.destinations.length > 40 && (
+            <p className="text-sm text-muted-foreground">Showing the 40 best of {result.destinations.length}. Narrow the filters to see others.</p>
+          )}
+          <Sources />
         </section>
-      )}
+      ) : null}
+
       <ReportSeatForm
-        origin={from}
-        cabin={cabin}
+        origin={q.origins[0] ?? ""}
+        cabin={q.cabins[0]}
         programs={Object.entries(SOURCE_PROGRAM)
           .map(([source, p]) => ({ source, name: p.name }))
           .sort((a, b) => a.name.localeCompare(b.name))}
-        minDate={today}
+        minDate={new Date().toISOString().slice(0, 10)}
       />
     </div>
+  );
+}
+
+function HowItWorks() {
+  return (
+    <details className="group rounded-2xl border bg-card">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <Info className="size-4 text-primary" aria-hidden="true" />
+        How the points explorer works
+        <span className="ml-auto text-xs font-normal text-muted-foreground group-open:hidden">Show</span>
+      </summary>
+      <div className="grid gap-3 px-4 pb-4 text-sm">
+        <ol className="grid gap-2 sm:grid-cols-3">
+          <li className="rounded-xl bg-muted/50 p-3">
+            <p className="font-semibold">1. Pick where and when</p>
+            <p className="text-muted-foreground">
+              Choose one or more home airports, regions or &ldquo;Anywhere,&rdquo; months or exact dates, cabins, and the cards or airlines
+              you collect.
+            </p>
+          </li>
+          <li className="rounded-xl bg-muted/50 p-3">
+            <p className="font-semibold">2. Compare the real cost</p>
+            <p className="text-muted-foreground">
+              Each option shows the points and the cash on top: government taxes, airport charges, booking fees, and whether the program
+              adds fuel surcharges.
+            </p>
+          </li>
+          <li className="rounded-xl bg-muted/50 p-3">
+            <p className="font-semibold">3. Follow the steps</p>
+            <p className="text-muted-foreground">
+              WRLD tells you which card points to transfer, how many, and where to book, for example &ldquo;Transfer 60,000 Chase points to
+              Aeroplan, then search aircanada.com.&rdquo;
+            </p>
+          </li>
+        </ol>
+        <p className="text-muted-foreground">
+          <strong className="text-foreground">Where prices come from.</strong> <em>Open seats</em> were seen on the airline&rsquo;s site by
+          WRLD travelers in the last three days, with the dates and taxes they saw. <em>Published prices</em> are what the program charges
+          when a seat is open, from its award chart, on routes where its partner airlines really fly. Always confirm the seat on the
+          airline&rsquo;s site before you transfer: transfers can&rsquo;t be undone.
+        </p>
+      </div>
+    </details>
+  );
+}
+
+function DestinationCard({ d }: { d: DestinationResult }) {
+  const [best, ...rest] = d.options;
+  return (
+    <li className="grid content-start gap-3 rounded-2xl border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-lg font-semibold">
+            {d.city} <span className="text-sm font-normal text-muted-foreground">{d.destination}</span>
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {d.options.length} way{d.options.length === 1 ? "" : "s"} to book
+          </p>
+        </div>
+        <Price o={best} big />
+      </div>
+      <OptionBody o={best} />
+      {rest.length > 0 && (
+        <details className="group rounded-xl border">
+          <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
+            <span className="group-open:hidden">
+              {rest.length} more option{rest.length === 1 ? "" : "s"}
+            </span>
+            <span className="hidden group-open:inline">Fewer options</span>
+          </summary>
+          <ul className="grid gap-3 border-t p-3">
+            {rest.map((o) => (
+              <li key={o.key} className="grid gap-2 border-b pb-3 last:border-b-0 last:pb-0">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-semibold">{o.program}</p>
+                  <Price o={o} />
+                </div>
+                <OptionBody o={o} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </li>
+  );
+}
+
+function Price({ o, big }: { o: Option; big?: boolean }) {
+  return (
+    <div className="shrink-0 text-right">
+      <p className={`${big ? "font-display text-2xl" : "text-base"} font-semibold tabular-nums`}>{formatPoints(o.points)}</p>
+      <p className="text-xs text-muted-foreground">
+        points, one way · {CABINS[o.cabin].label}
+      </p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums">+ {feeRange(o.cash.low, o.cash.high)}</p>
+      <p className="text-xs text-muted-foreground">{o.cash.reported ? "taxes & fees seen" : "taxes & fees, est."}</p>
+      {o.cash.estimate.plusSurcharges && !o.cash.reported && (
+        <p className={`text-xs ${o.cash.estimate.surcharge.level === "high" ? "text-destructive" : "text-muted-foreground"}`}>+ fuel surcharges likely</p>
+      )}
+    </div>
+  );
+}
+
+function OptionBody({ o }: { o: Option }) {
+  const c = o.chart;
+  const lowest = o.days[0] ? o.days.reduce((a, b) => (b.miles < a.miles ? b : a)) : null;
+  return (
+    <div className="grid gap-2.5 text-sm">
+      {o.kind === "seats" && lowest ? (
+        <>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex items-center gap-1 rounded-full bg-open-soft px-2 py-0.5 text-xs font-medium text-primary">
+              <Users className="size-3" aria-hidden="true" /> Open seats
+            </span>
+            <span>
+              With <strong>{o.program}</strong>, {o.origin} to {o.destination}. {lowest.reported ? "Seen by a traveler" : "Checked"} {ago(lowest.seenAt)}.
+            </span>
+          </p>
+          <ul className="flex flex-wrap gap-1.5" aria-label="Days with open seats">
+            {o.days.slice(0, 14).map((s) => (
+              <li key={s.date} className="rounded-md border px-2 py-1 text-xs tabular-nums">
+                {day(s.date)} <span className="font-medium">{Math.round(s.miles / 1000)}k</span>
+              </li>
+            ))}
+            {o.days.length > 14 && <li className="px-1 py-1 text-xs text-muted-foreground">+{o.days.length - 14} more</li>}
+          </ul>
+          {lowest.reported && <ReportedVote id={lowest.id} />}
+        </>
+      ) : c ? (
+        <p>
+          <span className="mr-1.5 inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium">Published price</span>
+          {o.program} charges this when a seat is open
+          {c.note ? ` (${c.note})` : ""}:{" "}
+          {c.basis === "route"
+            ? `${c.via ? `via ${c.via}` : "nonstop"} on ${(c.airlines ?? []).slice(0, 2).join(" or ")}${c.seasonal ? " (seasonal)" : ""}, ${c.miles.toLocaleString()} miles flown.`
+            : `${c.miles.toLocaleString()} miles nonstop distance; WRLD hasn't confirmed which partners fly it yet.`}
+        </p>
+      ) : null}
+
+      {o.typical && (
+        <p className="text-xs text-muted-foreground">
+          Seats on this route with {o.program} have cost{" "}
+          <strong className="text-foreground">
+            {o.typical.low === o.typical.high ? formatPoints(o.typical.low) : `${formatPoints(o.typical.low)}–${formatPoints(o.typical.high)}`}
+          </strong>{" "}
+          lately ({o.typical.count} sightings in 90 days).
+        </p>
+      )}
+
+      <Fees o={o} />
+
+      <div className={`rounded-xl p-3 ${o.directions.covered ? "bg-open-soft" : "bg-muted/50"}`}>
+        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+          {o.directions.covered ? (
+            <>
+              <Check className="size-3.5 text-primary" aria-hidden="true" /> Your points cover this
+            </>
+          ) : (
+            "How to book it"
+          )}
+        </p>
+        <ol className="grid gap-1">
+          {o.directions.steps.map((step, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="w-4 shrink-0 text-muted-foreground tabular-nums">{i + 1}.</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+        {o.directions.shortBy ? (
+          <p className="mt-1.5 text-xs text-muted-foreground">You&rsquo;re {formatPoints(o.directions.shortBy)} points short with the cards you&rsquo;ve added.</p>
+        ) : null}
+        {programFor(o.source).url && (
+          <a
+            href={programFor(o.source).url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary underline underline-offset-2"
+          >
+            Search {o.program} <ExternalLink className="size-3.5" aria-hidden="true" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Fees({ o }: { o: Option }) {
+  const e = o.cash.estimate;
+  const tone = e.surcharge.level === "high" ? "text-destructive" : e.surcharge.level === "none" ? "text-primary" : "text-foreground";
+  return (
+    <details className="group rounded-xl border px-3 py-2">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 text-sm focus-visible:outline-2 focus-visible:outline-ring">
+        <span className="font-medium">
+          Cash on top: {feeRange(o.cash.low, o.cash.high)}
+          {o.cash.reported ? " (what the traveler saw)" : " (estimate)"}
+        </span>
+        <span className={`text-xs ${tone}`}>
+          {e.surcharge.level === "none" ? "No fuel surcharges" : e.surcharge.level === "unknown" ? "Surcharges: check" : "Fuel surcharges may apply"}
+        </span>
+        <ArrowRight className="ml-auto size-3.5 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+      </summary>
+      <div className="mt-2 grid gap-1.5 text-xs">
+        {o.cash.reported && (
+          <p className="text-muted-foreground">
+            A traveler saw {feeRange(o.cash.low, o.cash.high)} on the airline&rsquo;s site. WRLD&rsquo;s own estimate for this trip is{" "}
+            {feeRange(e.low, e.high)}:
+          </p>
+        )}
+        <table className="w-full">
+          <caption className="sr-only">Taxes and fees</caption>
+          <tbody>
+            {e.lines.map((l) => (
+              <tr key={l.label} className="align-top">
+                <td className="py-0.5 pr-3">
+                  {l.label}
+                  {l.note && <span className="block text-muted-foreground">{l.note}</span>}
+                </td>
+                <td className="py-0.5 text-right tabular-nums">{feeRange(l.low, l.high)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className={tone}>{e.surcharge.text}</p>
+        <p className="text-muted-foreground">One way, per adult, in U.S. dollars at today&rsquo;s exchange rates.</p>
+      </div>
+    </details>
+  );
+}
+
+function Sources() {
+  return (
+    <p className="text-xs leading-relaxed text-muted-foreground">
+      Published prices: Aeroplan partner chart (from June 2026) and AAdvantage partner chart, each checked against two sources on Oct 13,
+      2026. Card transfer partners and ratios: NerdWallet and Thrifty Traveler, checked Oct 13, 2026. Taxes: U.S. (Delta&rsquo;s taxes
+      page), UK Air Passenger Duty, French, German and Dutch air taxes from their governments; airport charges are WRLD estimates. Routes
+      from{" "}
+      <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+        Wikipedia
+      </a>{" "}
+      (CC BY-SA), refreshed weekly. Exchange rates: European Central Bank via Frankfurter. Programs change prices without notice; confirm on
+      the airline&rsquo;s site before transferring points.
+    </p>
   );
 }

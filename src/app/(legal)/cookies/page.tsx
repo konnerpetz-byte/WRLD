@@ -13,9 +13,9 @@ export default function CookiesPage() {
       <p className="text-muted-foreground">Last updated {LEGAL_UPDATED}</p>
 
       <p>
-        Cookies are small files a website stores in your browser. WRLD uses as few as possible. Inside the app, only the ones needed
-        to keep you signed in, which are strictly necessary. Our public home page also loads one travel partner&rsquo;s script for
-        signed-out visitors (below).
+        Cookies are small files a website stores in your browser. WRLD uses as few as possible: only the ones needed to keep you
+        signed in. Because they&rsquo;re strictly necessary, we don&rsquo;t ask for consent with a cookie banner. If we ever add
+        cookies that aren&rsquo;t necessary, we&rsquo;ll ask first.
       </p>
 
       <h2>Cookies we use</h2>
@@ -47,21 +47,13 @@ export default function CookiesPage() {
         </table>
       </div>
 
-      <h2>Travel partner script (home page only)</h2>
-      <p>
-        For visitors who aren&rsquo;t signed in, our home page loads the Travelpayouts partner script. It stores its own identifiers
-        (today a first-party cookie named <code>am_user_session</code> and one browser storage entry) so that a booking you make on a partner site (for example GetYourGuide) is credited to WRLD. We
-        don&rsquo;t load it on any signed-in page, if your browser sends Global Privacy Control or Do Not Track, or for visitors in
-        Europe or the UK, where we&rsquo;d need to ask first. Turning on Global Privacy Control in your browser switches it off.
-      </p>
-
       <h2>What we don&rsquo;t use</h2>
       <ul>
-        <li>No retargeting or social media cookies or pixels.</li>
+        <li>No advertising, retargeting or social media cookies or pixels.</li>
         <li>
           No analytics cookies. Vercel Web Analytics counts visits without cookies or anything stored on your device.
         </li>
-        <li>No cross-site tracking inside the app.</li>
+        <li>No cross-site tracking.</li>
       </ul>
 
       <h2>Other sites</h2>

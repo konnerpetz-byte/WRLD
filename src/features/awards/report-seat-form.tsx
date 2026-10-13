@@ -27,8 +27,8 @@ export function ReportSeatForm({ origin, cabin, programs, minDate }: { origin: s
           <Megaphone className="size-5 text-brand" aria-hidden="true" /> Found a seat? Share it
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Saw award space on an airline&rsquo;s site? Share it and other WRLD travelers see it for three days, marked as reported by a
-          traveler. This is how WRLD builds its own seat data.
+          Saw award space on an airline&rsquo;s site? Share it, with the taxes the airline showed, and other WRLD travelers see it for three
+          days, marked as reported by a traveler. This is how WRLD builds its own seat data.
         </p>
       </div>
       <div role="tablist" aria-label="How to share" className="flex w-fit gap-1 rounded-lg bg-muted p-1 text-sm">
@@ -111,7 +111,7 @@ function Status({ state }: { state: ReportState }) {
 function OneSeat({ origin, cabin, programs, minDate }: { origin: string; cabin: string; programs: Programs; minDate: string }) {
   const [state, action, pending] = useActionState<ReportState, FormData>(reportAwardSeat, {});
   return (
-    <form action={action} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[6rem_6rem_1.4fr_1fr_1fr_8rem]">
+    <form action={action} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[6rem_6rem_1.4fr_1fr_1fr_8rem_9rem]">
       <RouteFields origin={origin} cabin={cabin} programs={programs} prefix="rep" />
       <div className="grid gap-1.5">
         <Label htmlFor="rep-date" className="text-xs">Date</Label>
@@ -121,10 +121,21 @@ function OneSeat({ origin, cabin, programs, minDate }: { origin: string; cabin: 
         <Label htmlFor="rep-miles" className="text-xs">Points, one way</Label>
         <Input id="rep-miles" name="miles" type="number" inputMode="numeric" min={1000} step={500} required placeholder="75000" />
       </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="rep-taxes" className="text-xs">Taxes and fees</Label>
+        <div className="flex gap-1">
+          <NativeSelect aria-label="Currency" name="tax_currency" defaultValue="USD" className="w-[4.5rem] px-1">
+            {["USD", "CAD", "EUR", "GBP", "AUD"].map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </NativeSelect>
+          <Input id="rep-taxes" name="taxes" type="number" inputMode="decimal" min={0} step="0.01" placeholder="5.60" />
+        </div>
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="direct" className="size-4 accent-primary" /> Nonstop
       </label>
-      <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-5 lg:justify-end">
+      <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-6 lg:justify-end">
         <Status state={state} />
         <Button type="submit" disabled={pending}>
           {pending ? "Sharing…" : "Share this seat"}
@@ -147,8 +158,8 @@ function PasteCalendar({ origin, cabin, programs }: { origin: string; cabin: str
           <ClipboardPaste className="size-4" aria-hidden="true" /> Paste the airline&rsquo;s results
         </Label>
         <p id="paste-help" className="text-xs text-muted-foreground">
-          On the airline&rsquo;s award calendar or results page, select the dates and prices, copy, and paste here. WRLD reads each date
-          and its lowest points price for you to check.
+          On the airline&rsquo;s award calendar or results page, select the dates and prices, copy, and paste here. WRLD reads each date,
+          its lowest points price and the taxes shown with it, for you to check.
         </p>
         <Textarea id="paste-text" name="pasted" rows={5} aria-describedby="paste-help" placeholder={"Sun, May 16\n75,000 miles + $5.60\nMon, May 17\n60.5k miles"} />
         <div className="flex items-center gap-3">
@@ -185,7 +196,14 @@ function PasteCalendar({ origin, cabin, programs }: { origin: string; cabin: str
                     <span className="tabular-nums">
                       {new Date(`${r.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
                     </span>
-                    <span className="ml-auto font-semibold tabular-nums">{r.miles.toLocaleString()}</span>
+                    <span className="ml-auto text-right font-semibold tabular-nums">
+                      {r.miles.toLocaleString()}
+                      {r.taxes != null && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          + {r.taxes.toLocaleString("en-US", { style: "currency", currency: r.taxCurrency ?? "USD" })}
+                        </span>
+                      )}
+                    </span>
                   </label>
                 </li>
               ))}

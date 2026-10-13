@@ -26,10 +26,7 @@ export default function PrivacyPage() {
       <ul>
         <li>We collect only what the app needs to plan your trips.</li>
         <li>We don&rsquo;t sell or share your personal information for advertising, and we don&rsquo;t show ads.</li>
-        <li>
-          Inside the app we use only the cookies needed to keep you signed in. Our home page also loads a travel partner&rsquo;s
-          script for signed-out visitors (see Travelpayouts below).
-        </li>
+        <li>We use only the cookies needed to keep you signed in. Our visitor statistics don&rsquo;t use cookies.</li>
         <li>You can get a copy of, correct or delete your information at any time.</li>
       </ul>
 
@@ -111,13 +108,6 @@ export default function PrivacyPage() {
           which see your IP address and the search (a city and a kind of activity), never your name or email.
         </li>
         <li>
-          <strong>Travelpayouts</strong>: on our public home page only, for visitors who aren&rsquo;t signed in, we load the
-          Travelpayouts partner script. It can turn travel links into partner links and store a cookie or similar identifier so a
-          booking you make on a partner site is credited to WRLD. It sees your IP address and browser details. We don&rsquo;t load
-          it on any signed-in page, if your browser sends Global Privacy Control or Do Not Track, or for visitors in Europe or the
-          UK.
-        </li>
-        <li>
           <strong>Images from other sites:</strong> tour photos and previews of links you save (for example from TikTok, Instagram or
           YouTube) load from those companies&rsquo; servers, which can see your IP address.
         </li>
@@ -140,8 +130,8 @@ export default function PrivacyPage() {
       <p>
         We use Vercel Web Analytics to count visits and see which pages are used. It doesn&rsquo;t use cookies, doesn&rsquo;t store
         anything on your device and doesn&rsquo;t follow you to other sites. We don&rsquo;t use advertising trackers or social media
-        pixels. The one partner script on our home page (Travelpayouts, above) is switched off when your browser sends a
-        &ldquo;Do Not Track&rdquo; or Global Privacy Control signal. More in the{" "}
+        pixels. Because we don&rsquo;t track you across sites, there&rsquo;s nothing for a browser &ldquo;Do Not Track&rdquo; or
+        Global Privacy Control signal to turn off. More in the{" "}
         <Link href="/cookies" className="text-primary underline underline-offset-2">
           Cookie Policy
         </Link>

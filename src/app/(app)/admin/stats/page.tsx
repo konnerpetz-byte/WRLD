@@ -256,7 +256,7 @@ async function Connections() {
     {
       name: "GetYourGuide",
       ok: affiliateStatus().getYourGuide,
-      note: affiliateStatus().getYourGuide ? "Tracking added to every link." : "Waiting for the Travelpayouts link format (TRAVELPAYOUTS_GYG_P).",
+      note: affiliateStatus().getYourGuide ? "Tracking added to every link." : "Partner ID missing.",
     },
     {
       name: "Seats.aero (award flights)",

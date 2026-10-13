@@ -23,10 +23,7 @@ export function track(event: TrackEvent) {
 /** "viator", "getyourguide"… from a booking link, for the per-site breakdown. */
 export function providerOf(url: string | null | undefined): string {
   try {
-    let u = new URL(url ?? "");
-    // Travelpayouts redirect: the destination is in "u".
-    if (u.hostname === "tp.media" && u.searchParams.get("u")) u = new URL(u.searchParams.get("u")!);
-    const host = u.hostname.replace(/^www\./, "");
+    const host = new URL(url ?? "").hostname.replace(/^www\./, "");
     if (host.endsWith("viator.com")) return "viator";
     if (host.endsWith("getyourguide.com")) return "getyourguide";
     if (host.endsWith("tripadvisor.com")) return "tripadvisor";

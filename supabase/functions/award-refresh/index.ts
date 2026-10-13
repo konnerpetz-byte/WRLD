@@ -8,8 +8,8 @@
 // Data sources are adapters with the same output shape:
 //   seats_aero  Seats.aero partner API (cached search). Turned on by the
 //               SEATS_AERO_API_KEY secret, once Seats.aero approves commercial use.
-//   sample      Realistic made-up seats so the engine runs end to end before a
-//               licensed source exists. Labeled "Sample" in the app.
+// Without a key it does nothing: WRLD never shows made-up seats. The explorer
+// runs on published award charts and traveler reports instead.
 // Never add an adapter that scrapes airline sites or gets around blocking.
 //
 // Auth: verify_jwt is off because the caller is pg_cron; the x-wrld-cron header
@@ -77,55 +77,6 @@ function seatsAero(key: string): Adapter {
 }
 class RateLimited extends Error {}
 
-// ---------------------------------------------------------------- Sample
-const BASE: Record<string, [number, number]> = {
-  LHR: [26, 60], CDG: [30, 60], AMS: [30, 60], FRA: [30, 70], MUC: [30, 70], MAD: [30, 60], BCN: [30, 60], LIS: [30, 60],
-  FCO: [30, 70], ATH: [35, 70], DUB: [26, 50], ZRH: [30, 70], VIE: [30, 70], CPH: [30, 60], IST: [35, 45], EDI: [26, 57],
-  MXP: [30, 70], PRG: [30, 70], HND: [35, 75], NRT: [35, 75], KIX: [35, 75], ICN: [35, 75], TPE: [35, 75], HKG: [40, 85],
-  SIN: [40, 85], BKK: [40, 85], MNL: [40, 85], DEL: [40, 80], CUN: [12, 25], MEX: [12, 25], SJD: [12, 25], SJU: [10, 25],
-  PUJ: [12, 25], LIR: [12, 30], BOG: [15, 35], LIM: [20, 40], GRU: [30, 60], EZE: [30, 60], SCL: [30, 60], DXB: [40, 80],
-  DOH: [40, 70], AUH: [40, 70], TLV: [40, 75], CAI: [40, 75], CPT: [45, 80], JNB: [45, 80], NBO: [45, 80], RAK: [35, 70],
-  SYD: [45, 85], MEL: [45, 85], BNE: [45, 85], AKL: [45, 85], HNL: [20, 40], NAN: [35, 70], PPT: [35, 70],
-};
-const PROGRAMS: Record<string, string> = {
-  united: "UA", aeroplan: "AC, LH", flyingblue: "AF, KL", american: "AA, BA", delta: "DL, VS", british: "BA", virginatlantic: "VS, DL", alaska: "AS, JL", turkish: "TK",
-};
-const FACTOR: Record<Cabin, number> = { economy: 1, premium: 1.6, business: 1, first: 1.5 };
-function hash(s: string) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  return (h >>> 0) / 4294967295;
-}
-const sample: Adapter = {
-  name: "sample",
-  days: 120,
-  async fetch(r, start, end) {
-    const [eco, biz] = BASE[r.destination] ?? [15, 40];
-    // A slow drift by week, so refreshes show seats opening, closing and repricing like real data.
-    const week = Math.floor(Date.now() / (7 * 86400000));
-    const out: Seat[] = [];
-    for (let d = new Date(`${start}T12:00:00Z`); d <= new Date(`${end}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
-      const date = d.toISOString().slice(0, 10);
-      for (const [program, airlines] of Object.entries(PROGRAMS)) {
-        if (hash(`${r.origin}${r.destination}${date}${program}${r.cabin}${week}`) > 0.12) continue;
-        const base = (r.cabin === "economy" || r.cabin === "premium" ? eco : biz) * FACTOR[r.cabin];
-        const miles = Math.round((base * (1 + hash(`${r.destination}${date}${program}${week}`) * 1.4)) / 2.5) * 2500;
-        out.push({
-          travel_date: date,
-          program,
-          miles,
-          taxes: Math.round(hash(`${date}${program}tax`) * 250 + 6),
-          tax_currency: "USD",
-          seats: 1 + Math.floor(hash(`${date}${program}seats`) * 4),
-          airlines,
-          direct: hash(`${r.destination}${program}direct`) > 0.55,
-        });
-      }
-    }
-    return out;
-  },
-};
-
 // ---------------------------------------------------------------- Worker
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "Use POST" });
@@ -147,8 +98,9 @@ Deno.serve(async (req) => {
   if (ok !== true) return json(401, { error: "Unauthorized" });
 
   const key = Deno.env.get("SEATS_AERO_API_KEY");
-  const adapter = key ? seatsAero(key) : sample;
-  const limit = key ? 20 : 40;
+  if (!key) return json(200, { source: "none", routes: 0 });
+  const adapter = seatsAero(key);
+  const limit = 20;
 
   const { data: routes, error } = await db.rpc("claim_award_routes", { p_limit: limit });
   if (error) return json(500, { error: error.message });

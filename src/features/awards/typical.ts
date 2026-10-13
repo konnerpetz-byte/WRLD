@@ -9,24 +9,25 @@ export type Typical = { low: number; high: number; count: number };
 /**
  * What seats on a route have actually cost lately: the middle half of every
  * real sighting (licensed data and traveler reports, never sample data) in the
- * last 90 days, per destination and program. Shown once there are 3+ sightings.
+ * last 90 days, per route, cabin and program. Shown once there are 3+ sightings.
+ * Key: "origin|destination|cabin|program".
  */
-export async function typicalPrices(supabase: Supabase, origin: string, destinations: string[], cabin: string) {
+export async function typicalPrices(supabase: Supabase, origins: string[], destinations: string[], cabins: string[]) {
   const since = new Date(Date.now() - 90 * 86400000).toISOString();
   const { data } = await supabase
     .from("award_availability_history")
-    .select("destination, program, miles, data_source")
-    .eq("origin", origin)
-    .eq("cabin", cabin)
-    .in("destination", destinations.slice(0, 60))
+    .select("origin, destination, cabin, program, miles")
+    .in("origin", origins)
+    .in("cabin", cabins)
+    .in("destination", destinations.slice(0, 120))
     .in("change", ["opened", "cheaper", "pricier"])
     .neq("data_source", "sample")
     .gte("observed_at", since)
     .not("miles", "is", null)
-    .limit(5000);
+    .limit(1000);
   const groups = new Map<string, number[]>();
   for (const r of data ?? []) {
-    const key = `${r.destination}|${r.program}`;
+    const key = `${r.origin}|${r.destination}|${r.cabin}|${r.program}`;
     groups.set(key, [...(groups.get(key) ?? []), Number(r.miles)]);
   }
   const out = new Map<string, Typical>();

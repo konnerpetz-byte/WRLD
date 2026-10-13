@@ -10,17 +10,17 @@ const dev = process.env.NODE_ENV !== "production";
  * allowed, but only from this site. Everything else is locked to the hosts
  * the app really uses: Supabase (sign-in, chat, photos) and the map tiles.
  */
-const policy = (extra: { script?: string; connect?: string; frame?: string; style?: string; font?: string } = {}) => [
+const policy = () => [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}${extra.script ?? ""}`,
-  `style-src 'self' 'unsafe-inline'${extra.style ?? ""}`,
+  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  `font-src 'self' data:${extra.font ?? ""}`,
-  `connect-src 'self' https://${supabase} wss://${supabase} https://tiles.openfreemap.org ${mapStyle}${extra.connect ?? ""}`.trim(),
+  "font-src 'self' data:",
+  `connect-src 'self' https://${supabase} wss://${supabase} https://tiles.openfreemap.org ${mapStyle}`.trim(),
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
   // GetYourGuide panels are plain sandboxed iframes (src/features/experiences/gyg-widget.tsx).
-  `frame-src https://widget.getyourguide.com${extra.frame ?? ""}`,
+  "frame-src https://widget.getyourguide.com",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -28,20 +28,6 @@ const policy = (extra: { script?: string; connect?: string; frame?: string; styl
   "manifest-src 'self'",
   ...(dev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
-
-/**
- * The public home page also loads the Travelpayouts partner script
- * (src/components/partners/partner-script.tsx), only for signed-out visitors.
- * It pulls widgets from hosts Travelpayouts doesn't publish, so this one page
- * allows HTTPS scripts. No signed-in page does: the app keeps the strict policy.
- */
-const homeCsp = policy({
-  script: " https:",
-  connect: " https:",
-  frame: " https:",
-  style: " https://fonts.googleapis.com",
-  font: " https://fonts.gstatic.com",
-});
 
 const headersWith = (csp: string) => [
   { key: "Content-Security-Policy", value: csp },
@@ -62,8 +48,7 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
   async headers() {
     return [
-      { source: "/", headers: headersWith(homeCsp) },
-      { source: "/:path+", headers: headersWith(policy()) },
+      { source: "/:path*", headers: headersWith(policy()) },
     ];
   },
   // Points wallet and Points flights became one Points explorer.

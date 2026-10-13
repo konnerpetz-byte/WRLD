@@ -10,8 +10,6 @@ export type ExploreResult = {
   /** "cache": from WRLD's own award cache; otherwise the direct source used as a fallback. */
   mode: "cache" | AwardMode;
   results: AwardResult[];
-  /** Any result is made-up sample data. */
-  sample: boolean;
   /** Oldest "seen at" among results from the cache, so the page can say how fresh they are. */
   oldestSeen: string | null;
   /** Destinations the engine hasn't checked yet (queued; shown from the direct source meanwhile). */
@@ -48,18 +46,18 @@ export async function exploreAwards(
 
   const cached: AwardResult[] = [];
   let oldestSeen: string | null = null;
-  let sample = false;
   {
     // Cached seats for checked routes, plus traveler reports on any route (last three days only).
     let query = supabase
       .from("award_availability")
-      .select("id, origin, destination, travel_date, program, cabin, miles, seats, airlines, direct, data_source, seen_at")
+      .select("id, origin, destination, travel_date, program, cabin, miles, seats, airlines, direct, data_source, seen_at, taxes, tax_currency")
       .eq("origin", q.origin)
       .eq("cabin", q.cabin)
       .in("destination", q.destinations.slice(0, 60))
       .gte("travel_date", q.start)
       .lte("travel_date", q.end)
       .is("closed_at", null)
+      .neq("data_source", "sample")
       .order("miles", { ascending: true })
       .limit(3000);
     if (q.sources?.length) query = query.in("program", q.sources);
@@ -69,12 +67,8 @@ export async function exploreAwards(
     const rows = (data ?? []).filter((r) =>
       r.data_source === "community" ? Date.parse(r.seen_at) >= fresh : checked.has(r.destination),
     );
-    // Once a licensed source has data, never mix sample seats in.
-    const hasLicensed = rows.some((r) => r.data_source !== "sample" && r.data_source !== "community");
     for (const row of rows) {
-      if (hasLicensed && row.data_source === "sample") continue;
       const reported = row.data_source === "community";
-      if (row.data_source === "sample") sample = true;
       if (!reported && (!oldestSeen || row.seen_at < oldestSeen)) oldestSeen = row.seen_at;
       cached.push({
         id: `c${row.id}`,
@@ -89,6 +83,8 @@ export async function exploreAwards(
         direct: row.direct,
         updatedAt: row.seen_at,
         reported,
+        taxes: row.taxes === null ? null : Number(row.taxes),
+        taxCurrency: row.tax_currency,
       });
     }
   }
@@ -96,13 +92,11 @@ export async function exploreAwards(
   let direct: { mode: AwardMode; results: AwardResult[]; error?: string } = { mode: "off", results: [] };
   if (queued.length) {
     direct = await searchAwards({ ...q, destinations: queued });
-    if (direct.mode === "sample" && direct.results.length) sample = true;
   }
 
   return {
     mode: checked.size ? "cache" : direct.mode,
     results: [...cached, ...direct.results],
-    sample,
     oldestSeen,
     queued,
     error: direct.error,

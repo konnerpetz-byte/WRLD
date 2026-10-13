@@ -6,11 +6,11 @@ import { z } from "zod";
 import { requireUserId } from "@/lib/supabase/server";
 
 import { chartPrices } from "./charts";
-import { seatsFromText } from "./paste";
+import { type PastedSeat, seatsFromText } from "./paste";
 import { SOURCE_PROGRAM } from "./regions";
 
 export type ReportState = { ok?: boolean; error?: string; note?: string };
-export type PasteState = { rows?: { date: string; miles: number }[]; error?: string };
+export type PasteState = { rows?: PastedSeat[]; error?: string };
 
 const route = {
   origin: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "Use a 3-letter airport code."),
@@ -19,8 +19,14 @@ const route = {
   cabin: z.enum(["economy", "premium", "business", "first"]),
   direct: z.preprocess((v) => v === "on" || v === true, z.boolean()),
 };
+const CURRENCIES = ["USD", "CAD", "EUR", "GBP", "AUD"] as const;
+const taxes = {
+  taxes: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.coerce.number().min(0, "Taxes can't be negative.").max(5000, "That looks too high.").optional()),
+  tax_currency: z.enum(CURRENCIES).default("USD"),
+};
 const single = z.object({
   ...route,
+  ...taxes,
   date: z.iso.date("Pick the date."),
   miles: z.coerce.number().int("Whole points only.").min(1000, "That looks too low.").max(1000000),
 });
@@ -37,7 +43,7 @@ function sanity(r: { origin: string; destination: string; program: string; cabin
   return null;
 }
 
-async function save(rows: { origin: string; destination: string; date: string; program: string; cabin: string; miles: number; direct: boolean }[]) {
+async function save(rows: { origin: string; destination: string; date: string; program: string; cabin: string; miles: number; direct: boolean; taxes?: number; tax_currency?: string }[]) {
   const { supabase } = await requireUserId();
   for (const r of rows) {
     const { error } = await supabase.rpc("report_award_seat", {
@@ -48,6 +54,8 @@ async function save(rows: { origin: string; destination: string; date: string; p
       p_cabin: r.cabin,
       p_miles: r.miles,
       p_direct: r.direct,
+      p_taxes: r.taxes ?? null,
+      p_tax_currency: r.taxes == null ? null : (r.tax_currency ?? "USD"),
     });
     if (error) return error.message.includes("20 reports") ? error.message : "Couldn't save that. Check the date is in the next year.";
   }
@@ -65,7 +73,7 @@ export async function reportAwardSeat(_: ReportState, formData: FormData): Promi
   const error = await save([r]);
   if (error) return { error };
   revalidatePath("/points");
-  return { ok: true, note: "Thanks! Other travelers will see it for the next three days." };
+  return { ok: true, note: r.taxes == null ? "Thanks! Other travelers will see it for the next three days. Adding the taxes next time helps them more." : "Thanks! Other travelers will see it for the next three days." };
 }
 
 /**
@@ -82,7 +90,10 @@ export async function readPastedSeats(_: PasteState, formData: FormData): Promis
 
 const many = z.object({
   ...route,
-  rows: z.array(z.object({ date: z.iso.date(), miles: z.number().int().min(1000).max(1000000) })).min(1).max(20),
+  rows: z
+    .array(z.object({ date: z.iso.date(), miles: z.number().int().min(1000).max(1000000), taxes: z.number().min(0).max(5000).optional(), taxCurrency: z.enum(CURRENCIES).optional() }))
+    .min(1)
+    .max(20),
 });
 
 export async function reportManySeats(_: ReportState, formData: FormData): Promise<ReportState> {
@@ -100,7 +111,7 @@ export async function reportManySeats(_: ReportState, formData: FormData): Promi
     const warning = sanity({ ...r, miles: row.miles });
     if (warning) return { error: `${row.date}: ${warning}` };
   }
-  const error = await save(r.rows.map((row) => ({ ...r, ...row })));
+  const error = await save(r.rows.map((row) => ({ ...r, date: row.date, miles: row.miles, taxes: row.taxes, tax_currency: row.taxCurrency })));
   if (error) return { error };
   revalidatePath("/points");
   return { ok: true, note: `Shared ${r.rows.length} ${r.rows.length === 1 ? "seat" : "seats"}. Thank you!` };
