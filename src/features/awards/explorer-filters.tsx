@@ -39,7 +39,7 @@ function toParams(s: FilterState) {
   if (s.programs.length) p.set("programs", s.programs.join(","));
   if (s.mine) p.set("mine", "1");
   if (s.direct) p.set("direct", "1");
-  if (s.sort && s.sort !== "points") p.set("sort", s.sort);
+  if (s.sort && s.sort !== "value") p.set("sort", s.sort);
   return p;
 }
 
@@ -343,6 +343,7 @@ export function ExplorerFilters({
         <label className="flex items-center gap-2">
           <span className="text-muted-foreground">Sort by</span>
           <select value={s.sort} onChange={(e) => set("sort", e.target.value)} className="h-8 rounded-md border bg-background px-2">
+            <option value="value">Best deal</option>
             <option value="points">Fewest points</option>
             <option value="cash">Lowest taxes and fees</option>
             {hasWallet && <option value="mine">What my points cover</option>}

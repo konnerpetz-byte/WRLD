@@ -1,9 +1,11 @@
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { monthOptions, parseQuery, runExplorer, type Wallet } from "@/features/awards/engine";
-import { AboutPrices, DestinationRow } from "@/features/awards/explorer-results";
+import type { DestinationResult } from "@/features/awards/engine";
+import { AboutPrices, DestinationRow, verdict } from "@/features/awards/explorer-results";
 import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
 import { LiveLink } from "@/features/awards/live-link";
 import { cashFaresEnabled } from "@/features/awards/cash-fares";
@@ -154,6 +156,7 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
               {when}. {result.seatsSeen ? `${result.seatsSeen} open seat${result.seatsSeen === 1 ? "" : "s"} reported` : "No open seats reported yet"}
             </p>
           </div>
+          <BestDeal destinations={result.destinations} />
           <ul className="grid gap-2">
             {result.destinations.slice(0, 40).map((d, i) => (
               <DestinationRow key={d.destination} d={d} date={q.start} defaultOpen={i === 0} />
@@ -165,14 +168,25 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
         </section>
       ) : null}
 
-      <ReportSeatForm
-        origin={q.origins[0] ?? ""}
-        cabin={q.cabins[0]}
-        programs={Object.entries(SOURCE_PROGRAM)
-          .map(([source, p]) => ({ source, name: p.name }))
-          .sort((a, b) => a.name.localeCompare(b.name))}
-        minDate={new Date().toISOString().slice(0, 10)}
-      />
+      <details className="group rounded-2xl border bg-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-4 focus-visible:outline-2 focus-visible:outline-ring">
+          <span>
+            <span className="block font-medium">Saw a points price on an airline&rsquo;s site?</span>
+            <span className="block text-sm text-muted-foreground">Add it so it shows here for everyone for three days.</span>
+          </span>
+          <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="border-t p-1">
+          <ReportSeatForm
+            origin={q.origins[0] ?? ""}
+            cabin={q.cabins[0]}
+            programs={Object.entries(SOURCE_PROGRAM)
+              .map(([source, p]) => ({ source, name: p.name }))
+              .sort((a, b) => a.name.localeCompare(b.name))}
+            minDate={new Date().toISOString().slice(0, 10)}
+          />
+        </div>
+      </details>
 
       <AboutPrices />
     </div>
@@ -180,3 +194,25 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
 }
 
 
+
+/** The one-line answer before the list: the best deal in this search, points against cash. */
+function BestDeal({ destinations }: { destinations: DestinationResult[] }) {
+  const wins = destinations
+    .map((d) => ({ d, v: verdict(d) }))
+    .filter((x) => x.v.win === "points" && x.v.points)
+    .sort((a, b) => b.v.saves - a.v.saves);
+  const top = wins[0];
+  if (!top) return null;
+  const o = top.v.points!;
+  return (
+    <p className="rounded-2xl bg-sidebar px-5 py-4 text-sidebar-foreground">
+      <span className="block text-sm text-sidebar-foreground/80">Best deal in this search</span>
+      <span className="block font-semibold text-brand-cream">
+        {top.d.city}: {o.points.toLocaleString("en-US")} {o.program} points + ${o.cash.low} instead of a ${Math.round(top.v.fare!)} fare.
+      </span>
+      <span className="block text-sm text-sidebar-foreground/80">
+        {wins.length > 1 ? `Points beat cash on ${wins.length} of ${destinations.length} destinations.` : "Open it below for the steps."}
+      </span>
+    </p>
+  );
+}

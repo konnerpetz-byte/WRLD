@@ -23,8 +23,12 @@ export type Alliance = "star" | "oneworld" | "skyteam";
 type Place = { code: string; country: string };
 
 export type ChartProgram = {
+  /** Unique per chart; several charts can share one program (Virgin on Delta, on ANA, on its own flights). */
+  id?: string;
   source: string; // matches SOURCE_PROGRAM keys
   name: string;
+  /** Whose flights, in a few words, e.g. "on ANA" */
+  label?: string;
   /** Airlines whose flights this chart prices (by operating airline name) */
   covers: (airline: string) => boolean;
   /** Airlines bookable with this program but priced dynamically (shown, never estimated) */
@@ -33,9 +37,14 @@ export type ChartProgram = {
   appliesTo: string;
   checkedOn: string;
   sources: string[];
+  /** Each flight is priced on its own and the prices add up (Virgin Atlantic on Delta). */
+  perSegment?: boolean;
   /** One-way price for the trip, or null if the chart doesn't price it. `miles` = distance flown. */
-  price: (o: Place, d: Place, miles: number, cabin: Cabin, date?: string | null) => { points: number; note?: string } | null;
+  price: (o: Place, d: Place, miles: number, cabin: Cabin, date?: string | null) => Priced | null;
 };
+
+/** A price, or a range when the program prices by demand within published limits. */
+type Priced = { points: number; pointsHigh?: number; note?: string };
 
 function bandPrice(zoneOf: (c: string) => Zone | null, bands: Partial<Record<`${Zone}-${Zone}`, Band[]>>) {
   return (o: Place, d: Place, miles: number, cabin: Cabin) => {
@@ -167,7 +176,140 @@ const AADVANTAGE: ChartProgram = {
   },
 };
 
-export const CHART_PROGRAMS: ChartProgram[] = [AEROPLAN, AADVANTAGE];
+// Virgin Atlantic Flying Club on Delta flights: priced by the distance of each
+// flight, added up per flight (so it shines on nonstops). Main Cabin and
+// First/Delta One columns: AwardWallet "How to book Delta flights for 7,500
+// points" (July 11, 2026) and AwardTravelFinder's Virgin chart (verified June
+// 2026, domestic 5,000 to 12,500 and Delta One to Europe 50,000). Mainland
+// Europe is a zone price (Main Cabin 30,000, Delta One 50,000: The Points Guy,
+// Jan 2021, still honored per AwardTravelFinder 2026). UK flights are zone
+// priced with peak dates; not entered until two current sources agree.
+const VS_DELTA_BANDS: [number, number, number][] = [
+  // up to miles, Main Cabin, First / Delta One
+  [500, 7500, 21000],
+  [1000, 11000, 41500],
+  [1500, 16500, 59500],
+  [2000, 18500, 66500],
+  [3000, 22000, 70000],
+  [4000, 35000, 80000],
+  [5000, 44000, 105000],
+  [6000, 49500, 130000],
+  [Infinity, 65500, 165000],
+];
+const MAINLAND_EUROPE = new Set([...ATLANTIC].filter((c) => c !== "GB" && c !== "IE"));
+const VIRGIN_ATLANTIC: ChartProgram = {
+  id: "virginatlantic-delta",
+  source: "virginatlantic",
+  name: "Virgin Atlantic Flying Club",
+  label: "on Delta",
+  appliesTo: "Delta flights. Each flight is priced by its distance and connections add up, so nonstops are the deal. Delta has to release the seat to partners.",
+  covers: (a) => /^delta/i.test(a),
+  perSegment: true,
+  checkedOn: "2026-10-13",
+  sources: [
+    "https://awardwallet.com/airlines/delta-skymiles/low-cost-award-flights/",
+    "https://awardtravelfinder.com/award-charts/virgin-atlantic",
+    "https://thepointsguy.com/news/virgin-axes-delta-sweet-spot",
+  ],
+  price: (o, d, miles, cabin) => {
+    if (cabin === "premium") return null;
+    const uk = (p: Place) => p.country === "GB" || p.country === "IE";
+    if (uk(o) || uk(d)) {
+      // Delta One to the UK: 47,500 off-peak, 57,500 peak (Prince of Travel, Oct 2026; AwardFares, Jul 2026).
+      const na = NORTH_AMERICA.has(o.country) || NORTH_AMERICA.has(d.country);
+      return na && cabin !== "economy" ? { points: 47500, pointsHigh: 57500, note: "Delta One; peak dates cost more" } : null;
+    }
+    const europe = MAINLAND_EUROPE.has(o.country) || MAINLAND_EUROPE.has(d.country);
+    if (europe) {
+      const na = NORTH_AMERICA.has(o.country) || NORTH_AMERICA.has(d.country);
+      if (!na) return null;
+      return cabin === "economy" ? { points: 30000 } : { points: 50000, note: "Delta One" };
+    }
+    const band = VS_DELTA_BANDS.find(([upTo]) => miles <= upTo)!;
+    return cabin === "economy" ? { points: band[1] } : { points: band[2], note: "Delta First or Delta One" };
+  },
+};
+
+// Virgin Atlantic on its own flights, North America to the UK. Dynamic "Saver"
+// prices between a floor and a published ceiling, higher on peak dates.
+// Floors (economy 6,000, Premium 10,500, Upper Class 28,500 to 29,000): AwardFares
+// Flying Club guide (Jul 10, 2026) and Prince of Travel (Oct 8, 2026). Ceilings,
+// standard / peak (Northeast: economy 10,000 / 20,000, Upper Class 47,500 /
+// 57,500): AwardFares, matched by AwardLocker and AwardTravelFinder (Jun 2026).
+// West Coast floors and ceilings from AwardFares, within AwardTravelFinder's ranges.
+const VS_OWN: Record<"east" | "west", Record<Exclude<Cabin, "first">, [number, number, number]>> = {
+  // floor, standard ceiling, peak ceiling
+  east: { economy: [6000, 10000, 20000], premium: [10500, 17500, 27500], business: [28500, 47500, 57500] },
+  west: { economy: [9000, 15000, 25000], premium: [16500, 27500, 37500], business: [40500, 67500, 77500] },
+};
+/** West Coast and Western Canada (Pacific and western Mountain time): west of 110°W. */
+const isWest = (code: string) => (airportByCode(code)?.longitude ?? 0) < -110;
+const VIRGIN_OWN: ChartProgram = {
+  id: "virginatlantic-own",
+  source: "virginatlantic",
+  name: "Virgin Atlantic Flying Club",
+  label: "on Virgin Atlantic",
+  appliesTo: "Virgin Atlantic's own flights to the UK. Saver prices move with demand between a floor and a published ceiling; peak dates cost more. Fuel surcharges apply.",
+  covers: (a) => /^virgin atlantic/i.test(a),
+  checkedOn: "2026-10-13",
+  sources: ["https://awardfares.com/blog/flying-club-guide/", "https://princeoftravel.com/points-programs/virgin-atlantic-flying-club/", "https://awardlocker.com/award-charts/virgin-atlantic-flying-club"],
+  price: (o, d, _miles, cabin) => {
+    if (cabin === "first") return null;
+    const uk = (p: Place) => p.country === "GB";
+    const na = (p: Place) => NORTH_AMERICA.has(p.country);
+    const far = uk(o) && na(d) ? d : uk(d) && na(o) ? o : null;
+    if (!far) return null;
+    const region = isWest(far.code) ? "west" : "east";
+    const [floor, ceiling, peak] = VS_OWN[region][cabin];
+    return { points: floor, pointsHigh: ceiling, note: `Saver; up to ${peak.toLocaleString("en-US")} on peak dates` };
+  },
+};
+
+// Virgin points on ANA, North America to Japan (one way). Business and First:
+// West Coast or Western Canada 52,500 / 72,500, East and Central 60,000 / 85,000.
+// Prince of Travel (Oct 8, 2026) and AwardFares (Jul 10, 2026) agree. Booked by phone.
+const VIRGIN_ANA: ChartProgram = {
+  id: "virginatlantic-ana",
+  source: "virginatlantic",
+  name: "Virgin Atlantic Flying Club",
+  label: "on ANA",
+  appliesTo: "ANA flights to Japan. Booked by phone with Virgin; business can't be booked within 14 days of departure. Low surcharges.",
+  covers: (a) => /^(all nippon|ana\b)/i.test(a),
+  checkedOn: "2026-10-13",
+  sources: ["https://princeoftravel.com/points-programs/virgin-atlantic-flying-club/", "https://awardfares.com/blog/flying-club-guide/"],
+  price: (o, d, _miles, cabin) => {
+    if (cabin !== "business" && cabin !== "first") return null;
+    const jp = (p: Place) => p.country === "JP";
+    const far = jp(o) && NORTH_AMERICA.has(d.country) ? d : jp(d) && NORTH_AMERICA.has(o.country) ? o : null;
+    if (!far) return null;
+    const west = isWest(far.code);
+    if (cabin === "business") return { points: west ? 52500 : 60000 };
+    return { points: west ? 72500 : 85000 };
+  },
+};
+
+// Virgin points on Air France and KLM, North America to Europe, business only:
+// published 60,000, often 48,500 (Prince of Travel, Oct 2026; AwardLocker lists
+// 53,000). Economy isn't entered: only one current source.
+const VIRGIN_AFKL: ChartProgram = {
+  id: "virginatlantic-afkl",
+  source: "virginatlantic",
+  name: "Virgin Atlantic Flying Club",
+  label: "on Air France or KLM",
+  appliesTo: "Air France and KLM business class across the Atlantic. Expect about $400 to $600 in taxes and fees.",
+  covers: (a) => /^(air france|klm)/i.test(a),
+  checkedOn: "2026-10-13",
+  sources: ["https://princeoftravel.com/points-programs/virgin-atlantic-flying-club/", "https://awardlocker.com/award-charts/virgin-atlantic-flying-club"],
+  price: (o, d, _miles, cabin) => {
+    if (cabin !== "business") return null;
+    const eu = (p: Place) => ATLANTIC.has(p.country);
+    const na = (p: Place) => NORTH_AMERICA.has(p.country);
+    if (!((eu(o) && na(d)) || (eu(d) && na(o)))) return null;
+    return { points: 48500, pointsHigh: 60000 };
+  },
+};
+
+export const CHART_PROGRAMS: ChartProgram[] = [AEROPLAN, AADVANTAGE, VIRGIN_ATLANTIC, VIRGIN_OWN, VIRGIN_ANA, VIRGIN_AFKL];
 
 /**
  * Alliance by operating airline, as named in airport route lists. Regional
@@ -186,9 +328,15 @@ export function allianceOf(airline: string): Alliance | null {
 }
 
 export type ChartPrice = {
+  /** The chart's id (unique even when several charts share a program) */
+  id: string;
+  /** Whose flights, e.g. "on ANA" */
+  label?: string;
   source: string;
   program: string;
   points: number;
+  /** Top of the range, for demand-priced charts */
+  pointsHigh?: number;
   /** Price note, e.g. "off-peak" */
   note?: string;
   miles: number;
@@ -218,8 +366,10 @@ export function chartPrices(origin: string, destination: string, cabin: Cabin, d
   if (!a || !b || miles == null) return [];
   const out: ChartPrice[] = [];
   for (const p of CHART_PROGRAMS) {
+    // Per-flight charts cover one airline's own flights: only shown where that airline is known to fly.
+    if (p.perSegment) continue;
     const price = p.price(a, b, miles, cabin, date);
-    if (price) out.push({ source: p.source, program: p.name, points: price.points, note: price.note, miles, appliesTo: p.appliesTo, checkedOn: p.checkedOn, basis: "distance" });
+    if (price) out.push({ id: p.id ?? p.source, label: p.label, source: p.source, program: p.name, points: price.points, pointsHigh: price.pointsHigh, note: price.note, miles, appliesTo: p.appliesTo, checkedOn: p.checkedOn, basis: "distance" });
   }
   return out;
 }
@@ -306,18 +456,30 @@ export function routeAwareChartPrices(network: Network, origin: string, destinat
       }
     }
     if (!best) {
-      if (!bothKnown) {
+      if (!bothKnown && !p.perSegment) {
         const price = p.price(a, b, direct, cabin, date)!;
-        out.push({ source: p.source, program: p.name, points: price.points, note: price.note, miles: direct, appliesTo: p.appliesTo, checkedOn: p.checkedOn, basis: "distance" });
+        out.push({ id: p.id ?? p.source, label: p.label, source: p.source, program: p.name, points: price.points, pointsHigh: price.pointsHigh, note: price.note, miles: direct, appliesTo: p.appliesTo, checkedOn: p.checkedOn, basis: "distance" });
       }
       continue;
     }
-    const price = p.price(a, b, best.miles, cabin, date);
+    let price = p.price(a, b, best.miles, cabin, date);
+    if (p.perSegment && best.via) {
+      // Each flight priced on its own, then added up.
+      const h = airportByCode(best.via);
+      const m1 = milesBetween(origin, best.via);
+      const m2 = milesBetween(best.via, destination);
+      const p1 = h && m1 != null ? p.price(a, h, m1, cabin, date) : null;
+      const p2 = h && m2 != null ? p.price(h, b, m2, cabin, date) : null;
+      price = p1 && p2 ? { points: p1.points + p2.points, pointsHigh: p1.pointsHigh && p2.pointsHigh ? p1.pointsHigh + p2.pointsHigh : undefined, note: "two flights, priced separately" } : null;
+    }
     if (!price) continue;
     out.push({
+      id: p.id ?? p.source,
+      label: p.label,
       source: p.source,
       program: p.name,
       points: price.points,
+      pointsHigh: price.pointsHigh,
       note: price.note,
       miles: best.miles,
       appliesTo: p.appliesTo,

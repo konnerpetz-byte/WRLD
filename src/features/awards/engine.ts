@@ -16,7 +16,7 @@ import { type Typical, typicalPrices } from "./typical";
 type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];
 
 // ---------------------------------------------------------------- Query
-export type Sort = "points" | "cash" | "mine";
+export type Sort = "value" | "points" | "cash" | "mine";
 
 export type ExplorerQuery = {
   origins: string[];
@@ -85,7 +85,7 @@ export function parseQuery(sp: Record<string, string | undefined>, home: string 
     .map((b) => BANKS.find((x) => x.key === b || x.slug === b)?.key)
     .filter((b): b is string => Boolean(b));
   const programs = [...list(sp.programs), ...(via.startsWith("program:") ? [via.slice(8)] : [])].filter((p) => p in SOURCE_PROGRAM);
-  const sort: Sort = sp.sort === "cash" || sp.sort === "mine" ? sp.sort : "points";
+  const sort: Sort = sp.sort === "cash" || sp.sort === "mine" || sp.sort === "points" ? sp.sort : "value";
   return {
     origins,
     regions,
@@ -232,6 +232,15 @@ export type Option = {
    * (Delta, United, American, Alaska) predicted from the fare by WRLD's model
    */
   kind: "seats" | "chart" | "portal" | "revenue" | "predicted";
+  /**
+   * What the option really costs you, in dollars: the points at 1 cent each
+   * (what any card travel site pays for them) plus the cash on top. The one
+   * number that compares a 7,500-point award, a 61,200-point portal booking
+   * and a $189 fare fairly.
+   */
+  trueCost?: number;
+  /** Against the cash fare for the same flight day (or the lowest in the window): cents each point is worth here. */
+  value?: { fare: number; cents: number; sameDay: boolean };
   /** For revenue and predicted options: cents per point used, and whether WRLD's own data set it */
   model?: { low: number; high: number; learned: number | null };
   /** For portal and revenue options: the cash fares behind them */
@@ -246,7 +255,13 @@ export type Option = {
   directions: Directions;
 };
 
-export type DestinationResult = { destination: string; city: string; options: Option[] };
+export type DestinationResult = {
+  destination: string;
+  city: string;
+  options: Option[];
+  /** Lowest economy cash fare seen for this destination in the window (USD), when WRLD has fares */
+  fare: number | null;
+};
 
 export type ExplorerResult = {
   destinations: DestinationResult[];
@@ -413,8 +428,8 @@ export async function runExplorer(
         for (const c of routeAwareChartPrices(network, origin, destination, cabin, single)) {
           if (!ok(c.source)) continue;
           if (q.directOnly && c.via) continue;
-          const key = `${origin}|${destination}|${cabin}|${c.source}`;
-          if (options.some((x) => x.key === key)) continue; // real seats already shown for this program
+          const key = `${origin}|${destination}|${cabin}|${c.id}`;
+          if (options.some((x) => x.key === key || x.key === `${origin}|${destination}|${cabin}|${c.source}`)) continue; // real seats already shown for this program
           const via = c.via ? airportByCode(c.via) : null;
           const estimate = estimateFees({ origin: o, destination: d, via, cabin, source: c.source, airlines: c.airlines ?? [], fx });
           options.push({
@@ -423,14 +438,16 @@ export async function runExplorer(
             destination,
             cabin,
             source: c.source,
-            program: c.program,
+            program: c.label ? `${c.program} ${c.label}` : c.program,
             points: c.points,
+            pointsHigh: c.pointsHigh,
             kind: "chart",
             days: [],
             chart: c,
             cash: { low: estimate.low, high: estimate.high, reported: false, estimate },
             typical: typical.get(key),
-            directions: directionsFor({ source: c.source, points: c.points, origin, destination, cabin, date: single, airlines: c.airlines, wallet, banks: q.banks }),
+            // Ranges: plan for the top, so the points are there whatever the day's price.
+            directions: directionsFor({ source: c.source, points: c.pointsHigh ?? c.points, origin, destination, cabin, date: single, airlines: c.airlines, wallet, banks: q.banks }),
           });
         }
       }
@@ -545,16 +562,29 @@ export async function runExplorer(
     }
   }
 
+  // Points or cash: price every option in dollars, and compare awards with the fare for the same day.
+  const fareRoute = priceAgainstFares(options, fares.filter((f) => inMonths(f.date)), single);
+
   // Group by destination; order options and destinations by the chosen sort.
   const score = (x: Option) =>
-    q.sort === "cash" ? x.cash.low * 1000 + x.points / 1000 : q.sort === "mine" ? (x.directions.covered ? 0 : 1e9) + x.points : x.points;
+    q.sort === "cash"
+      ? x.cash.low * 1000 + x.points / 1000
+      : q.sort === "mine"
+        ? (x.directions.covered ? 0 : 1e9) + x.points
+        : q.sort === "points"
+          ? x.points
+          : (x.trueCost ?? x.points / 100);
   const byDest = new Map<string, Option[]>();
   for (const x of options) byDest.set(x.destination, [...(byDest.get(x.destination) ?? []), x]);
   const destinations = [...byDest.entries()]
     .map(([destination, opts]) => ({
       destination,
       city: AIRPORT_CITY[destination] ?? airportByCode(destination)?.city ?? destination,
-      options: opts.sort((a, b) => Number(b.kind === "seats") - Number(a.kind === "seats") || score(a) - score(b)),
+      options: opts.sort((a, b) => (q.sort === "value" ? 0 : Number(b.kind === "seats") - Number(a.kind === "seats")) || score(a) - score(b) || Number(b.kind === "seats") - Number(a.kind === "seats")),
+      fare: (() => {
+        const list = q.origins.map((o) => fareRoute.get(`${o}|${destination}`)).filter((n): n is number => n != null);
+        return list.length ? Math.min(...list) : null;
+      })(),
     }))
     .sort((a, b) => Math.min(...a.options.map(score)) - Math.min(...b.options.map(score)));
 
@@ -565,6 +595,34 @@ export async function runExplorer(
     live: { connected: Boolean(liveToken), seats: liveRows.length, error: live?.error },
     searched: q.destinations,
   };
+}
+
+/**
+ * Sets each option's true cost (points at 1 cent plus cash on top) and, for
+ * economy awards, what each point is worth against the cash fare for the same
+ * day (or the lowest fare in the window). Returns the lowest fare per route.
+ */
+export function priceAgainstFares(options: Option[], fares: CashFare[], single: string | null): Map<string, number> {
+  const fareDay = new Map<string, number>();
+  const fareRoute = new Map<string, number>();
+  for (const f of fares) {
+    const day = `${f.origin}|${f.destination}|${f.date}`;
+    const route = `${f.origin}|${f.destination}`;
+    if (!(fareDay.get(day)! <= f.price)) fareDay.set(day, f.price);
+    if (!(fareRoute.get(route)! <= f.price)) fareRoute.set(route, f.price);
+  }
+  for (const x of options) {
+    // Ranges count at the top, so a "deal" never depends on the luckiest day.
+    const pts = x.pointsHigh ?? x.points;
+    x.trueCost = Math.round(pts / 100 + x.cash.low);
+    if (x.cabin !== "economy" || x.kind === "portal") continue;
+    const bestDay = x.days.length ? x.days.reduce((a, b) => (b.miles < a.miles ? b : a)).date : single;
+    const same = bestDay ? fareDay.get(`${x.origin}|${x.destination}|${bestDay}`) : undefined;
+    const fare = same ?? fareRoute.get(`${x.origin}|${x.destination}`);
+    if (!fare) continue;
+    x.value = { fare, cents: Math.round(((fare - x.cash.low) / pts) * 1000) / 10, sameDay: same != null };
+  }
+  return fareRoute;
 }
 
 const AIRLINES: Record<string, string> = {

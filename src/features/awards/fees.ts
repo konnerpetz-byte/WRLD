@@ -122,7 +122,7 @@ function airportCharges(o: Place): FeeLine {
 // (updated June 2026). Aeroplan partner booking fee: Frequent Miler Aeroplan guide (2026).
 const has = (airlines: string[], re: RegExp) => airlines.some((a) => re.test(a));
 
-function programFees(source: string, o: Place, airlines: string[], fx: Fx): { lines: FeeLine[]; surcharge: Surcharge } {
+function programFees(source: string, o: Place, d: Place, airlines: string[], cabin: Cabin, fx: Fx): { lines: FeeLine[]; surcharge: Surcharge; included?: boolean } {
   const europe = EU_EEA_CH.has(o.country) || o.country === "GB";
   switch (source) {
     case "aeroplan": {
@@ -155,8 +155,24 @@ function programFees(source: string, o: Place, airlines: string[], fx: Fx): { li
       return { lines: [], surcharge: { level: "high", text: "British Airways adds carrier surcharges on its own flights, often hundreds of dollars. Paying more Avios can lower them." } };
     case "flyingblue":
       return { lines: [], surcharge: { level: "high", text: "Flying Blue adds carrier surcharges on most flights (not Delta or Aeroméxico), highest leaving Europe." } };
-    case "virginatlantic":
-      return { lines: [], surcharge: { level: "high", text: "Virgin Atlantic adds large surcharges on Virgin Atlantic and Delta flights; smaller on Air France-KLM." } };
+    case "virginatlantic": {
+      const inNorthAmerica = ["US", "CA", "PR"].includes(o.country) && ["US", "CA", "PR"].includes(d.country);
+      if (has(airlines, /^(all nippon|ana\b)/i)) {
+        return { lines: [], surcharge: { level: "some", text: "Small carrier charges on ANA flights with Virgin points." } };
+      }
+      if (has(airlines, /^virgin atlantic/i)) {
+        // Carrier charges on Virgin-operated flights, U.S. to UK, one way, since June 2025 (AwardFares, Jul 2026).
+        const usd = cabin === "economy" ? 111 : cabin === "premium" ? 240 : 586;
+        return {
+          lines: [{ label: "Virgin Atlantic carrier charge", low: usd, high: usd, note: "Virgin's own flights" }],
+          surcharge: { level: "some", text: "Virgin adds a carrier charge on its own flights. It's included in the total." },
+          included: true,
+        };
+      }
+      return inNorthAmerica
+        ? { lines: [], surcharge: { level: "none", text: "No fuel surcharges on Delta flights within North America with Virgin points." } }
+        : { lines: [], surcharge: { level: "high", text: "Virgin Atlantic adds large surcharges on Virgin Atlantic and Delta flights across the Atlantic; smaller on Air France-KLM." } };
+    }
     case "emirates":
       return { lines: [], surcharge: { level: "high", text: "Emirates adds large surcharges in every cabin." } };
     case "singapore":
@@ -183,12 +199,12 @@ export function estimateFees(input: {
     lines.push({ label: `U.S. September 11th Security Fee (${via.code})`, low: US.sept11, high: US.sept11 });
   }
   lines.push(airportCharges(o));
-  const p = programFees(input.source, o, input.airlines ?? [], fx);
+  const p = programFees(input.source, o, d, input.airlines ?? [], cabin, fx);
   lines.push(...p.lines);
   const round = (n: number) => Math.round(n);
   const low = round(lines.reduce((s, l) => s + l.low, 0));
   const high = round(lines.reduce((s, l) => s + l.high, 0));
-  return { low, high, lines: lines.map((l) => ({ ...l, low: round(l.low), high: round(l.high) })), surcharge: p.surcharge, plusSurcharges: p.surcharge.level !== "none" };
+  return { low, high, lines: lines.map((l) => ({ ...l, low: round(l.low), high: round(l.high) })), surcharge: p.surcharge, plusSurcharges: p.surcharge.level !== "none" && !p.included };
 }
 
 /** "$58–$95", "$41". */
