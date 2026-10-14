@@ -12,6 +12,7 @@ import { cashFaresEnabled } from "@/features/awards/cash-fares";
 import { linkedToken, seatsConfig } from "@/features/awards/seats-aero";
 import { fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
+import { PointsOrCash } from "@/features/awards/points-or-cash";
 import { ReportSeatForm } from "@/features/awards/report-seat-form";
 import { BANKS } from "@/features/awards/transfers";
 import { requireUserId } from "@/lib/supabase/server";
@@ -82,8 +83,8 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
   const when = q.months.length
     ? q.months.map((m) => months.find((o) => o.value === m)?.label ?? m).join(", ")
     : q.start === q.end
-      ? day(q.start, { month: "short", day: "numeric", year: "numeric" })
-      : `${day(q.start)} to ${day(q.end, { month: "short", day: "numeric", year: "numeric" })}`;
+    ? day(q.start, { month: "short", day: "numeric", year: "numeric" })
+    : `${day(q.start)} to ${day(q.end, { month: "short", day: "numeric", year: "numeric" })}`;
 
   return (
     <div className="grid gap-6">
@@ -100,18 +101,35 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
           </Link>
         </p>
       )}
-      <p className="max-w-[60ch] text-muted-foreground">
-        What a flight costs in points, the cash on top, and exactly which points to move where. Every price says how WRLD knows it.
-        {!home && !sp.from && (
-          <>
-            {" "}
-            <Link href="/account" className="font-medium text-primary underline underline-offset-2">
-              Set your home airport
-            </Link>{" "}
-            to start from it every time.
-          </>
-        )}
-      </p>
+      <PointsOrCash
+        programs={Object.entries(SOURCE_PROGRAM)
+          .map(([value, p]) => ({ value, label: p.name }))
+          .sort((a, b) => a.label.localeCompare(b.label))}
+        held={Object.fromEntries(BANKS.map((b) => [b.key, balances.get(b.slug) ?? 0]))}
+        initial={{
+          cash: sp.cash,
+          points: sp.points,
+          taxes: sp.taxes,
+          program: sp.program && sp.program in SOURCE_PROGRAM ? sp.program : undefined,
+        }}
+      />
+
+      <div>
+        <h2 className="text-xl font-semibold">Where can your points take you?</h2>
+        <p className="mt-1 max-w-[60ch] text-sm text-muted-foreground">
+          Published award prices on routes partners really fly, compared with cash where WRLD has today&rsquo;s fare. Every price says how
+          WRLD knows it.
+          {!home && !sp.from && (
+            <>
+              {" "}
+              <Link href="/account" className="font-medium text-primary underline underline-offset-2">
+                Set your home airport
+              </Link>{" "}
+              to start from it every time.
+            </>
+          )}
+        </p>
+      </div>
 
       <ExplorerFilters
         initial={initial}
@@ -125,12 +143,12 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
         hasWallet={balances.size > 0}
       />
 
-      {seatsConfig() && (
-        <LiveLink connected={Boolean(link)} seats={result?.live.seats ?? 0} error={result?.live.error} notice={notice} />
-      )}
+      {seatsConfig() && <LiveLink connected={Boolean(link)} seats={result?.live.seats ?? 0} error={result?.live.error} notice={notice} />}
 
       {!q.origins.length ? (
-        <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">Enter the airport you&rsquo;re flying from to see where your points go.</p>
+        <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          Enter the airport you&rsquo;re flying from to see where your points go.
+        </p>
       ) : result && result.destinations.length === 0 ? (
         <div className="grid gap-3 rounded-2xl border border-dashed p-6 text-sm">
           <p className="text-base font-medium">No points prices for these routes yet</p>
@@ -153,7 +171,10 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
               {result.destinations.length} destination{result.destinations.length === 1 ? "" : "s"} from {q.origins.join(", ")}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {when}. {result.seatsSeen ? `${result.seatsSeen} open seat${result.seatsSeen === 1 ? "" : "s"} reported` : "No open seats reported yet"}
+              {when}.{" "}
+              {result.seatsSeen
+                ? `${result.seatsSeen} open seat${result.seatsSeen === 1 ? "" : "s"} reported`
+                : "No open seats reported yet"}
             </p>
           </div>
           <BestDeal destinations={result.destinations} />
@@ -163,7 +184,9 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
             ))}
           </ul>
           {result.destinations.length > 40 && (
-            <p className="px-1 text-sm text-muted-foreground">Showing the 40 best of {result.destinations.length}. Narrow the filters to see others.</p>
+            <p className="px-1 text-sm text-muted-foreground">
+              Showing the 40 best of {result.destinations.length}. Narrow the filters to see others.
+            </p>
           )}
         </section>
       ) : null}
@@ -192,8 +215,6 @@ async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["
     </div>
   );
 }
-
-
 
 /** The one-line answer before the list: the best deal in this search, points against cash. */
 function BestDeal({ destinations }: { destinations: DestinationResult[] }) {

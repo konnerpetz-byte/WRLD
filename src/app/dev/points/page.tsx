@@ -6,6 +6,7 @@ import type { CashFare } from "@/features/awards/cash-fares";
 import { type Network, routeAwareChartPrices } from "@/features/awards/charts";
 import { directionsFor, monthOptions, priceAgainstFares, type DestinationResult, type Option } from "@/features/awards/engine";
 import { ExplorerFilters } from "@/features/awards/explorer-filters";
+import { PointsOrCash } from "@/features/awards/points-or-cash";
 import { AboutPrices, DestinationRow } from "@/features/awards/explorer-results";
 import { estimateFees, fxFrom } from "@/features/awards/fees";
 import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
@@ -86,6 +87,11 @@ async function Preview() {
   return (
     <main className="mx-auto grid max-w-5xl gap-6 p-6">
       <h1 className="text-4xl font-semibold">Points or cash</h1>
+      <PointsOrCash
+        programs={Object.entries(SOURCE_PROGRAM).map(([value, p]) => ({ value, label: p.name }))}
+        held={{ chase: 80000 }}
+        initial={{ cash: "129", points: "7500", taxes: "6", program: "virginatlantic" }}
+      />
       <ExplorerFilters
         initial={{ from: "DTW", to: ["north_america"], codes: "", dateMode: "dates", months: [months[1].value], start: date, end: date, cabins: ["economy"], banks: [], programs: [], mine: false, direct: false, sort: "value" }}
         regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
