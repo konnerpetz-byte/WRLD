@@ -3,6 +3,9 @@ import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
 
 import { NativeBridge } from "@/components/native/native-bridge";
+import { UsdRates } from "@/components/usd-rates";
+import { setUsdRates } from "@/lib/currency";
+import { liveUsdRates } from "@/lib/usd-rates";
 
 import "./globals.css";
 
@@ -35,10 +38,14 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Every price on the site is shown in USD, converted at today's rate.
+  const rates = await liveUsdRates();
+  setUsdRates(rates);
   return (
     <html lang="en" className={`${wrldSans.variable} h-full antialiased`}>
       <body className="min-h-full">
+        <UsdRates rates={rates} />
         <NativeBridge />
         {children}
         <Analytics />

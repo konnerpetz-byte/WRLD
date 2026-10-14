@@ -1,3 +1,5 @@
+import { toUsd } from "./currency";
+
 /** Display helpers. All amounts arrive from the database as numbers or numeric strings. */
 
 export function toNumber(value: number | string | null | undefined): number | null {
@@ -6,14 +8,24 @@ export function toNumber(value: number | string | null | undefined): number | nu
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Money, always in U.S. dollars: amounts in another currency are converted
+ * at the day's rate (see currency.ts). Unknown currencies fall back to the
+ * original currency rather than a wrong dollar figure.
+ */
 export function formatMoney(value: number | string | null | undefined, currency = "USD", opts: { cents?: boolean } = {}) {
-  const n = toNumber(value);
-  if (n === null) return "—";
+  const raw = toNumber(value);
+  if (raw === null) return "—";
+  const usd = toUsd(raw, currency);
+  const n = usd ?? raw;
+  const code = usd === null ? currency : "USD";
+  // Converted amounts are rounded to whole dollars: cents would be false precision.
+  const whole = opts.cents === false || Number.isInteger(n) || (code === "USD" && currency.toUpperCase() !== "USD");
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency,
-    maximumFractionDigits: opts.cents === false || Number.isInteger(n) ? 0 : 2,
-    minimumFractionDigits: opts.cents === false || Number.isInteger(n) ? 0 : 2,
+    currency: code,
+    maximumFractionDigits: whole ? 0 : 2,
+    minimumFractionDigits: whole ? 0 : 2,
   }).format(n);
 }
 

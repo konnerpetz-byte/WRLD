@@ -21,7 +21,7 @@ export async function updateProfile(_: AccountState, formData: FormData): Promis
     .object({
       display_name: z.string().trim().min(1, "Add your name.").max(80),
       home_country: z.preprocess(blankToNull, z.string().length(2).nullable()),
-      home_currency: z.string().regex(/^[A-Z]{3}$/, "Pick a currency."),
+      home_currency: z.literal("USD").catch("USD"),
       home_airport: z.preprocess(
         (v) => (typeof v === "string" && v.trim() ? v.trim().toUpperCase() : null),
         z.string().regex(/^[A-Z]{3}$/, "Airport codes are 3 letters, like DTW.").nullable(),

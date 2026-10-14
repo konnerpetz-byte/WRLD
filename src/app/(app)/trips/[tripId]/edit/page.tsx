@@ -26,14 +26,12 @@ async function EditTripPageContent({
   const [
     { trip, stops, canEdit, role },
     { data: countries },
-    { data: currencies },
   ] = await Promise.all([
     getTrip(tripId),
     supabase
       .from("countries")
       .select("code, name, currency_code")
       .order("name"),
-    supabase.from("currencies").select("*").order("code"),
   ]);
   if (!canEdit) notFound();
 
@@ -46,7 +44,6 @@ async function EditTripPageContent({
         <TripForm
           action={updateTrip.bind(null, tripId)}
           countries={countries ?? []}
-          currencies={currencies ?? []}
           initial={{
             title: trip.title,
             party_size: trip.party_size,

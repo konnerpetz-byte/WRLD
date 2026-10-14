@@ -16,12 +16,11 @@ export default function NewTripPage() {
 
 async function NewTripPageContent() {
   const { supabase } = await requireUserId();
-  const [{ data: countries }, { data: currencies }] = await Promise.all([
+  const [{ data: countries }] = await Promise.all([
     supabase
       .from("countries")
       .select("code, name, currency_code")
       .order("name"),
-    supabase.from("currencies").select("*").order("code"),
   ]);
 
   return (
@@ -34,7 +33,6 @@ async function NewTripPageContent() {
       <TripForm
         action={createTrip}
         countries={countries ?? []}
-        currencies={currencies ?? []}
         submitLabel="Create trip"
       />
     </div>

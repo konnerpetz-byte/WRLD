@@ -1,5 +1,6 @@
 "use client";
 
+import { toUsd } from "@/lib/currency";
 import { ArrowDown, MapPin, Plus, X } from "lucide-react";
 import { useActionState, useRef, useState } from "react";
 
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/select";
-import type { Country, Currency } from "@/types/database";
+import type { Country } from "@/types/database";
 import type { ActionState } from "./actions";
 
 export type StopDraft = {
@@ -37,14 +38,12 @@ const nights = (a: string, b: string) => (a && b ? Math.round((Date.parse(b) - D
 export function TripForm({
   action,
   countries,
-  currencies,
   initial,
   initialStops,
   submitLabel,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   countries: Country[];
-  currencies: Currency[];
   initial?: TripValues;
   initialStops?: Omit<StopDraft, "key">[];
   submitLabel: string;
@@ -55,14 +54,13 @@ export function TripForm({
       ? initialStops.map((s, i) => ({ ...s, key: `stop-${i}` }))
       : [{ key: "stop-0", city: "", country_code: "", latitude: null, longitude: null, arrive_date: "", leave_date: "" }],
   );
-  const [currency, setCurrency] = useState(initial?.currency ?? "USD");
+  const budgetUsd = initial?.budget != null ? Math.round(toUsd(initial.budget, initial.currency) ?? initial.budget) : null;
   // Same keys on the server and in the browser; new stops count up from here.
   const nextKey = useRef(Math.max(1, initialStops?.length ?? 0));
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const update = (key: string, patch: Partial<StopDraft>) =>
     setStops((all) => all.map((s) => (s.key === key ? { ...s, ...patch } : s)));
-  const shownCurrency = currency;
   const start = stops[0]?.arrive_date;
   const end = stops.reduce((max, s) => (s.leave_date > max ? s.leave_date : max), "");
 
@@ -233,27 +231,19 @@ export function TripForm({
         )}
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
           <Label htmlFor="party_size">Travelers</Label>
           <Input id="party_size" name="party_size" type="number" min={1} max={50} defaultValue={initial?.party_size ?? 1} required />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="currency">Trip currency</Label>
-          <NativeSelect id="currency" name="currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            {currencies.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="budget">Budget {shownCurrency ? `(${shownCurrency})` : ""}</Label>
-          <Input id="budget" name="budget" type="number" min={0} step="0.01" placeholder="Optional" defaultValue={initial?.budget ?? ""} />
+          <Label htmlFor="budget">Budget (USD)</Label>
+          {/* Trips are kept in USD; an older trip's budget is converted from its currency. */}
+          <input type="hidden" name="currency" value="USD" />
+          <Input id="budget" name="budget" type="number" min={0} step="1" placeholder="Optional" defaultValue={budgetUsd ?? ""} />
         </div>
       </div>
-      <p className="-mt-3 text-sm text-muted-foreground">Ticket prices are multiplied by the number of travelers. Prices in other currencies are converted.</p>
+      <p className="-mt-3 text-sm text-muted-foreground">Ticket prices are multiplied by the number of travelers. Prices in other currencies are converted to USD at today&rsquo;s rate.</p>
 
       {state.error && (
         <div role="alert" className="grid gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">

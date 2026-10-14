@@ -48,7 +48,7 @@ async function CurrentUser() {
   await supabase.rpc("touch_activity");
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, home_currency, avatar_url")
+    .select("display_name, avatar_url")
     .eq("id", userId)
     .maybeSingle();
   return (
@@ -59,7 +59,7 @@ async function CurrentUser() {
       <Avatar name={profile?.display_name} url={profile?.avatar_url} size={32} />
       <span className="min-w-0">
         <span className="block truncate text-white">{profile?.display_name ?? "Traveler"}</span>
-        <span className="block text-xs text-sidebar-foreground/70">Home currency {profile?.home_currency ?? "USD"}</span>
+        <span className="block text-xs text-sidebar-foreground/70">Prices in USD</span>
       </span>
     </Link>
   );

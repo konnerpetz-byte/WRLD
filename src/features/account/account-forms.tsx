@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
-import type { AccountDetails, Country, Currency } from "@/types/database";
+import type { AccountDetails, Country } from "@/types/database";
 import {
   changeEmail,
   changePassword,
@@ -119,11 +119,9 @@ export function AvatarUpload({ userId, name, url }: { userId: string; name: stri
 export function ProfileForm({
   profile,
   countries,
-  currencies,
 }: {
   profile: { display_name: string | null; home_country: string | null; home_currency: string; home_airport: string | null };
   countries: Country[];
-  currencies: Currency[];
 }) {
   const [state, action, pending] = useActionState<AccountState, FormData>(updateProfile, {});
   return (
@@ -144,16 +142,8 @@ export function ProfileForm({
             ))}
           </NativeSelect>
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="home_currency">Home currency</Label>
-          <NativeSelect id="home_currency" name="home_currency" defaultValue={profile.home_currency}>
-            {currencies.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
+        {/* WRLD shows every price in USD. */}
+        <input type="hidden" name="home_currency" value="USD" />
         <div className="grid gap-2">
           <Label htmlFor="home_airport">Home airport</Label>
           <Input id="home_airport" name="home_airport" defaultValue={profile.home_airport ?? ""} placeholder="DTW" maxLength={3} className="uppercase" />

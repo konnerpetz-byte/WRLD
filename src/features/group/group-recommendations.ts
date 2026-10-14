@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format";
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -155,7 +156,7 @@ export async function groupRecommendations(
           href: `/trips/${tripId}/itinerary?add=${encodeURIComponent(o.title)}`,
           action: "Add to itinerary",
           externalHref: o.url,
-          price: o.price !== null ? new Intl.NumberFormat("en-US", { style: "currency", currency: o.currency }).format(o.price) : null,
+          price: o.price !== null ? formatMoney(o.price, o.currency) : null,
         });
       }
     }

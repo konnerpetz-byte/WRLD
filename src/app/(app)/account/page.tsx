@@ -31,7 +31,6 @@ async function AccountPageContent() {
     { data: user },
     { data: profile },
     { data: countries },
-    { data: currencies },
     { data: owned },
     { data: isAdmin },
   ] = await Promise.all([
@@ -41,7 +40,6 @@ async function AccountPageContent() {
       .from("countries")
       .select("code, name, currency_code")
       .order("name"),
-    supabase.from("currencies").select("*").order("code"),
     supabase.from("trips").select("id, title").eq("owner_id", userId),
     supabase.rpc("is_app_admin"),
   ]);
@@ -102,7 +100,6 @@ async function AccountPageContent() {
             home_airport: profile?.home_airport ?? null,
           }}
           countries={countries ?? []}
-          currencies={currencies ?? []}
         />
       </Section>
 

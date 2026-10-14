@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMoney } from "@/lib/format";
 import { Check, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
@@ -107,7 +108,7 @@ export function ShareFromAirline({ programs, home }: { programs: Programs; home:
                       {r.miles.toLocaleString()}
                       {r.taxes != null && (
                         <span className="block text-xs font-normal text-muted-foreground">
-                          + {r.taxes.toLocaleString("en-US", { style: "currency", currency: r.taxCurrency ?? "USD" })}
+                          + {formatMoney(r.taxes, r.taxCurrency ?? "USD")}
                         </span>
                       )}
                     </span>

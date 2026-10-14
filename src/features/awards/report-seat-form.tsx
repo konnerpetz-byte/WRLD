@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMoney } from "@/lib/format";
 import { ClipboardPaste } from "lucide-react";
 import { useActionState, useState } from "react";
 
@@ -219,7 +220,7 @@ function PasteCalendar({ origin, cabin, programs }: { origin: string; cabin: str
                       {r.miles.toLocaleString()}
                       {r.taxes != null && (
                         <span className="block text-xs font-normal text-muted-foreground">
-                          + {r.taxes.toLocaleString("en-US", { style: "currency", currency: r.taxCurrency ?? "USD" })}
+                          + {formatMoney(r.taxes, r.taxCurrency ?? "USD")}
                         </span>
                       )}
                     </span>
