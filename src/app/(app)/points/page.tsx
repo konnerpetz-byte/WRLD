@@ -1,239 +1,238 @@
-import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
-import { monthOptions, parseQuery, runExplorer, type Wallet } from "@/features/awards/engine";
-import type { DestinationResult } from "@/features/awards/engine";
-import { AboutPrices, DestinationRow, verdict } from "@/features/awards/explorer-results";
-import { ExplorerFilters, type FilterState } from "@/features/awards/explorer-filters";
-import { LiveLink } from "@/features/awards/live-link";
-import { cashFaresEnabled } from "@/features/awards/cash-fares";
-import { linkedToken, seatsConfig } from "@/features/awards/seats-aero";
+import { monthOptions } from "@/features/awards/engine";
 import { fxFrom } from "@/features/awards/fees";
-import { CABINS, REGIONS, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { PointsOrCash } from "@/features/awards/points-or-cash";
-import { ReportSeatForm } from "@/features/awards/report-seat-form";
+import { REGIONS, type RegionKey, SOURCE_PROGRAM } from "@/features/awards/regions";
 import { BANKS } from "@/features/awards/transfers";
+import { type Style, STYLES } from "@/features/planner/costs";
+import { type PlanSort, parsePoints, planTrips, POINT_KEYS, type Points, sortOptions } from "@/features/planner/plan";
+import { PlannerForm } from "@/features/planner/planner-form";
+import { TripCard } from "@/features/planner/planner-results";
 import { requireUserId } from "@/lib/supabase/server";
 
-export const metadata = { title: "Points or cash" };
+export const metadata = { title: "Plan with points" };
 
-export default function PointsExplorerPage({ searchParams }: PageProps<"/points">) {
+export default function PointsPage({ searchParams }: PageProps<"/points">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <Explorer searchParams={searchParams} />
+      <Planner searchParams={searchParams} />
     </Suspense>
   );
 }
 
-const day = (iso: string, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
+const IATA = /^[A-Z]{3}$/;
+const int = (v: string | undefined, min: number, max: number, fallback: number) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+};
 
-async function Explorer({ searchParams }: { searchParams: PageProps<"/points">["searchParams"] }) {
+async function Planner({ searchParams }: { searchParams: PageProps<"/points">["searchParams"] }) {
   const { supabase, userId } = await requireUserId();
   const sp = (await searchParams) as Record<string, string | undefined>;
 
-  const [{ data: profile }, { data: accounts }, { data: rates }] = await Promise.all([
+  const [{ data: profile }, { data: accounts }, { data: rates }, { data: isAdmin }] = await Promise.all([
     supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
     supabase.from("loyalty_accounts").select("balance, program:loyalty_programs(slug)").eq("user_id", userId),
     supabase.from("exchange_rates").select("quote, rate, as_of").order("as_of", { ascending: false }).limit(400),
+    supabase.rpc("is_app_admin"),
   ]);
 
-  const home = profile?.home_airport?.toUpperCase() ?? null;
-  const q = parseQuery(sp, home);
-
-  const balances = new Map<string, number>();
+  // Wallet balances, by the planner's keys (banks and airline programs).
+  const keyOfSlug = new Map<string, string>([
+    ...BANKS.map((b) => [b.slug, b.key] as [string, string]),
+    ...Object.entries(SOURCE_PROGRAM)
+      .filter(([, p]) => p.slug)
+      .map(([k, p]) => [p.slug!, k] as [string, string]),
+  ]);
+  const wallet: Points = {};
   for (const a of accounts ?? []) {
-    const slug = (a.program as unknown as { slug: string } | null)?.slug;
-    if (slug) balances.set(slug, (balances.get(slug) ?? 0) + Number(a.balance ?? 0));
+    const key = keyOfSlug.get((a.program as unknown as { slug: string } | null)?.slug ?? "");
+    if (key) wallet[key] = (wallet[key] ?? 0) + Math.max(0, Math.round(Number(a.balance ?? 0)));
   }
-  const wallet: Wallet = { balances };
   const rateMap = new Map<string, number>();
   for (const r of rates ?? []) if (!rateMap.has(r.quote)) rateMap.set(r.quote, Number(r.rate));
   const fx = fxFrom(rateMap);
 
-  const tripId = sp.trip && /^[0-9a-f-]{36}$/i.test(sp.trip) ? sp.trip : null;
-  const [link, { data: isAdmin }, { data: forTrip }] = await Promise.all([
-    seatsConfig() ? linkedToken(supabase) : Promise.resolve(null),
-    supabase.rpc("is_app_admin"),
-    tripId ? supabase.from("trips").select("id, title").eq("id", tripId).maybeSingle() : Promise.resolve({ data: null }),
-  ]);
-  const result = q.origins.length ? await runExplorer(supabase, userId, q, wallet, fx, link?.access ?? null) : null;
-  const notice = sp.seats === "failed" ? "Linking Seats.aero didn't finish. Try again." : null;
-
   const months = monthOptions();
-  const initial: FilterState = {
-    from: q.origins.join(", "),
-    to: q.regions,
-    codes: q.codes.join(", "),
-    dateMode: q.months.length ? "months" : "dates",
-    months: q.months.length ? q.months : [months[1].value],
-    start: q.start,
-    end: q.end,
-    cabins: q.cabins,
-    banks: q.banks,
-    programs: q.programs,
-    mine: q.mine,
-    direct: q.directOnly,
-    sort: q.sort,
-    trip: forTrip?.id,
+  const home = (sp.from ?? profile?.home_airport ?? "").toUpperCase().trim();
+  const cash = Math.round(Number((sp.cash ?? "").replace(/[^0-9.]/g, "")));
+  const points = sp.pts !== undefined ? parsePoints(sp.pts) : wallet;
+  const nights = int(sp.nights, 1, 30, 5);
+  const travelers = int(sp.travelers, 1, 8, 1);
+  const style: Style = sp.style && sp.style in STYLES ? (sp.style as Style) : "mid";
+  const month = months.some((m) => m.value === sp.month) ? sp.month! : months[1].value;
+  const region = sp.region && (sp.region === "anywhere" || sp.region in REGIONS) ? (sp.region as RegionKey | "anywhere") : "anywhere";
+  const sort: PlanSort = sp.sort === "cash" || sp.sort === "value" ? sp.sort : "most";
+  const monthLabel = months.find((m) => m.value === month)?.label ?? month;
+
+  const ready = IATA.test(home) && cash >= 0 && sp.cash !== undefined;
+  const plan = ready ? await planTrips(supabase, { home, cash, points, nights, travelers, style, month, region }, fx) : null;
+  const sorted = plan ? sortOptions(plan.options, sort) : [];
+  const fits = sorted.filter((t) => t.fit === "fits").slice(0, 12);
+  const stretch = sorted.filter((t) => t.fit === "stretch").slice(0, 6);
+
+  const tripId = sp.trip && /^[0-9a-f-]{36}$/i.test(sp.trip) ? sp.trip : null;
+  const { data: forTrip } = tripId ? await supabase.from("trips").select("id, title").eq("id", tripId).maybeSingle() : { data: null };
+  const totalPoints = Object.values(points).reduce((s, n) => s + n, 0);
+  const sortHref = (s: PlanSort) => {
+    const p = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string"));
+    p.set("sort", s);
+    return `/points?${p}#results`;
   };
 
-  const when = q.months.length
-    ? q.months.map((m) => months.find((o) => o.value === m)?.label ?? m).join(", ")
-    : q.start === q.end
-    ? day(q.start, { month: "short", day: "numeric", year: "numeric" })
-    : `${day(q.start)} to ${day(q.end, { month: "short", day: "numeric", year: "numeric" })}`;
-
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       {forTrip && (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-open-soft px-4 py-3 text-sm">
           <span>
-            For your trip <strong>{forTrip.title}</strong>. Booked it? Add the flight so your days fit around it.
+            For your trip <strong>{forTrip.title}</strong>. Booked the flight? Add it so your days fit around it.
           </span>
           <Link href={`/trips/${forTrip.id}/transit`} className="font-medium text-primary underline underline-offset-2">
             Add the flight
           </Link>
-          <Link href={`/trips/${forTrip.id}`} className="font-medium text-primary underline underline-offset-2">
-            Back to the plan
-          </Link>
         </p>
       )}
+
+      <section aria-labelledby="plan-h" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6">
+        <div>
+          <h2 id="plan-h" className="text-xl font-semibold">
+            Where can your cash and points take you?
+          </h2>
+          <p className="mt-1 max-w-prose text-sm text-muted-foreground">
+            Tell WRLD what you have. It prices the whole trip, flights, hotel and days there, and shows the places you can afford, with the
+            best way to use each point.
+            {Object.keys(wallet).length > 0 && sp.pts === undefined ? " Your points are filled in from My points." : ""}
+          </p>
+        </div>
+        <PlannerForm
+          initial={{
+            home,
+            cash: sp.cash ?? "",
+            points: Object.entries(points).map(([key, n]) => ({ key, amount: n.toLocaleString("en-US") })),
+            nights: String(nights),
+            travelers: String(travelers),
+            style,
+            month,
+            region,
+            sort,
+          }}
+          pointKeys={POINT_KEYS}
+          months={months}
+          regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
+          styles={Object.entries(STYLES).map(([value, s]) => ({ value, label: s.label, hint: s.hint }))}
+        />
+      </section>
+
+      {plan && (
+        <section id="results" aria-labelledby="results-h" className="grid scroll-mt-6 gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-3 px-1">
+            <div>
+              <h2 id="results-h" className="text-lg font-semibold">
+                {fits.length
+                  ? `${fits.length}${sorted.filter((t) => t.fit === "fits").length > fits.length ? "+" : ""} trips fit $${cash.toLocaleString("en-US")}${totalPoints ? ` and ${totalPoints.toLocaleString("en-US")} points` : ""}`
+                  : "Nothing fits this budget yet"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                From {home}, {monthLabel}, {nights} nights, {travelers} traveler{travelers === 1 ? "" : "s"}, {STYLES[style].label.toLowerCase()}.
+              </p>
+            </div>
+            <nav aria-label="Sort trips" className="flex flex-wrap gap-1 text-sm">
+              {(
+                [
+                  ["most", "Biggest trip"],
+                  ["cash", "Most cash left"],
+                  ["value", "Best use of points"],
+                ] as const
+              ).map(([s, label]) => (
+                <Link
+                  key={s}
+                  href={sortHref(s)}
+                  aria-current={sort === s ? "true" : undefined}
+                  className={`rounded-full border px-3 py-1.5 ${sort === s ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+
+          {!plan.liveFares && (
+            <p className="rounded-xl bg-travel/15 px-4 py-3 text-sm">
+              Flight prices are estimates from distance for now. Today&rsquo;s real fares are coming soon.
+              {isAdmin && (
+                <>
+                  {" "}
+                  <strong>Owner setup:</strong> add <code className="font-mono text-xs">TRAVELPAYOUTS_TOKEN</code> in Vercel.
+                </>
+              )}
+            </p>
+          )}
+
+          {fits.length ? (
+            <ul className="grid gap-3">
+              {fits.map((t) => (
+                <TripCard key={t.code} t={t} home={home} month={month} monthLabel={monthLabel} cash={cash} travelers={travelers} nights={nights} />
+              ))}
+            </ul>
+          ) : (
+            <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+              Try fewer nights, the budget travel style, or another month. The trips just over budget are below.
+            </p>
+          )}
+
+          {stretch.length > 0 && (
+            <>
+              <h3 className="mt-2 px-1 font-semibold">A little over budget</h3>
+              <ul className="grid gap-3">
+                {stretch.map((t) => (
+                  <TripCard key={t.code} t={t} home={home} month={month} monthLabel={monthLabel} cash={cash} travelers={travelers} nights={nights} />
+                ))}
+              </ul>
+            </>
+          )}
+
+          <details className="rounded-2xl border bg-card px-5 py-4 text-sm">
+            <summary className="cursor-pointer font-medium">How WRLD prices these trips</summary>
+            <div className="mt-3 grid max-w-prose gap-2 text-muted-foreground">
+              <p>
+                <strong className="text-foreground">Flights:</strong> economy, round trip.{" "}
+                {plan.liveFares ? "Cash prices are the lowest fares travelers found for this month, doubled for the return." : "Cash prices are estimates from distance until live fares are on."}{" "}
+                Points prices come from published award charts (Air Canada Aeroplan, American AAdvantage, Virgin Atlantic), counted at the top of
+                their range, and only where a partner airline flies the route.
+              </p>
+              <p>
+                <strong className="text-foreground">Card points:</strong> Chase, Amex, Capital One and Citi points pay 1¢ each for any flight or
+                hotel on the card&rsquo;s travel site. WRLD tries each way to pay and keeps the one that needs the least cash. Bilt points are
+                only used by moving them to an airline.
+              </p>
+              <p>
+                <strong className="text-foreground">Hotel and days there:</strong> WRLD estimates by city for your travel style. Season can move
+                hotel prices a lot.
+              </p>
+              <p>
+                <strong className="text-foreground">Seats:</strong> award seats are limited. Find an open seat on Seats.aero before moving points;
+                transfers can&rsquo;t be undone. Live seat search inside WRLD is coming soon.
+              </p>
+            </div>
+          </details>
+        </section>
+      )}
+
       <PointsOrCash
         programs={Object.entries(SOURCE_PROGRAM)
           .map(([value, p]) => ({ value, label: p.name }))
           .sort((a, b) => a.label.localeCompare(b.label))}
-        held={Object.fromEntries(BANKS.map((b) => [b.key, balances.get(b.slug) ?? 0]))}
+        held={Object.fromEntries(BANKS.map((b) => [b.key, wallet[b.key] ?? 0]))}
         initial={{
-          cash: sp.cash,
+          cash: sp.cash_price,
           points: sp.points,
           taxes: sp.taxes,
           program: sp.program && sp.program in SOURCE_PROGRAM ? sp.program : undefined,
         }}
       />
-
-      <div>
-        <h2 className="text-xl font-semibold">Where can your points take you?</h2>
-        <p className="mt-1 max-w-[60ch] text-sm text-muted-foreground">
-          Published award prices on routes partners really fly, compared with cash where WRLD has today&rsquo;s fare. Every price says how
-          WRLD knows it.
-          {!home && !sp.from && (
-            <>
-              {" "}
-              <Link href="/account" className="font-medium text-primary underline underline-offset-2">
-                Set your home airport
-              </Link>{" "}
-              to start from it every time.
-            </>
-          )}
-        </p>
-      </div>
-
-      <ExplorerFilters
-        initial={initial}
-        regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
-        monthOptions={months}
-        cabins={Object.entries(CABINS).map(([value, c]) => ({ value, label: c.label }))}
-        banks={BANKS.map((b) => ({ value: b.key, label: b.short }))}
-        programs={Object.entries(SOURCE_PROGRAM)
-          .map(([value, p]) => ({ value, label: p.name }))
-          .sort((a, b) => a.label.localeCompare(b.label))}
-        hasWallet={balances.size > 0}
-      />
-
-      {seatsConfig() && <LiveLink connected={Boolean(link)} seats={result?.live.seats ?? 0} error={result?.live.error} notice={notice} />}
-
-      {!q.origins.length ? (
-        <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Enter the airport you&rsquo;re flying from to see where your points go.
-        </p>
-      ) : result && result.destinations.length === 0 ? (
-        <div className="grid gap-3 rounded-2xl border border-dashed p-6 text-sm">
-          <p className="text-base font-medium">No points prices for these routes yet</p>
-          <p className="max-w-[65ch] text-muted-foreground">
-            {cashFaresEnabled()
-              ? "No fares or award seats were found for these dates. Try more months, another cabin, or fewer program filters."
-              : "Airlines price flights within the U.S. and Canada day by day, so there's no published award chart to show. WRLD fills these in from today's fares paid with card points, seats travelers save from airline sites, and live seats if you link Seats.aero."}
-          </p>
-          {!cashFaresEnabled() && isAdmin && (
-            <p className="rounded-lg bg-travel/15 px-3 py-2">
-              <strong>Owner setup:</strong> add <code className="font-mono text-xs">TRAVELPAYOUTS_TOKEN</code> in Vercel (free, from your
-              Travelpayouts profile, API token) to show card-points prices for every route and airline.
-            </p>
-          )}
-        </div>
-      ) : result ? (
-        <section aria-labelledby="results-h" className="grid gap-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
-            <h2 id="results-h" className="text-lg font-semibold">
-              {result.destinations.length} destination{result.destinations.length === 1 ? "" : "s"} from {q.origins.join(", ")}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {when}.{" "}
-              {result.seatsSeen
-                ? `${result.seatsSeen} open seat${result.seatsSeen === 1 ? "" : "s"} reported`
-                : "No open seats reported yet"}
-            </p>
-          </div>
-          <BestDeal destinations={result.destinations} />
-          <ul className="grid gap-2">
-            {result.destinations.slice(0, 40).map((d, i) => (
-              <DestinationRow key={d.destination} d={d} date={q.start} defaultOpen={i === 0} />
-            ))}
-          </ul>
-          {result.destinations.length > 40 && (
-            <p className="px-1 text-sm text-muted-foreground">
-              Showing the 40 best of {result.destinations.length}. Narrow the filters to see others.
-            </p>
-          )}
-        </section>
-      ) : null}
-
-      <details className="group rounded-2xl border bg-card">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-4 focus-visible:outline-2 focus-visible:outline-ring">
-          <span>
-            <span className="block font-medium">Saw a points price on an airline&rsquo;s site?</span>
-            <span className="block text-sm text-muted-foreground">Add it so it shows here for everyone for three days.</span>
-          </span>
-          <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <div className="border-t p-1">
-          <ReportSeatForm
-            origin={q.origins[0] ?? ""}
-            cabin={q.cabins[0]}
-            programs={Object.entries(SOURCE_PROGRAM)
-              .map(([source, p]) => ({ source, name: p.name }))
-              .sort((a, b) => a.name.localeCompare(b.name))}
-            minDate={new Date().toISOString().slice(0, 10)}
-          />
-        </div>
-      </details>
-
-      <AboutPrices />
     </div>
-  );
-}
-
-/** The one-line answer before the list: the best deal in this search, points against cash. */
-function BestDeal({ destinations }: { destinations: DestinationResult[] }) {
-  const wins = destinations
-    .map((d) => ({ d, v: verdict(d) }))
-    .filter((x) => x.v.win === "points" && x.v.points)
-    .sort((a, b) => b.v.saves - a.v.saves);
-  const top = wins[0];
-  if (!top) return null;
-  const o = top.v.points!;
-  return (
-    <p className="rounded-2xl bg-sidebar px-5 py-4 text-sidebar-foreground">
-      <span className="block text-sm text-sidebar-foreground/80">Best deal in this search</span>
-      <span className="block font-semibold text-brand-cream">
-        {top.d.city}: {o.points.toLocaleString("en-US")} {o.program} points + ${o.cash.low} instead of a ${Math.round(top.v.fare!)} fare.
-      </span>
-      <span className="block text-sm text-sidebar-foreground/80">
-        {wins.length > 1 ? `Points beat cash on ${wins.length} of ${destinations.length} destinations.` : "Open it below for the steps."}
-      </span>
-    </p>
   );
 }

@@ -133,16 +133,16 @@ export default function Home() {
               />
               <Benefit
                 n={4}
-                title="Points or cash"
-                body="The cheapest way to pay for each flight, and every price says how WRLD knows it."
+                title="Plan with points"
+                body="Your cash and points in, the trips you can afford out, with the best way to use each point."
                 example={
                   <div className="rounded-md bg-card px-3 py-2 text-xs shadow-sm">
                     <p className="flex justify-between font-semibold">
-                      <span>DTW → LIS</span>
-                      <span>61,200 pts</span>
+                      <span>Lisbon, 5 nights</span>
+                      <span>$1,240 cash</span>
                     </p>
-                    <p className="text-muted-foreground">Chase Travel, any seat · or $612 cash</p>
-                    <p className="mt-1.5 w-fit rounded-full bg-travel/20 px-1.5 py-0.5 font-medium">Any seat, today&rsquo;s fare</p>
+                    <p className="text-muted-foreground">Flights with 60,000 Chase points · $760 to spare</p>
+                    <p className="mt-1.5 w-fit rounded-full bg-travel/20 px-1.5 py-0.5 font-medium">Fits your $2,000</p>
                   </div>
                 }
               />
