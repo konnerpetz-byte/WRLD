@@ -71,9 +71,9 @@ async function TransitPageContent({
           className="group flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sidebar px-5 py-4 text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring lg:col-span-2"
         >
           <span>
-            <span className="block font-semibold text-brand-cream">Not booked yet? Points or cash</span>
+            <span className="block font-semibold text-brand-cream">Not booked yet? Cost it with your points</span>
             <span className="block text-sm text-sidebar-foreground/80">
-              The cheapest way to fly {home ?? "from home"} to {there ?? "your first stop"}: your points, a card travel site, or cash.
+              Flights {home ?? "from home"} to {there ?? "your first stop"}, hotel and days there: the least cash with the points you have.
             </span>
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-travel px-4 py-2 text-sm font-medium text-travel-foreground">

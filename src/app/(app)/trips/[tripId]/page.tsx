@@ -45,12 +45,12 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
   const steps: Step[] = [
     {
       key: "flights",
-      title: "Get there: points or cash",
-      body: `Compare your points, card travel sites and cash for ${home ?? "your airport"} to ${there ?? trip.destination ?? "your first stop"}, then add the flight you book. Your days adjust to it.`,
+      title: "Cost this trip with your points",
+      body: `Flights ${home ?? "from your airport"} to ${there ?? trip.destination ?? "your first stop"}, the hotel and your days there, with the best way to use each point against your budget. Then add the flight you book.`,
       done: hasOut,
       doneNote: hasBack ? "both ways" : "flight there added",
       href: pointsOrCashUrl({ from: home, to: there, date: trip.start_date, tripId }),
-      cta: "Compare points and cash",
+      cta: "Cost it with my points",
       secondary: { href: `${base}/transit`, label: "I've already booked" },
     },
     {

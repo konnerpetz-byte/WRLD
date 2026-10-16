@@ -27,6 +27,8 @@ export type PlanInput = {
   /** "2027-03" */
   month: string;
   region: RegionKey | "anywhere";
+  /** Price just this destination (a trip's airport) instead of searching */
+  only?: string | null;
 };
 
 /** One way to pay for the flights. */
@@ -38,7 +40,10 @@ export type FlightPay =
 export type TripOption = {
   code: string;
   city: string;
-  region: RegionKey;
+  region: RegionKey | null;
+  /** Where the hotel and daily costs come from: the city itself, the nearest listed city, or a default */
+  costBasis: "city" | "nearby" | "default";
+  costNear?: string;
   /** Round-trip fare for everyone, and whether it's today's fare or WRLD's estimate */
   fare: number;
   fareIs: "live" | "estimate";
@@ -47,9 +52,11 @@ export type TripOption = {
   flightCash: number;
   hotel: number;
   days: number;
-  /** Card points spent on the hotel through the card's travel site, at 1 cent */
+  /** Card points spent on the hotel through the card's travel site */
   hotelPoints: { key: string; points: number }[];
   hotelCredit: number;
+  /** Nights paid with World of Hyatt points (own or moved from Chase or Bilt), if any */
+  hyatt: { nights: number; points: number; from: { key: string; points: number }[] } | null;
   /** Cash the whole trip needs */
   cashNeeded: number;
   /** What the trip would cost with no points at all */
@@ -63,8 +70,30 @@ export type TripOption = {
 const KM_PER_MILE = 1.609344;
 const PORTAL_BANKS = new Set<string>(PORTALS.map((p) => p.bank));
 
-export const POINT_KEYS: { value: string; label: string; group: "Card points" | "Airline miles" }[] = [
+/**
+ * What card points buy on each bank's travel site, in cents. Flights: 1 cent
+ * at all four. Hotels: 1 cent except Amex, which pays 0.7 cents on hotels.
+ */
+const SITE_CENTS: Record<string, { flight: number; hotel: number }> = {
+  chase: { flight: 1, hotel: 1 },
+  amex: { flight: 1, hotel: 0.7 },
+  capitalone: { flight: 1, hotel: 1 },
+  citi: { flight: 1, hotel: 1 },
+};
+
+/**
+ * World of Hyatt: Chase and Bilt move to Hyatt 1:1. A Hyatt point typically
+ * buys 1.65 cents of hotel (The Points Guy valuation, October 2026). Hyatt's
+ * spring 2026 five-tier chart makes the real price depend on the hotel and the
+ * night, so WRLD estimates nights from the city's hotel cost at that value and
+ * says to check a real Hyatt before moving points.
+ */
+export const HYATT_CENTS = 1.65;
+const HOTEL_PARTNERS: Record<string, Record<string, [number, number]>> = { hyatt: { bilt: [1, 1], chase: [1, 1] } };
+
+export const POINT_KEYS: { value: string; label: string; group: "Card points" | "Hotel points" | "Airline miles" }[] = [
   ...BANKS.map((b) => ({ value: b.key, label: b.name, group: "Card points" as const })),
+  { value: "hyatt", label: "World of Hyatt", group: "Hotel points" as const },
   ...Object.entries(SOURCE_PROGRAM)
     .map(([value, p]) => ({ value, label: p.name, group: "Airline miles" as const }))
     .sort((a, b) => a.label.localeCompare(b.label)),
@@ -88,9 +117,13 @@ export const pointsParam = (p: Points) =>
     .join(",");
 
 /** Destinations the planner considers: every region airport, one per city. */
-function destinations(region: PlanInput["region"], home: string) {
+function destinations(region: PlanInput["region"], home: string, only?: string | null) {
+  if (only) {
+    const r = (Object.keys(REGIONS) as RegionKey[]).find((k) => (REGIONS[k].airports as readonly string[]).includes(only)) ?? null;
+    return only === home ? [] : [{ code: only, region: r }];
+  }
   const keys = region === "anywhere" ? (Object.keys(REGIONS) as RegionKey[]) : [region];
-  const out: { code: string; region: RegionKey }[] = [];
+  const out: { code: string; region: RegionKey | null }[] = [];
   for (const r of keys) for (const code of REGIONS[r].airports) if (code !== "NRT" && code !== home) out.push({ code, region: r });
   return out;
 }
@@ -111,10 +144,11 @@ function fund(miles: number, source: string, bal: Points) {
     from.push({ key: source, points: own, miles: own });
     left -= own;
   }
-  const banks = BANKS.filter((b) => b.partners[source]).sort((a, b) => Number(PORTAL_BANKS.has(a.key)) - Number(PORTAL_BANKS.has(b.key)));
+  const ratio = (b: (typeof BANKS)[number]) => HOTEL_PARTNERS[source]?.[b.key] ?? b.partners[source];
+  const banks = BANKS.filter((b) => ratio(b)).sort((a, b) => Number(PORTAL_BANKS.has(a.key)) - Number(PORTAL_BANKS.has(b.key)));
   for (const b of banks) {
     if (left <= 0) break;
-    const [give, get] = b.partners[source];
+    const [give, get] = ratio(b);
     const have = bal[b.key] ?? 0;
     // Transfers go in 1,000-point steps.
     const need = Math.ceil((left * give) / get / 1000) * 1000;
@@ -127,19 +161,34 @@ function fund(miles: number, source: string, bal: Points) {
   return left <= 0 ? from : null;
 }
 
-/** Spends travel-site points (1 cent each) toward `dollars`. */
-function portal(dollars: number, bal: Points) {
+/** Spends travel-site points toward `dollars`: best-paying banks first. */
+function portal(dollars: number, bal: Points, use: "flight" | "hotel") {
   const from: { key: string; points: number }[] = [];
-  let left = Math.round(dollars * 100);
-  for (const b of BANKS) {
-    if (!PORTAL_BANKS.has(b.key) || left <= 0) continue;
-    const use = Math.min(bal[b.key] ?? 0, left);
-    if (use > 0) {
-      from.push({ key: b.key, points: use });
-      left -= use;
+  let left = dollars;
+  let paid = 0;
+  const banks = BANKS.filter((b) => SITE_CENTS[b.key]).sort((a, b) => SITE_CENTS[b.key][use] - SITE_CENTS[a.key][use]);
+  for (const b of banks) {
+    if (left <= 0.005) break;
+    const cents = SITE_CENTS[b.key][use];
+    const points = Math.min(bal[b.key] ?? 0, Math.ceil((left * 100) / cents));
+    if (points > 0) {
+      from.push({ key: b.key, points });
+      const dollarsPaid = Math.min(left, (points * cents) / 100);
+      paid += dollarsPaid;
+      left -= dollarsPaid;
     }
   }
-  return { from, dollars: from.reduce((s, f) => s + f.points, 0) / 100 };
+  return { from, dollars: paid };
+}
+
+/** Hyatt nights: as many as the balances cover, at the city's estimated price in points. */
+function hyattNights(hotel: number, nights: number, bal: Points) {
+  const perNight = Math.max(7500, Math.round(hotel / nights / (HYATT_CENTS / 100) / 500) * 500);
+  for (let n = nights; n > 0; n--) {
+    const from = fund(perNight * n, "hyatt", bal);
+    if (from) return { nights: n, points: perNight * n, from: from.map(({ key, points }) => ({ key, points })), dollars: (hotel / nights) * n };
+  }
+  return null;
 }
 
 const spend = (bal: Points, used: { key: string; points: number }[]) => {
@@ -157,7 +206,7 @@ const spend = (bal: Points, used: { key: string; points: number }[]) => {
  */
 export async function planTrips(supabase: Supabase, input: PlanInput, fx: Fx) {
   if (!airportByCode(input.home)) return { options: [] as TripOption[], liveFares: false };
-  const codes = destinations(input.region, input.home).map((d) => d.code);
+  const codes = destinations(input.region, input.home, input.only).map((d) => d.code);
   const [y, m] = input.month.split("-").map(Number);
   const start = `${input.month}-01`;
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -172,7 +221,7 @@ export async function planTrips(supabase: Supabase, input: PlanInput, fx: Fx) {
 export function priceTrips(input: PlanInput, network: Network, fares: CashFare[], fx: Fx): TripOption[] {
   const o = airportByCode(input.home);
   if (!o) return [];
-  const list = destinations(input.region, input.home);
+  const list = destinations(input.region, input.home, input.only);
   const cheapest = new Map<string, number>();
   for (const f of fares) if (!cheapest.has(f.destination) || f.price < cheapest.get(f.destination)!) cheapest.set(f.destination, f.price);
 
@@ -206,7 +255,7 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
         used: from,
       });
     }
-    const viaPortal = portal(fare, input.points);
+    const viaPortal = portal(fare, input.points, "flight");
     if (viaPortal.dollars > 0) {
       plans.push({ pay: { kind: "portal", from: viaPortal.from, dollars: viaPortal.dollars }, flightCash: Math.round(fare - viaPortal.dollars), used: viaPortal.from });
     }
@@ -214,14 +263,22 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
     let best: TripOption | null = null;
     for (const p of plans) {
       const left = spend(input.points, p.used);
-      const toHotel = portal(ground.hotel, left);
-      const cashNeeded = Math.round(p.flightCash + ground.total - toHotel.dollars);
-      const pointsUsed = [...p.used, ...toHotel.from].reduce((s, u) => s + u.points, 0);
+      // The hotel: travel-site points only, or Hyatt nights first and travel-site points for the rest.
+      const hotelPlans: { hyatt: ReturnType<typeof hyattNights>; site: ReturnType<typeof portal> }[] = [{ hyatt: null, site: portal(ground.hotel, left, "hotel") }];
+      const h = hyattNights(ground.hotel, input.nights, left);
+      if (h) hotelPlans.push({ hyatt: h, site: portal(ground.hotel - h.dollars, spend(left, h.from), "hotel") });
+      const hp = hotelPlans.reduce((a, b) => ((b.hyatt?.dollars ?? 0) + b.site.dollars > (a.hyatt?.dollars ?? 0) + a.site.dollars ? b : a));
+      const toHotel = hp.site;
+      const hotelPaid = (hp.hyatt?.dollars ?? 0) + toHotel.dollars;
+      const cashNeeded = Math.round(p.flightCash + ground.total - hotelPaid);
+      const pointsUsed = [...p.used, ...(hp.hyatt?.from ?? []), ...toHotel.from].reduce((s, u) => s + u.points, 0);
       const fullPrice = fare + ground.total;
       const option: TripOption = {
         code,
-        city: AIRPORT_CITY[code] ?? d.city,
+        city: AIRPORT_CITY[code] ?? d.city.replace(/\s*\(.*\)\s*$/, ""),
         region,
+        costBasis: ground.basis,
+        costNear: ground.near,
         fare,
         fareIs: live != null ? "live" : "estimate",
         pay: p.pay,
@@ -230,6 +287,7 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
         days: ground.days,
         hotelPoints: toHotel.from,
         hotelCredit: Math.round(toHotel.dollars),
+        hyatt: hp.hyatt ? { nights: hp.hyatt.nights, points: hp.hyatt.points, from: hp.hyatt.from } : null,
         cashNeeded,
         fullPrice,
         pointsUsed,

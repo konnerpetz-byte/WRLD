@@ -33,7 +33,7 @@ async function Preview() {
   const fares: CashFare[] = sample.map(([d, price]) => ({ origin: "DTW", destination: d, date: `${month}-12`, price, airline: "DL", flight: "DL1", stops: 0, durationMin: null }));
   const input = { home: "DTW", cash: 2000, points: { chase: 60000, bilt: 20000 }, nights: 5, travelers: 1, style: "mid" as const, month, region: "anywhere" as const };
   const all = sortOptions(priceTrips(input, { known: new Set(), edges: [] }, fares, fx), "most");
-  const shown = all.filter((t) => t.fit !== "over").slice(0, 8);
+  const shown = [...priceTrips({ ...input, only: "FLR" }, { known: new Set(), edges: [] }, fares, fx), ...all.filter((t) => t.fit !== "over").slice(0, 6)];
   const label = months[1].label;
   return (
     <main className="mx-auto grid max-w-5xl gap-6 p-6">

@@ -35,12 +35,15 @@ export function PlannerForm({
   months,
   regions,
   styles,
+  keep,
 }: {
   initial: PlannerInitial;
   pointKeys: PointKey[];
   months: Option[];
   regions: Option[];
   styles: (Option & { hint: string })[];
+  /** Carried through the search: the trip and its airport */
+  keep?: { to?: string; trip?: string };
 }) {
   const id = useId();
   const [home, setHome] = useState(initial.home);
@@ -55,6 +58,8 @@ export function PlannerForm({
   return (
     <form method="get" action="/points" className="grid gap-5">
       <input type="hidden" name="pts" value={pts} />
+      {keep?.to && <input type="hidden" name="to" value={keep.to} />}
+      {keep?.trip && <input type="hidden" name="trip" value={keep.trip} />}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="grid gap-1.5 text-sm font-medium">
           <label htmlFor={`${id}-home`}>Flying from</label>

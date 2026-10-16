@@ -43,11 +43,12 @@ export function TripCard({
   home: string;
   month: string;
   monthLabel: string;
-  cash: number;
+  /** The traveler's budget, or null when they haven't set one */
+  cash: number | null;
   travelers: number;
   nights: number;
 }) {
-  const left = cash - t.cashNeeded;
+  const left = cash == null ? 0 : cash - t.cashNeeded;
   const who = travelers === 1 ? "" : ` for ${travelers}`;
   return (
     <li className="grid gap-4 rounded-2xl border bg-card p-5">
@@ -59,12 +60,13 @@ export function TripCard({
           <p className="text-sm text-muted-foreground">
             {nights} nights{who}. Without points: {money(t.fullPrice)}
             {t.fareIs === "estimate" ? " (flights estimated)" : ""}.
+            {t.costBasis === "nearby" ? ` Hotel and daily costs estimated from ${t.costNear}.` : t.costBasis === "default" ? " Hotel and daily costs are a general estimate." : ""}
           </p>
         </div>
         <div className="text-right">
           <p className="text-2xl font-semibold tabular-nums">{money(t.cashNeeded)}</p>
           <p className={`text-sm font-medium ${t.fit === "fits" ? "text-primary" : "text-muted-foreground"}`}>
-            {t.fit === "fits" ? `cash, ${money(left)} to spare` : `cash, ${money(-left)} over your budget`}
+            {cash == null ? "cash needed" : left >= 0 ? `cash, ${money(left)} to spare` : `cash, ${money(-left)} over your budget`}
           </p>
         </div>
       </div>
@@ -80,6 +82,24 @@ export function TripCard({
           <dt className="font-medium">Hotel, {nights} nights</dt>
           <dd className="mt-0.5 text-muted-foreground">
             {money(t.hotel)}
+            {t.hyatt && (
+              <>
+                , {t.hyatt.nights === nights ? "all" : t.hyatt.nights} night{t.hyatt.nights === 1 ? "" : "s"} for about {pts(t.hyatt.points)} World of
+                Hyatt points (
+                {t.hyatt.from
+                  .map((f) => (f.key === "hyatt" ? `${pts(f.points)} of your own` : `move ${pts(f.points)} ${nameOf(f.key)}`))
+                  .join(", ")}
+                ) at a mid-range Hyatt (Hyatt Place or similar; prices vary by hotel and night).{" "}
+                <a
+                  href={`https://www.google.com/maps/search/${encodeURIComponent(`Hyatt hotels ${t.city}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-primary underline underline-offset-2"
+                >
+                  see Hyatts there<span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              </>
+            )}
             {t.hotelCredit > 0 && (
               <>
                 , {money(t.hotelCredit)} of it with{" "}

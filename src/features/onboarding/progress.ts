@@ -77,11 +77,11 @@ export async function startSteps(supabase: Supabase, userId: string): Promise<St
     },
     {
       key: "flights",
-      title: "Points or cash for the flights",
-      body: "See the cheapest way to get there: your points, a card travel site, or cash. Then add the flight you book.",
+      title: "Cost the trip with your points",
+      body: "Flights, hotel and days there, with the best way to use each point against your budget. Then add the flight you book.",
       done: Boolean(flights),
       href: trip ? pointsOrCashUrl({ from: home, to: tripAirport((stops ?? []) as TripStop[]), date: trip.start_date, tripId: trip.id }) : "/points",
-      cta: "Compare points and cash",
+      cta: "Cost it with my points",
       secondary: trip ? { href: `/trips/${trip.id}/transit`, label: "I've already booked" } : undefined,
     },
   ];

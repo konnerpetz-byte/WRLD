@@ -1,3 +1,6 @@
+import { airportByCode } from "@/features/places/airports";
+import { distanceKm } from "@/lib/geo";
+
 /**
  * What a day on the ground costs, by destination airport, in USD (2026).
  *
@@ -49,14 +52,33 @@ export const STYLES = {
 } as const;
 export type Style = keyof typeof STYLES;
 
+/**
+ * Costs for any airport: its own row, else the nearest listed city within
+ * 1,000 km (say, Florence from Rome), else a middle-of-the-list default.
+ */
+export function costsFor(code: string): { hotel: number; day: number; basis: "city" | "nearby" | "default"; near?: string } | null {
+  if (DEST_COSTS[code]) return { ...DEST_COSTS[code], basis: "city" };
+  const a = airportByCode(code);
+  if (!a) return null;
+  let best: { code: string; km: number } | null = null;
+  for (const k of Object.keys(DEST_COSTS)) {
+    const b = airportByCode(k);
+    if (!b) continue;
+    const km = distanceKm(a, b);
+    if (km <= 1000 && (!best || km < best.km)) best = { code: k, km };
+  }
+  if (best) return { ...DEST_COSTS[best.code], basis: "nearby", near: best.code };
+  return { hotel: 170, day: 85, basis: "default" };
+}
+
 /** Hotel and daily spending for the stay, in USD. Rooms hold two travelers. */
 export function groundCost(code: string, nights: number, travelers: number, style: Style) {
-  const c = DEST_COSTS[code];
+  const c = costsFor(code);
   if (!c) return null;
   const f = STYLES[style].factor;
   const rooms = Math.ceil(travelers / 2);
   const hotel = Math.round(c.hotel * f * rooms * nights);
   // Days on the ground: one more than the nights (arrival and departure days).
   const days = Math.round(c.day * f * travelers * (nights + 1));
-  return { hotel, days, total: hotel + days };
+  return { hotel, days, total: hotel + days, basis: c.basis, near: c.near };
 }
