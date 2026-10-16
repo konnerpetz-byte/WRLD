@@ -78,9 +78,13 @@ async function WalletPageContent() {
   return (
     <div className="grid gap-10">
       <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <p className="max-w-prose text-muted-foreground">
-          Every airline, hotel and credit card balance in one place. Plan with points uses these to show where they can take you.
-        </p>
+        <div>
+          <h1 className="text-4xl font-semibold">Wallet</h1>
+          <p className="mt-1 max-w-prose text-muted-foreground">
+            Every airline, hotel and credit card balance in one place. Explore and each trip&rsquo;s Points tab use these to show what they
+            pay for.
+          </p>
+        </div>
         <HomeAirportForm current={profile?.home_airport ?? null} />
       </div>
       {ready && !tripCount && (

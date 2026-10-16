@@ -2,6 +2,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { SOURCE_PROGRAM } from "@/features/awards/regions";
+import { airportByCode } from "@/features/places/airports";
 import { BANKS } from "@/features/awards/transfers";
 
 import type { FlightPay, TripOption } from "./plan";
@@ -27,6 +28,19 @@ export function seatsAeroUrl(origin: string, destination: string, month: string,
   return u.toString();
 }
 
+/** A new trip, filled in from this result: the city, dates around the cheapest fare, travelers and budget. */
+function startTripUrl({ t, month, nights, travelers, cash }: { t: TripOption; month: string; nights: number; travelers: number; cash: number | null }) {
+  const a = airportByCode(t.code);
+  const p = new URLSearchParams({ city: t.city, start: t.departDate ?? `${month}-15`, nights: String(nights), party: String(travelers) });
+  if (a) {
+    p.set("country", a.country);
+    p.set("lat", String(a.latitude));
+    p.set("lng", String(a.longitude));
+  }
+  if (cash != null && Number.isFinite(cash) && cash > 0) p.set("budget", String(Math.round(cash)));
+  return `/trips/new?${p}`;
+}
+
 const googleFlightsUrl = (origin: string, destination: string, monthLabel: string) =>
   `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${origin} to ${destination} in ${monthLabel}`)}`;
 
@@ -38,6 +52,7 @@ export function TripCard({
   cash,
   travelers,
   nights,
+  tripId,
 }: {
   t: TripOption;
   home: string;
@@ -47,6 +62,8 @@ export function TripCard({
   cash: number | null;
   travelers: number;
   nights: number;
+  /** Set when this card is for an existing trip: the next step is adding the booked flight, not starting a trip */
+  tripId?: string;
 }) {
   const left = cash == null ? 0 : cash - t.cashNeeded;
   const who = travelers === 1 ? "" : ` for ${travelers}`;
@@ -166,9 +183,18 @@ export function TripCard({
             <span className="sr-only">(opens in a new tab)</span>
           </a>
         )}
-        <Link href="/trips/new" className="font-medium text-primary underline underline-offset-2">
-          Start this trip
-        </Link>
+        {tripId ? (
+          <Link href={`/trips/${tripId}/transit`} className="font-medium text-primary underline underline-offset-2">
+            Booked it? Add the flight
+          </Link>
+        ) : (
+          <Link
+            href={startTripUrl({ t, month, nights, travelers, cash })}
+            className="font-medium text-primary underline underline-offset-2"
+          >
+            Start this trip
+          </Link>
+        )}
       </div>
     </li>
   );

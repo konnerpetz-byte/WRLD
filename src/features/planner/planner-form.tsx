@@ -35,6 +35,7 @@ export function PlannerForm({
   regions,
   styles,
   keep,
+  action,
 }: {
   initial: PlannerInitial;
   pointKeys: PointKey[];
@@ -43,6 +44,8 @@ export function PlannerForm({
   styles: (Option & { hint: string })[];
   /** Carried through the search: the trip and its airport */
   keep?: { to?: string; trip?: string };
+  /** Where the form submits: Explore, or the trip's own points page */
+  action?: string;
 }) {
   const id = useId();
   const [home, setHome] = useState(initial.home);
@@ -55,7 +58,7 @@ export function PlannerForm({
   const groups = [...new Set(pointKeys.map((k) => k.group))];
 
   return (
-    <form method="get" action="/points" className="grid gap-5">
+    <form method="get" action={action ?? "/points"} className="grid gap-5">
       <input type="hidden" name="pts" value={pts} />
       {keep?.to && <input type="hidden" name="to" value={keep.to} />}
       {keep?.trip && <input type="hidden" name="trip" value={keep.trip} />}

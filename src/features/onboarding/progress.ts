@@ -15,8 +15,9 @@ export function tripAirport(stops: Pick<TripStop, "latitude" | "longitude">[]): 
   return nearestAirports({ latitude: s.latitude!, longitude: s.longitude! }, 1)[0]?.code ?? null;
 }
 
-/** "Points or cash" prefilled for one flight of a trip. */
+/** The trip's Points tab (its airport, dates and budget come from the trip), or Explore for a route with no trip. */
 export function pointsOrCashUrl(o: { from: string | null; to: string | null; date: string; tripId?: string }) {
+  if (o.tripId) return `/trips/${o.tripId}/points`;
   const p = new URLSearchParams();
   if (o.from) p.set("from", o.from);
   if (o.to) p.set("to", o.to);
@@ -28,7 +29,7 @@ export function pointsOrCashUrl(o: { from: string | null; to: string | null; dat
 
 /**
  * The first-run path, in the order WRLD is built around:
- * how you travel → what points you have → a trip → how to pay for its flights.
+ * what points you have → a trip → how to pay for it → your travel type.
  * Returns null once every step is done (the guide goes away).
  */
 export async function startSteps(supabase: Supabase, userId: string): Promise<Step[] | null> {
@@ -48,15 +49,8 @@ export async function startSteps(supabase: Supabase, userId: string): Promise<St
     : [{ count: 0 }, { data: [] }];
 
   const home = profile?.home_airport ?? null;
+  // The path a new traveler follows: what they have (points, home airport) → a trip → paying for it → personal touches.
   const steps: Step[] = [
-    {
-      key: "type",
-      title: "Find your travel type",
-      body: "Ten quick questions. WRLD uses your answers to suggest what to do on every trip.",
-      done: Boolean(traveler?.quiz_completed_at),
-      href: traveler?.quiz_completed_at ? "/profile" : "/profile/quiz",
-      cta: "Take the quiz",
-    },
     {
       key: "points",
       title: "Add your points and home airport",
@@ -69,11 +63,12 @@ export async function startSteps(supabase: Supabase, userId: string): Promise<St
     {
       key: "trip",
       title: "Start a trip",
-      body: "Where and when. Invite friends now or later; WRLD sets up the days for you.",
+      body: "Where and when, or let Explore suggest places your budget and points cover. Invite friends now or later; WRLD sets up the days.",
       done: Boolean(trip),
       doneNote: trip?.title,
       href: trip ? `/trips/${trip.id}` : "/trips/new",
       cta: "Plan a trip",
+      secondary: trip ? undefined : { href: "/points", label: "Get ideas in Explore" },
     },
     {
       key: "flights",
@@ -83,6 +78,14 @@ export async function startSteps(supabase: Supabase, userId: string): Promise<St
       href: trip ? pointsOrCashUrl({ from: home, to: tripAirport((stops ?? []) as TripStop[]), date: trip.start_date, tripId: trip.id }) : "/points",
       cta: "Cost it with my points",
       secondary: trip ? { href: `/trips/${trip.id}/transit`, label: "I've already booked" } : undefined,
+    },
+    {
+      key: "type",
+      title: "Find your travel type",
+      body: "Optional. Ten quick questions so WRLD suggests the right things to do on every trip.",
+      done: Boolean(traveler?.quiz_completed_at),
+      href: traveler?.quiz_completed_at ? "/profile" : "/profile/quiz",
+      cta: "Take the quiz",
     },
   ];
   return steps.every((s) => s.done) ? null : steps;

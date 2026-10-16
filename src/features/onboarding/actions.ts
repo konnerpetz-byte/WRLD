@@ -18,3 +18,9 @@ export async function setHomeAirport(_: HomeAirportState, formData: FormData): P
   revalidatePath("/", "layout");
   return { saved: `${airport.city} (${code})` };
 }
+
+/** The first-run tour was finished or skipped: don't show it again. */
+export async function markTourSeen() {
+  const { supabase, userId } = await requireUserId();
+  await supabase.from("profiles").update({ tour_seen_at: new Date().toISOString() }).eq("id", userId);
+}

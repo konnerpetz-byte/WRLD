@@ -62,6 +62,8 @@ export type TripOption = {
   fare: number;
   /** "live": both ways from real fares; "half": outbound real, return taken as the same price; "estimate": from distance */
   fareIs: "live" | "half" | "estimate";
+  /** Day of the cheapest outbound fare, when WRLD has one */
+  departDate: string | null;
   pay: FlightPay;
   /** Cash spent on flights after points */
   flightCash: number;
@@ -262,7 +264,12 @@ export function priceTrips(
   if (!o) return [];
   const list = destinations(input.region, input.home, input.only);
   const cheapest = new Map<string, number>();
-  for (const f of fares) if (!cheapest.has(f.destination) || f.price < cheapest.get(f.destination)!) cheapest.set(f.destination, f.price);
+  const cheapestDay = new Map<string, string>();
+  for (const f of fares)
+    if (!cheapest.has(f.destination) || f.price < cheapest.get(f.destination)!) {
+      cheapest.set(f.destination, f.price);
+      cheapestDay.set(f.destination, f.date);
+    }
 
   const t = input.travelers;
   const options: TripOption[] = [];
@@ -341,6 +348,7 @@ export function priceTrips(
         costNear: ground.near,
         fare,
         fareIs,
+        departDate: cheapestDay.get(code) ?? null,
         pay: p.pay,
         flightCash: Math.round(p.flightCash),
         hotel: ground.hotel,

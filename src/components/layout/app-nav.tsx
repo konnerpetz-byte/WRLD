@@ -1,15 +1,20 @@
 "use client";
 
-import { Bookmark, CircleUserRound, Compass, Luggage, Plane } from "lucide-react";
+import { Bookmark, CircleUserRound, Compass, Luggage, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+/**
+ * In the order people use WRLD: their trips, ideas for the next one, the points
+ * that pay for it, places they've saved, and themselves. Each link also owns
+ * the pages under it (`also`), so the right one stays highlighted.
+ */
 const LINKS = [
-  { href: "/trips", label: "Trips", short: "Trips", icon: Luggage },
-  { href: "/points", label: "Plan with points", short: "Points", icon: Plane },
-  { href: "/saved", label: "Saved spots", short: "Saved", icon: Bookmark },
-  { href: "/profile", label: "Travel type", short: "Travel type", icon: Compass },
-  { href: "/account", label: "Account", short: "Account", icon: CircleUserRound },
+  { href: "/trips", label: "Trips", short: "Trips", icon: Luggage, also: [] as string[], exact: false },
+  { href: "/points", label: "Explore", short: "Explore", icon: Compass, also: ["/points/share"], exact: true },
+  { href: "/points/wallet", label: "Wallet", short: "Wallet", icon: Wallet, also: [], exact: false },
+  { href: "/saved", label: "Saved spots", short: "Saved", icon: Bookmark, also: [], exact: false },
+  { href: "/account", label: "You", short: "You", icon: CircleUserRound, also: ["/profile"], exact: false },
 ];
 
 export function AppNav() {
@@ -28,13 +33,15 @@ export function NavLinks({ pathname = "" }: { pathname?: string }) {
       aria-label="Main"
       className="material-dark fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-white/10 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] lg:static lg:flex lg:flex-col lg:gap-1 lg:border-0 lg:bg-transparent lg:p-0 lg:[-webkit-backdrop-filter:none] lg:[backdrop-filter:none]"
     >
-      {LINKS.map(({ href, label, short, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
+      {LINKS.map(({ href, label, short, icon: Icon, also, exact }) => {
+        const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
+        const active = (exact ? pathname === href : under(href)) || also.some(under);
         return (
           <Link
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
+            data-tour={short.toLowerCase()}
             className={`flex flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[11px] leading-none font-medium transition-[color,background-color,transform] duration-150 focus-visible:outline-2 focus-visible:outline-travel motion-safe:active:scale-95 lg:flex-row lg:gap-3 lg:px-3 lg:py-2 lg:text-sm lg:leading-normal lg:font-normal ${
               active ? "text-white lg:bg-white/10 lg:font-medium" : "text-sidebar-foreground/75 hover:text-white lg:hover:bg-white/5"
             }`}

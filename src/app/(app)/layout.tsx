@@ -6,6 +6,7 @@ import { Avatar } from "@/components/avatar";
 import { AppNav, NavLinks } from "@/components/layout/app-nav";
 import { Wordmark } from "@/components/layout/wordmark";
 import { signOut } from "@/features/auth/actions";
+import { WelcomeTour } from "@/features/onboarding/welcome-tour";
 import { requireUserId } from "@/lib/supabase/server";
 
 /**
@@ -37,9 +38,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </form>
         </div>
       </aside>
+      <Suspense fallback={null}>
+        <TourGate />
+      </Suspense>
       <main className="min-w-0 px-4 pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-8 lg:px-12 lg:pb-[max(2rem,env(safe-area-inset-bottom))]">{children}</main>
     </div>
   );
+}
+
+/** Shows the first-run tour to travelers who haven't finished or skipped it. */
+async function TourGate() {
+  const { supabase, userId } = await requireUserId();
+  const { data } = await supabase.from("profiles").select("tour_seen_at").eq("id", userId).maybeSingle();
+  return <WelcomeTour seen={Boolean(data?.tour_seen_at)} />;
 }
 
 async function CurrentUser() {

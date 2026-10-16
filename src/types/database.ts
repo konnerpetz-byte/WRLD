@@ -121,6 +121,8 @@ export type Profile = Timestamps & {
   home_country: CountryCode | null;
   home_currency: CurrencyCode;
   home_airport: string | null;
+  /** When the first-run tour was finished or skipped; null shows it */
+  tour_seen_at: string | null;
 };
 
 export type Trip = Timestamps & {
@@ -727,6 +729,19 @@ export type CostPerDiem = {
   source_file: string;
   fetched_at: string;
 };
+/** A ticket, boarding pass or confirmation file kept with a trip (bucket "trip-files"). */
+export type TripFile = {
+  id: string;
+  trip_id: string;
+  booking_type: "trip" | "transit" | "lodging" | "item";
+  booking_id: string | null;
+  name: string;
+  path: string;
+  size_bytes: number;
+  mime: string;
+  uploaded_by: string;
+  created_at: string;
+};
 export type CostCalibration = { kind: "lodging" | "day"; factor: number; default_factor: number; samples: number; updated_at: string };
 export type CostRefreshRun = { id: number; source: string; source_file: string | null; rows: number; ok: boolean; note: string | null; ran_at: string };
 
@@ -738,6 +753,7 @@ export type Database = {
       currencies: ReadOnly<Currency>;
       countries: ReadOnly<Country>;
       cost_per_diem: ReadOnly<CostPerDiem>;
+      trip_files: TableDef<TripFile, Omit<TripFile, "id" | "created_at" | "uploaded_by" | "booking_type" | "booking_id"> & Partial<Pick<TripFile, "booking_type" | "booking_id">>, Partial<Pick<TripFile, "booking_type" | "booking_id">>>;
       cost_calibration: ReadOnly<CostCalibration>;
       cost_refresh_runs: ReadOnly<CostRefreshRun>;
       profiles: TableDef<Profile, ProfileInsert, ProfileUpdate>;

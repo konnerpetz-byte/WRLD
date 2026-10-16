@@ -61,9 +61,16 @@ async function AccountPageContent() {
     <div className="mx-auto grid max-w-3xl gap-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-semibold">Account</h1>
+          <h1 className="text-4xl font-semibold">You</h1>
           <p className="mt-1 text-muted-foreground">
-            Your details, sign-in and privacy.
+            Your details, sign-in and privacy.{" "}
+            <Link href="/profile" className="font-medium text-primary underline underline-offset-2">
+              Your travel type
+            </Link>{" "}
+            shapes what WRLD suggests.{" "}
+            <Link href="/trips?tour=1" className="font-medium text-primary underline underline-offset-2">
+              Replay the tour
+            </Link>
           </p>
         </div>
         <div className="flex gap-2">

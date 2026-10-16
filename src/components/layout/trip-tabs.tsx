@@ -4,17 +4,21 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-// In the order a trip comes together: the plan, the days, getting there, staying, the people, the money.
+// In the order a trip comes together: the overview, the days and where they are,
+// getting there and staying, paying for it (points, then the whole budget), the people,
+// ideas saved for later, and getting ready to go (checklist and export).
 const TABS = [
-  { slug: "", label: "Plan" },
+  { slug: "", label: "Overview" },
   { slug: "itinerary", label: "Itinerary" },
   { slug: "map", label: "Map" },
   { slug: "transit", label: "Flights & transit" },
   { slug: "lodging", label: "Stays" },
-  { slug: "group", label: "Group" },
+  { slug: "points", label: "Points" },
   { slug: "budget", label: "Budget" },
+  { slug: "group", label: "Group" },
   { slug: "saved", label: "Saved" },
   { slug: "checklist", label: "Checklist" },
+  { slug: "export", label: "Export" },
 ];
 
 export function TripTabs({ unread = 0 }: { unread?: number }) {
