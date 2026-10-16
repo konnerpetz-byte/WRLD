@@ -29,6 +29,8 @@ export type PlanInput = {
   region: RegionKey | "anywhere";
   /** Price just this destination (a trip's airport) instead of searching */
   only?: string | null;
+  /** A trip's dates: fares are looked up around these days instead of across the month */
+  dates?: { start: string; end: string } | null;
 };
 
 /** One way to pay for the flights. */
@@ -46,7 +48,8 @@ export type TripOption = {
   costNear?: string;
   /** Round-trip fare for everyone, and whether it's today's fare or WRLD's estimate */
   fare: number;
-  fareIs: "live" | "estimate";
+  /** "live": both ways from real fares; "half": outbound real, return taken as the same price; "estimate": from distance */
+  fareIs: "live" | "half" | "estimate";
   pay: FlightPay;
   /** Cash spent on flights after points */
   flightCash: number;
@@ -208,17 +211,28 @@ export async function planTrips(supabase: Supabase, input: PlanInput, fx: Fx) {
   if (!airportByCode(input.home)) return { options: [] as TripOption[], liveFares: false };
   const codes = destinations(input.region, input.home, input.only).map((d) => d.code);
   const [y, m] = input.month.split("-").map(Number);
-  const start = `${input.month}-01`;
-  const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
-  const [network, fares] = await Promise.all([
+  // Around a trip's own dates (3 days either side), else the whole month.
+  const around = (iso: string) => {
+    const at = Date.parse(`${iso}T12:00:00Z`);
+    const day = (n: number) => new Date(at + n * 86400000).toISOString().slice(0, 10);
+    const start = day(-3);
+    const end = day(3);
+    return { start, end, months: [...new Set([start.slice(0, 7), end.slice(0, 7)])] };
+  };
+  const out = input.dates
+    ? around(input.dates.start)
+    : { start: `${input.month}-01`, end: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10), months: [input.month] };
+  const back = input.only && input.dates ? around(input.dates.end) : null;
+  const [network, fares, returns] = await Promise.all([
     loadNetwork(supabase, [input.home], codes),
-    cashFares({ origins: [input.home], months: [input.month], start, end, directOnly: false }),
+    cashFares({ origins: [input.home], ...out, directOnly: false }),
+    back && input.only ? cashFares({ origins: [input.only], ...back, directOnly: false }) : Promise.resolve([]),
   ]);
-  return { options: priceTrips(input, network, fares, fx), liveFares: cashFaresEnabled() };
+  return { options: priceTrips(input, network, fares, fx, returns), liveFares: cashFaresEnabled() };
 }
 
 /** The pricing itself, given the route network and this month's fares. */
-export function priceTrips(input: PlanInput, network: Network, fares: CashFare[], fx: Fx): TripOption[] {
+export function priceTrips(input: PlanInput, network: Network, fares: CashFare[], fx: Fx, returns: CashFare[] = []): TripOption[] {
   const o = airportByCode(input.home);
   if (!o) return [];
   const list = destinations(input.region, input.home, input.only);
@@ -234,7 +248,9 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
     const miles = distanceKm(o, d) / KM_PER_MILE;
     if (miles < 150) continue;
     const live = cheapest.get(code);
-    const perPerson = live != null ? Math.round(live * 2) : estimateFare(miles);
+    const liveBack = returns.filter((f) => f.origin === code && f.destination === input.home).reduce<number | null>((a, f) => (a == null || f.price < a ? f.price : a), null);
+    const perPerson = live != null ? Math.round(live + (liveBack ?? live)) : estimateFare(miles);
+    const fareIs: TripOption["fareIs"] = live == null ? "estimate" : liveBack != null ? "live" : "half";
     const fare = perPerson * t;
 
     // Every way to pay for the flights.
@@ -280,7 +296,7 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
         costBasis: ground.basis,
         costNear: ground.near,
         fare,
-        fareIs: live != null ? "live" : "estimate",
+        fareIs,
         pay: p.pay,
         flightCash: Math.round(p.flightCash),
         hotel: ground.hotel,

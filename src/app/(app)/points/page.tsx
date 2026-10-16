@@ -87,7 +87,7 @@ async function Planner({ searchParams }: { searchParams: PageProps<"/points">["s
 
   const ready = IATA.test(home) && (budgetSet || Boolean(only));
   const plan = ready
-    ? await planTrips(supabase, { home, cash: budgetSet ? cash : Infinity, points, nights, travelers, style, month, region, only }, fx)
+    ? await planTrips(supabase, { home, cash: budgetSet ? cash : Infinity, points, nights, travelers, style, month, region, only, dates: only && forTrip && !sp.month ? { start: forTrip.start_date, end: forTrip.end_date } : null }, fx)
     : null;
   const sorted = plan ? sortOptions(plan.options, sort) : [];
   const fits = sorted.filter((t) => t.fit === "fits").slice(0, 12);

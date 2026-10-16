@@ -59,7 +59,7 @@ export function TripCard({
           </h3>
           <p className="text-sm text-muted-foreground">
             {nights} nights{who}. Without points: {money(t.fullPrice)}
-            {t.fareIs === "estimate" ? " (flights estimated)" : ""}.
+            {t.fareIs === "estimate" ? " (flights estimated)" : t.fareIs === "half" ? " (return flight estimated)" : ""}.
             {t.costBasis === "nearby" ? ` Hotel and daily costs estimated from ${t.costNear}.` : t.costBasis === "default" ? " Hotel and daily costs are a general estimate." : ""}
           </p>
         </div>
@@ -166,9 +166,10 @@ export function TripCard({
   );
 }
 
-function FlightLine({ pay, fare, flightCash, fareIs }: { pay: FlightPay; fare: number; flightCash: number; fareIs: "live" | "estimate" }) {
-  const fareText = `${money(fare)} cash fare${fareIs === "estimate" ? " (estimate)" : ""}`;
-  if (pay.kind === "cash") return <>{money(fare)} cash{fareIs === "estimate" ? " (estimate)" : ""}. Your points do more on the hotel.</>;
+function FlightLine({ pay, fare, flightCash, fareIs }: { pay: FlightPay; fare: number; flightCash: number; fareIs: TripOption["fareIs"] }) {
+  const note = fareIs === "estimate" ? " (estimate)" : fareIs === "half" ? " (return estimated)" : "";
+  const fareText = `${money(fare)} cash fare${note}`;
+  if (pay.kind === "cash") return <>{money(fare)} cash{note}. Your points do more on the hotel.</>;
   if (pay.kind === "portal") {
     return (
       <>

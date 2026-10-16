@@ -6,6 +6,7 @@ import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { requireUserId } from "@/lib/supabase/server";
 import { viatorSearch } from "@/features/experiences/providers";
 import type { AdminStats } from "@/types/database";
+import { cashFares, cashFaresEnabled } from "@/features/awards/cash-fares";
 import { env } from "@/lib/env";
 import { affiliateStatus } from "@/lib/affiliate";
 
@@ -237,7 +238,16 @@ function Metric({ n, title, part, whole, detail, goal }: { n: number; title: str
 /** Which partner keys are set in Vercel, and whether Viator actually answers. */
 async function Connections() {
   const viatorKey = Boolean(env("VIATOR_API_KEY"));
-  const viatorResults = viatorKey ? await viatorSearch("Lisbon", "walking tour", "USD") : [];
+  const next = new Date();
+  next.setUTCMonth(next.getUTCMonth() + 1, 1);
+  const month = next.toISOString().slice(0, 7);
+  const [viatorResults, fares] = await Promise.all([
+    viatorKey ? viatorSearch("Lisbon", "walking tour", "USD") : Promise.resolve([]),
+    cashFaresEnabled()
+      ? cashFares({ origins: ["DTW"], months: [month], start: `${month}-01`, end: `${month}-31`, directOnly: false })
+      : Promise.resolve([]),
+  ]);
+  const fareDests = new Set(fares.map((f) => f.destination)).size;
   const rows: { name: string; ok: boolean; note: string }[] = [
     {
       name: "Viator",
@@ -259,9 +269,13 @@ async function Connections() {
       note: affiliateStatus().getYourGuide ? "Tracking added to every link." : "Partner ID missing.",
     },
     {
-      name: "Seats.aero (award flights)",
-      ok: Boolean(process.env.SEATS_AERO_API_KEY),
-      note: process.env.SEATS_AERO_API_KEY ? "Live award search is on." : "Waiting for SEATS_AERO_API_KEY: sample results are shown.",
+      name: "Travelpayouts (cash fares)",
+      ok: fares.length > 0,
+      note: !cashFaresEnabled()
+        ? "No TRAVELPAYOUTS_TOKEN: the planner estimates flight prices from distance."
+        : fares.length
+          ? `Working: ${fares.length} fares from DTW to ${fareDests} airports next month.`
+          : "Token is set but the test search returned no fares. Check the token in Travelpayouts › Profile › API token.",
     },
     {
       name: "AwardWallet (balances)",
