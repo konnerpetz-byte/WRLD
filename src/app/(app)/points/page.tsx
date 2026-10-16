@@ -67,6 +67,18 @@ async function Planner({ searchParams }: { searchParams: PageProps<"/points">["s
       ])
     : [{ data: null }, { count: null }];
   const only = sp.to && IATA.test(sp.to.toUpperCase()) ? sp.to.toUpperCase() : null;
+  // The trip's first stop, so hotel and daily costs are for the city you're going to, not just its airport.
+  const { data: firstStop } = forTrip
+    ? await supabase
+        .from("trip_stops")
+        .select("city, country_code")
+        .eq("trip_id", forTrip.id)
+        .order("arrive_date")
+        .order("position")
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+  const tripPlace = firstStop?.city && firstStop.country_code ? { city: firstStop.city, country: firstStop.country_code } : null;
   const tripNights = forTrip ? Math.round((Date.parse(forTrip.end_date) - Date.parse(forTrip.start_date)) / 86400000) : null;
   const tripBudget = forTrip?.budget != null ? Math.round(toUsd(Number(forTrip.budget), forTrip.currency) ?? Number(forTrip.budget)) : null;
 
@@ -87,9 +99,42 @@ async function Planner({ searchParams }: { searchParams: PageProps<"/points">["s
 
   const ready = IATA.test(home) && (budgetSet || Boolean(only));
   const plan = ready
-    ? await planTrips(supabase, { home, cash: budgetSet ? cash : Infinity, points, nights, travelers, style, month, region, only, dates: only && forTrip && !sp.month ? { start: forTrip.start_date, end: forTrip.end_date } : null }, fx)
+    ? await planTrips(
+        supabase,
+        {
+          home,
+          cash: budgetSet ? cash : Infinity,
+          points,
+          nights,
+          travelers,
+          style,
+          month,
+          region,
+          only,
+          dates: only && forTrip && !sp.month ? { start: forTrip.start_date, end: forTrip.end_date } : null,
+          place: tripPlace,
+        },
+        fx
+      )
     : null;
   const sorted = plan ? sortOptions(plan.options, sort) : [];
+  if (plan) {
+    // Usage: does this traveler start from a budget ("where can I go") or from a trip they already have?
+    const fitCount = plan.options.filter((t) => t.fit === "fits").length;
+    await supabase
+      .from("app_events")
+      .insert({
+        user_id: userId,
+        kind: "planner_run",
+        trip_id: forTrip?.id ?? null,
+        provider: only ? (budgetSet ? "trip" : "trip_nobudget") : "explore",
+        count: Math.min(50, Math.max(1, fitCount)),
+      })
+      .then(
+        () => undefined,
+        () => undefined
+      );
+  }
   const fits = sorted.filter((t) => t.fit === "fits").slice(0, 12);
   const stretch = sorted.filter((t) => t.fit === "stretch").slice(0, 6);
 
@@ -279,8 +324,11 @@ async function Planner({ searchParams }: { searchParams: PageProps<"/points">["s
                 needs the least cash.
               </p>
               <p>
-                <strong className="text-foreground">Hotel and days there:</strong> WRLD estimates by city for your travel style. Season can
-                move hotel prices a lot.
+                <strong className="text-foreground">Hotel and days there:</strong> from U.S. government per diem rates (State Department for
+                1,000+ cities abroad, updated monthly), which are what a business traveler is reimbursed. WRLD scales them to leisure
+                travel: hotels at {plan.factors?.lodging ?? 0.55}× and food, transit and sights at {plan.factors?.day ?? 0.6}×, then by your
+                travel style. Those factors are re-measured as travelers log real costs on their trips. Rates for some cities are set high
+                for security reasons, so treat those as a ceiling. U.S. cities use WRLD&rsquo;s own estimates for now.
               </p>
               <p>
                 <strong className="text-foreground">Seats:</strong> award seats are limited. Find an open seat on Seats.aero before moving

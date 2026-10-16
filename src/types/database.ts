@@ -712,6 +712,24 @@ export type TripRecommendationUpdate = Pick<Partial<TripRecommendation>, 'status
 // ---------------------------------------------------------------------------
 // Supabase client typing:  createClient<Database>(url, key)
 // ---------------------------------------------------------------------------
+/** U.S. government per diem rates by location and season (see supabase/functions/costs-refresh). */
+export type CostPerDiem = {
+  source: "state" | "gsa";
+  location_code: string;
+  country: string;
+  location: string;
+  state: string | null;
+  season_start: string;
+  season_end: string;
+  lodging: number;
+  mie: number;
+  effective: string | null;
+  source_file: string;
+  fetched_at: string;
+};
+export type CostCalibration = { kind: "lodging" | "day"; factor: number; default_factor: number; samples: number; updated_at: string };
+export type CostRefreshRun = { id: number; source: string; source_file: string | null; rows: number; ok: boolean; note: string | null; ran_at: string };
+
 type TableDef<Row, Insert, Update> = { Row: Row; Insert: Insert; Update: Update; Relationships: [] };
 
 export type Database = {
@@ -719,6 +737,9 @@ export type Database = {
     Tables: {
       currencies: ReadOnly<Currency>;
       countries: ReadOnly<Country>;
+      cost_per_diem: ReadOnly<CostPerDiem>;
+      cost_calibration: ReadOnly<CostCalibration>;
+      cost_refresh_runs: ReadOnly<CostRefreshRun>;
       profiles: TableDef<Profile, ProfileInsert, ProfileUpdate>;
       trips: TableDef<Trip, TripInsert, TripUpdate>;
       trip_members: TableDef<TripMember, TripMemberInsert, TripMemberUpdate>;
@@ -883,7 +904,7 @@ export type WalletAccountView = LoyaltyAccount & {
 export type AppEvent = {
   id: number;
   user_id: UUID;
-  kind: "booking_click" | "suggestions_shown";
+  kind: "booking_click" | "suggestions_shown" | "planner_run";
   trip_id: UUID | null;
   provider: string | null;
   count: number;

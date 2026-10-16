@@ -60,7 +60,15 @@ export function TripCard({
           <p className="text-sm text-muted-foreground">
             {nights} nights{who}. Without points: {money(t.fullPrice)}
             {t.fareIs === "estimate" ? " (flights estimated)" : t.fareIs === "half" ? " (return flight estimated)" : ""}.
-            {t.costBasis === "nearby" ? ` Hotel and daily costs estimated from ${t.costNear}.` : t.costBasis === "default" ? " Hotel and daily costs are a general estimate." : ""}
+            {t.costBasis === "perdiem-city"
+              ? ` Hotel and daily costs from U.S. government per diem rates for ${t.costNear}, scaled to leisure travel.`
+              : t.costBasis === "perdiem-country"
+              ? ` Hotel and daily costs from the ${t.costNear}, scaled to leisure travel.`
+              : t.costBasis === "nearby"
+              ? ` Hotel and daily costs estimated from ${t.costNear}.`
+              : t.costBasis === "default"
+              ? " Hotel and daily costs are a general estimate."
+              : " Hotel and daily costs are WRLD's estimate for the city."}
           </p>
         </div>
         <div className="text-right">
@@ -84,8 +92,8 @@ export function TripCard({
             {money(t.hotel)}
             {t.hyatt && (
               <>
-                , {t.hyatt.nights === nights ? "all" : t.hyatt.nights} night{t.hyatt.nights === 1 ? "" : "s"} for about {pts(t.hyatt.points)} World of
-                Hyatt points (
+                , {t.hyatt.nights === nights ? "all" : t.hyatt.nights} night{t.hyatt.nights === 1 ? "" : "s"} for about{" "}
+                {pts(t.hyatt.points)} World of Hyatt points (
                 {t.hyatt.from
                   .map((f) => (f.key === "hyatt" ? `${pts(f.points)} of your own` : `move ${pts(f.points)} ${nameOf(f.key)}`))
                   .join(", ")}
@@ -169,7 +177,12 @@ export function TripCard({
 function FlightLine({ pay, fare, flightCash, fareIs }: { pay: FlightPay; fare: number; flightCash: number; fareIs: TripOption["fareIs"] }) {
   const note = fareIs === "estimate" ? " (estimate)" : fareIs === "half" ? " (return estimated)" : "";
   const fareText = `${money(fare)} cash fare${note}`;
-  if (pay.kind === "cash") return <>{money(fare)} cash{note}. Your points do more on the hotel.</>;
+  if (pay.kind === "cash")
+    return (
+      <>
+        {money(fare)} cash{note}. Your points do more on the hotel.
+      </>
+    );
   if (pay.kind === "portal") {
     return (
       <>
@@ -185,7 +198,8 @@ function FlightLine({ pay, fare, flightCash, fareIs }: { pay: FlightPay; fare: n
   }
   return (
     <>
-      {pts(pay.miles)} {SOURCE_PROGRAM[pay.source]?.name ?? pay.program} miles{pay.label ? ` ${pay.label}` : ""} + about {money(pay.taxes)} taxes
+      {pts(pay.miles)} {SOURCE_PROGRAM[pay.source]?.name ?? pay.program} miles{pay.label ? ` ${pay.label}` : ""} + about {money(pay.taxes)}{" "}
+      taxes
       {pay.surcharges ? " (some airlines add fees)" : ""}, instead of a {fareText}.{" "}
       <span className="block mt-1">
         {pay.from.map((f, i) => (

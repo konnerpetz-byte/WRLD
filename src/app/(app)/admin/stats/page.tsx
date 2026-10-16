@@ -45,7 +45,9 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold">WRLD stats</h1>
-          <p className="text-sm text-muted-foreground">Only you can see this page. Numbers cover the last {days} days unless they say otherwise.</p>
+          <p className="text-sm text-muted-foreground">
+            Only you can see this page. Numbers cover the last {days} days unless they say otherwise.
+          </p>
         </div>
         <nav aria-label="Time range" className="flex gap-1 rounded-lg border p-1 text-sm">
           {RANGES.map((d) => (
@@ -62,7 +64,9 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
       </header>
 
       <section aria-labelledby="totals-h" className="grid gap-3">
-        <h2 id="totals-h" className="sr-only">Totals</h2>
+        <h2 id="totals-h" className="sr-only">
+          Totals
+        </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Tile label="People signed up (all time)" value={stats.totals.users} />
           <Tile label="Trips (all time)" value={stats.totals.trips} />
@@ -72,7 +76,9 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
       </section>
 
       <section aria-labelledby="five-h" className="grid gap-3">
-        <h2 id="five-h" className="text-xl font-semibold">The five numbers</h2>
+        <h2 id="five-h" className="text-xl font-semibold">
+          The five numbers
+        </h2>
         <div className="grid gap-3 md:grid-cols-2">
           <Metric
             n={1}
@@ -118,22 +124,34 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-sm text-muted-foreground">No clicks yet. Clicks on official ticket links are counted too, even though they don&apos;t earn money.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                No clicks yet. Clicks on official ticket links are counted too, even though they don&apos;t earn money.
+              </p>
             )}
           </div>
         </div>
       </section>
 
       <section aria-labelledby="weekly-h" className="grid gap-3">
-        <h2 id="weekly-h" className="text-xl font-semibold">Last 8 weeks</h2>
+        <h2 id="weekly-h" className="text-xl font-semibold">
+          Last 8 weeks
+        </h2>
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-left">
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">Week of</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Sign-ups</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">People active</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Trips created</th>
+                <th scope="col" className="px-3 py-2 font-medium">
+                  Week of
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  Sign-ups
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  People active
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  Trips created
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -153,7 +171,9 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
       </section>
 
       <section aria-labelledby="eng-h" className="grid gap-3">
-        <h2 id="eng-h" className="text-xl font-semibold">What people did</h2>
+        <h2 id="eng-h" className="text-xl font-semibold">
+          What people did
+        </h2>
         <div className="grid grid-cols-3 gap-3">
           <Tile label="Itinerary items added" value={stats.engagement.itinerary_items} />
           <Tile label="Chat messages" value={stats.engagement.chat_messages} />
@@ -162,14 +182,18 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
       </section>
 
       <section aria-labelledby="conn-h" className="grid gap-3">
-        <h2 id="conn-h" className="text-xl font-semibold">Partner connections</h2>
+        <h2 id="conn-h" className="text-xl font-semibold">
+          Partner connections
+        </h2>
         <Suspense fallback={<p className="text-sm text-muted-foreground">Checking…</p>}>
           <Connections />
         </Suspense>
       </section>
 
       <section aria-labelledby="links-h" className="grid gap-3">
-        <h2 id="links-h" className="text-xl font-semibold">Official links to look at</h2>
+        <h2 id="links-h" className="text-xl font-semibold">
+          Official links to look at
+        </h2>
         <p className="text-sm text-muted-foreground">
           Checked every Monday. 400, 403 and 429 usually mean the site blocks automated checks but works for people; -1 means no answer.
         </p>
@@ -191,8 +215,8 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
       </section>
 
       <p className="text-sm text-muted-foreground">
-        Website visits and where people came from (Google, Reddit, TikTok) are in Vercel: open the <strong>wrld</strong> project and click the{" "}
-        <strong>Analytics</strong> tab.
+        Website visits and where people came from (Google, Reddit, TikTok) are in Vercel: open the <strong>wrld</strong> project and click
+        the <strong>Analytics</strong> tab.
       </p>
     </div>
   );
@@ -216,7 +240,21 @@ function Tile({ label, value }: { label: string; value: number }) {
   );
 }
 
-function Metric({ n, title, part, whole, detail, goal }: { n: number; title: string; part: number; whole: number; detail: string; goal: string }) {
+function Metric({
+  n,
+  title,
+  part,
+  whole,
+  detail,
+  goal,
+}: {
+  n: number;
+  title: string;
+  part: number;
+  whole: number;
+  detail: string;
+  goal: string;
+}) {
   const pct = whole > 0 ? Math.round((part / whole) * 100) : null;
   return (
     <div className="rounded-xl border bg-card p-4">
@@ -237,6 +275,20 @@ function Metric({ n, title, part, whole, detail, goal }: { n: number; title: str
 
 /** Which partner keys are set in Vercel, and whether Viator actually answers. */
 async function Connections() {
+  const { supabase } = await requireUserId();
+  const [{ data: runs }, { data: cal }] = await Promise.all([
+    supabase
+      .from("cost_refresh_runs")
+      .select("source, source_file, rows, ok, note, ran_at")
+      .order("ran_at", { ascending: false })
+      .limit(20),
+    supabase.from("cost_calibration").select("kind, factor, samples"),
+  ]);
+  const lastOk = (src: string) => (runs ?? []).find((r) => r.source === src && r.ok);
+  const lastAny = (src: string) => (runs ?? []).find((r) => r.source === src);
+  const state = lastOk("state");
+  const gsa = lastOk("gsa");
+  const factor = (k: string) => cal?.find((c) => c.kind === k);
   const viatorKey = Boolean(env("VIATOR_API_KEY"));
   const next = new Date();
   next.setUTCMonth(next.getUTCMonth() + 1, 1);
@@ -255,13 +307,15 @@ async function Connections() {
       note: !viatorKey
         ? "No VIATOR_API_KEY yet: sample listings are shown."
         : viatorResults.length
-          ? `Working: a test search for Lisbon walking tours returned ${viatorResults.length} live listings.`
-          : "Key is set but the test search returned nothing. Check the key, or set VIATOR_API_BASE if it's a sandbox key.",
+        ? `Working: a test search for Lisbon walking tours returned ${viatorResults.length} live listings.`
+        : "Key is set but the test search returned nothing. Check the key, or set VIATOR_API_BASE if it's a sandbox key.",
     },
     {
       name: "Viator link tracking",
       ok: Boolean(env("VIATOR_PID")),
-      note: env("VIATOR_PID") ? "Search links carry your partner ID." : "Add VIATOR_PID (and VIATOR_MCID) so plain Viator search links earn commission too.",
+      note: env("VIATOR_PID")
+        ? "Search links carry your partner ID."
+        : "Add VIATOR_PID (and VIATOR_MCID) so plain Viator search links earn commission too.",
     },
     {
       name: "GetYourGuide",
@@ -269,13 +323,36 @@ async function Connections() {
       note: affiliateStatus().getYourGuide ? "Tracking added to every link." : "Partner ID missing.",
     },
     {
+      name: "Trip costs: State Department per diem",
+      ok: Boolean(state),
+      note: state
+        ? `${state.rows.toLocaleString("en-US")} locations from ${state.source_file}, loaded ${new Date(state.ran_at).toLocaleDateString(
+            "en-US"
+          )}. Checks daily for a new month.`
+        : lastAny("state")?.note ?? "Not loaded yet.",
+    },
+    {
+      name: "Trip costs: GSA per diem (U.S. cities)",
+      ok: Boolean(gsa),
+      note: gsa
+        ? `${gsa.rows.toLocaleString("en-US")} rows from ${gsa.source_file}.`
+        : "Add GSA_API_KEY (free from api.data.gov) as a Supabase Edge Function secret. Until then U.S. cities use WRLD's own estimates.",
+    },
+    {
+      name: "Trip costs: calibration",
+      ok: (factor("lodging")?.samples ?? 0) >= 10,
+      note: `Hotels at ${factor("lodging")?.factor ?? 0.55}× per diem (${factor("lodging")?.samples ?? 0} real stays logged), days at ${
+        factor("day")?.factor ?? 0.6
+      }× (${factor("day")?.samples ?? 0} trips). Re-measured daily; needs 10 to replace the starting assumption.`,
+    },
+    {
       name: "Travelpayouts (cash fares)",
       ok: fares.length > 0,
       note: !cashFaresEnabled()
         ? "No TRAVELPAYOUTS_TOKEN: the planner estimates flight prices from distance."
         : fares.length
-          ? `Working: ${fares.length} fares from DTW to ${fareDests} airports next month.`
-          : "Token is set but the test search returned no fares. Check the token in Travelpayouts › Profile › API token.",
+        ? `Working: ${fares.length} fares from DTW to ${fareDests} airports next month.`
+        : "Token is set but the test search returned no fares. Check the token in Travelpayouts › Profile › API token.",
     },
     {
       name: "AwardWallet (balances)",

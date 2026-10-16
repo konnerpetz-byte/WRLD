@@ -10,7 +10,8 @@ import { airportByCode } from "@/features/places/airports";
 import { distanceKm } from "@/lib/geo";
 import type { requireUserId } from "@/lib/supabase/server";
 
-import { groundCost, type Style, STYLES } from "./costs";
+import { type CostBasis, groundCost, type Style, STYLES } from "./costs";
+import { type Factors, loadPerDiem, type PerDiem, type Place, placeForAirport } from "./per-diem";
 
 type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];
 
@@ -31,12 +32,23 @@ export type PlanInput = {
   only?: string | null;
   /** A trip's dates: fares are looked up around these days instead of across the month */
   dates?: { start: string; end: string } | null;
+  /** The trip's own first stop, priced instead of the airport's city when given */
+  place?: { city: string; country: string } | null;
 };
 
 /** One way to pay for the flights. */
 export type FlightPay =
   | { kind: "cash" }
-  | { kind: "award"; source: string; program: string; label?: string; miles: number; taxes: number; surcharges: boolean; from: { key: string; points: number; miles: number }[] }
+  | {
+      kind: "award";
+      source: string;
+      program: string;
+      label?: string;
+      miles: number;
+      taxes: number;
+      surcharges: boolean;
+      from: { key: string; points: number; miles: number }[];
+    }
   | { kind: "portal"; from: { key: string; points: number }[]; dollars: number };
 
 export type TripOption = {
@@ -44,7 +56,7 @@ export type TripOption = {
   city: string;
   region: RegionKey | null;
   /** Where the hotel and daily costs come from: the city itself, the nearest listed city, or a default */
-  costBasis: "city" | "nearby" | "default";
+  costBasis: CostBasis;
   costNear?: string;
   /** Round-trip fare for everyone, and whether it's today's fare or WRLD's estimate */
   fare: number;
@@ -189,7 +201,8 @@ function hyattNights(hotel: number, nights: number, bal: Points) {
   const perNight = Math.max(7500, Math.round(hotel / nights / (HYATT_CENTS / 100) / 500) * 500);
   for (let n = nights; n > 0; n--) {
     const from = fund(perNight * n, "hyatt", bal);
-    if (from) return { nights: n, points: perNight * n, from: from.map(({ key, points }) => ({ key, points })), dollars: (hotel / nights) * n };
+    if (from)
+      return { nights: n, points: perNight * n, from: from.map(({ key, points }) => ({ key, points })), dollars: (hotel / nights) * n };
   }
   return null;
 }
@@ -208,7 +221,7 @@ const spend = (bal: Points, used: { key: string; points: number }[]) => {
  * least cash.
  */
 export async function planTrips(supabase: Supabase, input: PlanInput, fx: Fx) {
-  if (!airportByCode(input.home)) return { options: [] as TripOption[], liveFares: false };
+  if (!airportByCode(input.home)) return { options: [] as TripOption[], liveFares: false, factors: null };
   const codes = destinations(input.region, input.home, input.only).map((d) => d.code);
   const [y, m] = input.month.split("-").map(Number);
   // Around a trip's own dates (3 days either side), else the whole month.
@@ -223,16 +236,28 @@ export async function planTrips(supabase: Supabase, input: PlanInput, fx: Fx) {
     ? around(input.dates.start)
     : { start: `${input.month}-01`, end: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10), months: [input.month] };
   const back = input.only && input.dates ? around(input.dates.end) : null;
-  const [network, fares, returns] = await Promise.all([
+  const places: Place[] = codes
+    .map((c) => (input.only === c && input.place ? { key: c, ...input.place } : placeForAirport(c)))
+    .filter((p): p is Place => Boolean(p));
+  const costDate = input.dates?.start ?? `${input.month}-15`;
+  const [network, fares, returns, costs] = await Promise.all([
     loadNetwork(supabase, [input.home], codes),
     cashFares({ origins: [input.home], ...out, directOnly: false }),
     back && input.only ? cashFares({ origins: [input.only], ...back, directOnly: false }) : Promise.resolve([]),
+    loadPerDiem(supabase, places, costDate),
   ]);
-  return { options: priceTrips(input, network, fares, fx, returns), liveFares: cashFaresEnabled() };
+  return { options: priceTrips(input, network, fares, fx, returns, costs), liveFares: cashFaresEnabled(), factors: costs.factors };
 }
 
 /** The pricing itself, given the route network and this month's fares. */
-export function priceTrips(input: PlanInput, network: Network, fares: CashFare[], fx: Fx, returns: CashFare[] = []): TripOption[] {
+export function priceTrips(
+  input: PlanInput,
+  network: Network,
+  fares: CashFare[],
+  fx: Fx,
+  returns: CashFare[] = [],
+  costs: { rates: Map<string, PerDiem>; factors: Factors } | null = null
+): TripOption[] {
   const o = airportByCode(input.home);
   if (!o) return [];
   const list = destinations(input.region, input.home, input.only);
@@ -243,18 +268,22 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
   const options: TripOption[] = [];
   for (const { code, region } of list) {
     const d = airportByCode(code);
-    const ground = groundCost(code, input.nights, t, input.style);
+    const ground = groundCost(code, input.nights, t, input.style, costs?.rates.get(code), costs?.factors);
     if (!d || !ground) continue;
     const miles = distanceKm(o, d) / KM_PER_MILE;
     if (miles < 150) continue;
     const live = cheapest.get(code);
-    const liveBack = returns.filter((f) => f.origin === code && f.destination === input.home).reduce<number | null>((a, f) => (a == null || f.price < a ? f.price : a), null);
+    const liveBack = returns
+      .filter((f) => f.origin === code && f.destination === input.home)
+      .reduce<number | null>((a, f) => (a == null || f.price < a ? f.price : a), null);
     const perPerson = live != null ? Math.round(live + (liveBack ?? live)) : estimateFare(miles);
     const fareIs: TripOption["fareIs"] = live == null ? "estimate" : liveBack != null ? "live" : "half";
     const fare = perPerson * t;
 
     // Every way to pay for the flights.
-    const plans: { pay: FlightPay; flightCash: number; used: { key: string; points: number }[] }[] = [{ pay: { kind: "cash" }, flightCash: fare, used: [] }];
+    const plans: { pay: FlightPay; flightCash: number; used: { key: string; points: number }[] }[] = [
+      { pay: { kind: "cash" }, flightCash: fare, used: [] },
+    ];
     for (const c of routeAwareChartPrices(network, input.home, code, "economy", null)) {
       const each = c.pointsHigh ?? c.points;
       const need = each * 2 * t;
@@ -266,21 +295,36 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
       const taxes = (out.high + back.high) * t;
       if (taxes >= fare) continue;
       plans.push({
-        pay: { kind: "award", source: c.source, program: c.program, label: c.label, miles: need, taxes, surcharges: out.plusSurcharges || back.plusSurcharges, from },
+        pay: {
+          kind: "award",
+          source: c.source,
+          program: c.program,
+          label: c.label,
+          miles: need,
+          taxes,
+          surcharges: out.plusSurcharges || back.plusSurcharges,
+          from,
+        },
         flightCash: taxes,
         used: from,
       });
     }
     const viaPortal = portal(fare, input.points, "flight");
     if (viaPortal.dollars > 0) {
-      plans.push({ pay: { kind: "portal", from: viaPortal.from, dollars: viaPortal.dollars }, flightCash: Math.round(fare - viaPortal.dollars), used: viaPortal.from });
+      plans.push({
+        pay: { kind: "portal", from: viaPortal.from, dollars: viaPortal.dollars },
+        flightCash: Math.round(fare - viaPortal.dollars),
+        used: viaPortal.from,
+      });
     }
 
     let best: TripOption | null = null;
     for (const p of plans) {
       const left = spend(input.points, p.used);
       // The hotel: travel-site points only, or Hyatt nights first and travel-site points for the rest.
-      const hotelPlans: { hyatt: ReturnType<typeof hyattNights>; site: ReturnType<typeof portal> }[] = [{ hyatt: null, site: portal(ground.hotel, left, "hotel") }];
+      const hotelPlans: { hyatt: ReturnType<typeof hyattNights>; site: ReturnType<typeof portal> }[] = [
+        { hyatt: null, site: portal(ground.hotel, left, "hotel") },
+      ];
       const h = hyattNights(ground.hotel, input.nights, left);
       if (h) hotelPlans.push({ hyatt: h, site: portal(ground.hotel - h.dollars, spend(left, h.from), "hotel") });
       const hp = hotelPlans.reduce((a, b) => ((b.hyatt?.dollars ?? 0) + b.site.dollars > (a.hyatt?.dollars ?? 0) + a.site.dollars ? b : a));
@@ -310,7 +354,8 @@ export function priceTrips(input: PlanInput, network: Network, fares: CashFare[]
         cents: pointsUsed ? Math.round(((fullPrice - cashNeeded) / pointsUsed) * 10000) / 100 : null,
         fit: cashNeeded <= input.cash ? "fits" : cashNeeded <= input.cash * 1.2 ? "stretch" : "over",
       };
-      if (!best || option.cashNeeded < best.cashNeeded || (option.cashNeeded === best.cashNeeded && option.pointsUsed < best.pointsUsed)) best = option;
+      if (!best || option.cashNeeded < best.cashNeeded || (option.cashNeeded === best.cashNeeded && option.pointsUsed < best.pointsUsed))
+        best = option;
     }
     if (best) options.push(best);
   }
@@ -325,7 +370,7 @@ export function sortOptions(options: TripOption[], sort: PlanSort) {
   return [...options].sort(
     (a, b) =>
       rank[a.fit] - rank[b.fit] ||
-      (sort === "cash" ? a.cashNeeded - b.cashNeeded : sort === "value" ? (b.cents ?? 0) - (a.cents ?? 0) : b.fullPrice - a.fullPrice),
+      (sort === "cash" ? a.cashNeeded - b.cashNeeded : sort === "value" ? (b.cents ?? 0) - (a.cents ?? 0) : b.fullPrice - a.fullPrice)
   );
 }
 

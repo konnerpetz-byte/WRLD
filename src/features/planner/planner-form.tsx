@@ -21,8 +21,7 @@ export type PlannerInitial = {
   sort: string;
 };
 
-const field =
-  "h-11 w-full rounded-lg border bg-background px-3 text-base tabular-nums focus-visible:outline-2 focus-visible:outline-ring";
+const field = "h-11 w-full rounded-lg border bg-background px-3 text-base tabular-nums focus-visible:outline-2 focus-visible:outline-ring";
 const num = (s: string) => Math.round(Number(s.replace(/[^0-9.]/g, "")));
 
 /**
@@ -84,7 +83,10 @@ export function PlannerForm({
       <fieldset className="grid gap-2">
         <legend className="mb-1.5 text-sm font-medium">Your points</legend>
         {rows.map((r, i) => (
-          <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b pb-2 last:border-0 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:border-0 sm:pb-0">
+          <div
+            key={i}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b pb-2 last:border-0 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:border-0 sm:pb-0"
+          >
             <select
               aria-label={`Program ${i + 1}`}
               value={r.key}
@@ -123,7 +125,12 @@ export function PlannerForm({
           </div>
         ))}
         <div>
-          <Button type="button" variant="outline" size="sm" onClick={() => setRows([...rows, { key: nextKey(rows, pointKeys), amount: "" }])}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setRows([...rows, { key: nextKey(rows, pointKeys), amount: "" }])}
+          >
             <Plus className="size-4" aria-hidden="true" />
             Add points
           </Button>
@@ -171,4 +178,5 @@ export function PlannerForm({
   );
 }
 
-const nextKey = (rows: { key: string }[], keys: PointKey[]) => keys.find((k) => !rows.some((r) => r.key === k.value))?.value ?? keys[0].value;
+const nextKey = (rows: { key: string }[], keys: PointKey[]) =>
+  keys.find((k) => !rows.some((r) => r.key === k.value))?.value ?? keys[0].value;
