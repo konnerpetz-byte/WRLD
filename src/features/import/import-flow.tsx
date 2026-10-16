@@ -14,10 +14,17 @@ import type { TransitMode } from "@/types/database";
 
 import { dismissInbox, type ReadState, readImport, type SaveState, saveImport } from "./actions";
 import type { ImportCandidate } from "./parse";
+import { TravelPartners } from "./travel-partners";
 
 type Row = ImportCandidate & { include: boolean };
 
-export type InboxRow = { id: string; subject: string | null; from: string | null; received: string; files: number };
+export type InboxRow = {
+  id: string;
+  subject: string | null;
+  from: string | null;
+  received: string;
+  files: number;
+};
 
 /** Import bookings: forwarded emails, or paste / upload / link → review what WRLD found → add to the trip. */
 export function ImportFlow({
@@ -25,10 +32,15 @@ export function ImportFlow({
   timezones,
   inbox = [],
   address = null,
+  members = [],
+  partySize = null,
 }: {
   tripId: string;
   timezones: string[];
   inbox?: InboxRow[];
+  /** Names of people already on the trip, to tell who on a booking still needs an invite */
+  members?: string[];
+  partySize?: number | null;
   /** The traveler's forward-to-import address, once inbound email is set up */
   address?: string | null;
 }) {
@@ -41,7 +53,17 @@ export function ImportFlow({
   }
 
   if (rows)
-    return <Review tripId={tripId} rows={rows} setRows={setRows} timezones={timezones} note={readState.note} inboxId={readState.inboxId} />;
+    return (
+      <Review
+        tripId={tripId}
+        rows={rows}
+        setRows={setRows}
+        timezones={timezones}
+        note={readState.note}
+        inboxId={readState.inboxId}
+        partners={<TravelPartners tripId={tripId} people={readState.people} members={members} partySize={partySize} />}
+      />
+    );
 
   return (
     <div className="grid gap-6">
@@ -159,8 +181,10 @@ function Review({
   timezones,
   note,
   inboxId,
+  partners,
 }: {
   tripId: string;
+  partners?: React.ReactNode;
   rows: Row[];
   setRows: (r: Row[] | null) => void;
   timezones: string[];
@@ -179,6 +203,7 @@ function Review({
       <div role="status" className="grid gap-4 rounded-2xl border bg-card p-5">
         <p className="text-lg font-semibold">{saveState.note}</p>
         {saveState.failed && saveState.failed.length > 0 && <Failed list={saveState.failed} />}
+        {partners}
         <div className="flex flex-wrap gap-2">
           <Button asChild>
             <Link href={`/trips/${tripId}/itinerary`}>See the itinerary</Link>
@@ -198,168 +223,185 @@ function Review({
   }
 
   return (
-    <form action={save} className="grid gap-4">
-      {inboxId && <input type="hidden" name="inbox" value={inboxId} />}
-      <p role="status" className="text-sm text-muted-foreground">
-        {note} Untick anything you don&rsquo;t want.
-      </p>
-      <ul className="grid gap-3">
-        {rows.map((r) => (
-          <li key={r.id} className={`grid gap-3 rounded-2xl border bg-card p-4 transition-opacity ${r.include ? "" : "opacity-60"}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="flex items-center gap-2.5 font-semibold">
-                <input
-                  type="checkbox"
-                  checked={r.include}
-                  onChange={(e) => update(r.id, { include: e.target.checked })}
-                  className="size-4 accent-primary"
-                />
-                <KindIcon row={r} />
-                {r.kind === "transit"
-                  ? `${MODE[r.mode].label}: ${r.from} → ${r.to}`
-                  : r.kind === "stay"
-                  ? `Stay: ${r.name}`
-                  : `Ticket: ${r.title}`}
-              </label>
-              <span className="text-xs text-muted-foreground">Found in: {r.found}</span>
-            </div>
-            {r.warnings.length > 0 && (
-              <p className="flex items-start gap-1.5 rounded-md bg-travel-soft px-2.5 py-1.5 text-xs">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                {r.warnings.join(" ")}
-              </p>
-            )}
-            <fieldset disabled={!r.include} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <legend className="sr-only">Details</legend>
-              {r.kind === "transit" && (
-                <>
-                  <Field id={`${r.id}-mode`} label="Type">
-                    <NativeSelect
-                      id={`${r.id}-mode`}
-                      value={r.mode}
-                      onChange={(e) => update(r.id, { mode: e.target.value as TransitMode })}
-                    >
-                      {(Object.keys(MODE) as TransitMode[]).map((m) => (
-                        <option key={m} value={m}>
-                          {MODE[m].label}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  </Field>
-                  <Field id={`${r.id}-num`} label={r.mode === "flight" ? "Flight number" : "Number"}>
-                    <Input id={`${r.id}-num`} value={r.number ?? ""} onChange={(e) => update(r.id, { number: e.target.value })} />
-                  </Field>
-                  <Field id={`${r.id}-from`} label={r.mode === "flight" ? "From (airport code)" : "From"}>
-                    <Input id={`${r.id}-from`} value={r.from} onChange={(e) => update(r.id, { from: e.target.value })} required />
-                  </Field>
-                  <Field id={`${r.id}-to`} label={r.mode === "flight" ? "To (airport code)" : "To"}>
-                    <Input id={`${r.id}-to`} value={r.to} onChange={(e) => update(r.id, { to: e.target.value })} required />
-                  </Field>
-                  <Field id={`${r.id}-dep`} label="Departs (local time)">
-                    <Input
-                      id={`${r.id}-dep`}
-                      type="datetime-local"
-                      value={r.departLocal}
-                      onChange={(e) => update(r.id, { departLocal: e.target.value })}
-                      required
-                    />
-                  </Field>
-                  <Field id={`${r.id}-deptz`} label="Departure time zone">
-                    <ZoneSelect id={`${r.id}-deptz`} value={r.departTz} zones={timezones} onChange={(v) => update(r.id, { departTz: v })} />
-                  </Field>
-                  <Field id={`${r.id}-arr`} label="Arrives (local time)">
-                    <Input
-                      id={`${r.id}-arr`}
-                      type="datetime-local"
-                      value={r.arriveLocal}
-                      onChange={(e) => update(r.id, { arriveLocal: e.target.value })}
-                      required
-                    />
-                  </Field>
-                  <Field id={`${r.id}-arrtz`} label="Arrival time zone">
-                    <ZoneSelect id={`${r.id}-arrtz`} value={r.arriveTz} zones={timezones} onChange={(v) => update(r.id, { arriveTz: v })} />
-                  </Field>
-                </>
-              )}
-              {r.kind === "stay" && (
-                <>
-                  <Field id={`${r.id}-name`} label="Name">
-                    <Input id={`${r.id}-name`} value={r.name} onChange={(e) => update(r.id, { name: e.target.value })} required />
-                  </Field>
-                  <Field id={`${r.id}-addr`} label="Address (optional)">
-                    <Input id={`${r.id}-addr`} value={r.address ?? ""} onChange={(e) => update(r.id, { address: e.target.value })} />
-                  </Field>
-                  <Field id={`${r.id}-in`} label="Check-in">
-                    <Input
-                      id={`${r.id}-in`}
-                      type="datetime-local"
-                      value={r.checkInLocal}
-                      onChange={(e) => update(r.id, { checkInLocal: e.target.value })}
-                      required
-                    />
-                  </Field>
-                  <Field id={`${r.id}-out`} label="Check-out">
-                    <Input
-                      id={`${r.id}-out`}
-                      type="datetime-local"
-                      value={r.checkOutLocal}
-                      onChange={(e) => update(r.id, { checkOutLocal: e.target.value })}
-                      required
-                    />
-                  </Field>
-                </>
-              )}
-              {r.kind === "activity" && (
-                <>
-                  <Field id={`${r.id}-title`} label="Name">
-                    <Input id={`${r.id}-title`} value={r.title} onChange={(e) => update(r.id, { title: e.target.value })} required />
-                  </Field>
-                  <Field id={`${r.id}-date`} label="Date">
-                    <Input
-                      id={`${r.id}-date`}
-                      type="date"
-                      value={r.date}
-                      onChange={(e) => update(r.id, { date: e.target.value })}
-                      required
-                    />
-                  </Field>
-                  <Field id={`${r.id}-time`} label="Time (optional)">
-                    <Input
-                      id={`${r.id}-time`}
-                      type="time"
-                      value={r.time ?? ""}
-                      onChange={(e) => update(r.id, { time: e.target.value || null })}
-                    />
-                  </Field>
-                  <Field id={`${r.id}-where`} label="Where (optional)">
-                    <Input id={`${r.id}-where`} value={r.address ?? ""} onChange={(e) => update(r.id, { address: e.target.value })} />
-                  </Field>
-                </>
-              )}
-              <Field id={`${r.id}-conf`} label="Confirmation (optional)">
-                <Input id={`${r.id}-conf`} value={r.confirmation ?? ""} onChange={(e) => update(r.id, { confirmation: e.target.value })} />
-              </Field>
-            </fieldset>
-          </li>
-        ))}
-      </ul>
-
-      <input type="hidden" name="payload" value={payload} />
-      {saveState.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {saveState.error}
+    <div className="grid gap-4">
+      {partners}
+      <form action={save} className="grid gap-4">
+        {inboxId && <input type="hidden" name="inbox" value={inboxId} />}
+        <p role="status" className="text-sm text-muted-foreground">
+          {note} Untick anything you don&rsquo;t want.
         </p>
-      )}
-      {saveState.failed && saveState.failed.length > 0 && <Failed list={saveState.failed} />}
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={saving || !chosen.length}>
-          {saving ? "Adding…" : `Add ${chosen.length} to the trip`}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => setRows(null)}>
-          Start over
-        </Button>
-      </div>
-    </form>
+        <ul className="grid gap-3">
+          {rows.map((r) => (
+            <li key={r.id} className={`grid gap-3 rounded-2xl border bg-card p-4 transition-opacity ${r.include ? "" : "opacity-60"}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="flex items-center gap-2.5 font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={r.include}
+                    onChange={(e) => update(r.id, { include: e.target.checked })}
+                    className="size-4 accent-primary"
+                  />
+                  <KindIcon row={r} />
+                  {r.kind === "transit"
+                    ? `${MODE[r.mode].label}: ${r.from} → ${r.to}`
+                    : r.kind === "stay"
+                    ? `Stay: ${r.name}`
+                    : `Ticket: ${r.title}`}
+                </label>
+                <span className="text-xs text-muted-foreground">Found in: {r.found}</span>
+              </div>
+              {r.warnings.length > 0 && (
+                <p className="flex items-start gap-1.5 rounded-md bg-travel-soft px-2.5 py-1.5 text-xs">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                  {r.warnings.join(" ")}
+                </p>
+              )}
+              <fieldset disabled={!r.include} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <legend className="sr-only">Details</legend>
+                {r.kind === "transit" && (
+                  <>
+                    <Field id={`${r.id}-mode`} label="Type">
+                      <NativeSelect
+                        id={`${r.id}-mode`}
+                        value={r.mode}
+                        onChange={(e) => update(r.id, { mode: e.target.value as TransitMode })}
+                      >
+                        {(Object.keys(MODE) as TransitMode[]).map((m) => (
+                          <option key={m} value={m}>
+                            {MODE[m].label}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                    <Field id={`${r.id}-num`} label={r.mode === "flight" ? "Flight number" : "Number"}>
+                      <Input id={`${r.id}-num`} value={r.number ?? ""} onChange={(e) => update(r.id, { number: e.target.value })} />
+                    </Field>
+                    <Field id={`${r.id}-from`} label={r.mode === "flight" ? "From (airport code)" : "From"}>
+                      <Input id={`${r.id}-from`} value={r.from} onChange={(e) => update(r.id, { from: e.target.value })} required />
+                    </Field>
+                    <Field id={`${r.id}-to`} label={r.mode === "flight" ? "To (airport code)" : "To"}>
+                      <Input id={`${r.id}-to`} value={r.to} onChange={(e) => update(r.id, { to: e.target.value })} required />
+                    </Field>
+                    <Field id={`${r.id}-dep`} label="Departs (local time)">
+                      <Input
+                        id={`${r.id}-dep`}
+                        type="datetime-local"
+                        value={r.departLocal}
+                        onChange={(e) => update(r.id, { departLocal: e.target.value })}
+                        required
+                      />
+                    </Field>
+                    <Field id={`${r.id}-deptz`} label="Departure time zone">
+                      <ZoneSelect
+                        id={`${r.id}-deptz`}
+                        value={r.departTz}
+                        zones={timezones}
+                        onChange={(v) => update(r.id, { departTz: v })}
+                      />
+                    </Field>
+                    <Field id={`${r.id}-arr`} label="Arrives (local time)">
+                      <Input
+                        id={`${r.id}-arr`}
+                        type="datetime-local"
+                        value={r.arriveLocal}
+                        onChange={(e) => update(r.id, { arriveLocal: e.target.value })}
+                        required
+                      />
+                    </Field>
+                    <Field id={`${r.id}-arrtz`} label="Arrival time zone">
+                      <ZoneSelect
+                        id={`${r.id}-arrtz`}
+                        value={r.arriveTz}
+                        zones={timezones}
+                        onChange={(v) => update(r.id, { arriveTz: v })}
+                      />
+                    </Field>
+                  </>
+                )}
+                {r.kind === "stay" && (
+                  <>
+                    <Field id={`${r.id}-name`} label="Name">
+                      <Input id={`${r.id}-name`} value={r.name} onChange={(e) => update(r.id, { name: e.target.value })} required />
+                    </Field>
+                    <Field id={`${r.id}-addr`} label="Address (optional)">
+                      <Input id={`${r.id}-addr`} value={r.address ?? ""} onChange={(e) => update(r.id, { address: e.target.value })} />
+                    </Field>
+                    <Field id={`${r.id}-in`} label="Check-in">
+                      <Input
+                        id={`${r.id}-in`}
+                        type="datetime-local"
+                        value={r.checkInLocal}
+                        onChange={(e) => update(r.id, { checkInLocal: e.target.value })}
+                        required
+                      />
+                    </Field>
+                    <Field id={`${r.id}-out`} label="Check-out">
+                      <Input
+                        id={`${r.id}-out`}
+                        type="datetime-local"
+                        value={r.checkOutLocal}
+                        onChange={(e) => update(r.id, { checkOutLocal: e.target.value })}
+                        required
+                      />
+                    </Field>
+                  </>
+                )}
+                {r.kind === "activity" && (
+                  <>
+                    <Field id={`${r.id}-title`} label="Name">
+                      <Input id={`${r.id}-title`} value={r.title} onChange={(e) => update(r.id, { title: e.target.value })} required />
+                    </Field>
+                    <Field id={`${r.id}-date`} label="Date">
+                      <Input
+                        id={`${r.id}-date`}
+                        type="date"
+                        value={r.date}
+                        onChange={(e) => update(r.id, { date: e.target.value })}
+                        required
+                      />
+                    </Field>
+                    <Field id={`${r.id}-time`} label="Time (optional)">
+                      <Input
+                        id={`${r.id}-time`}
+                        type="time"
+                        value={r.time ?? ""}
+                        onChange={(e) => update(r.id, { time: e.target.value || null })}
+                      />
+                    </Field>
+                    <Field id={`${r.id}-where`} label="Where (optional)">
+                      <Input id={`${r.id}-where`} value={r.address ?? ""} onChange={(e) => update(r.id, { address: e.target.value })} />
+                    </Field>
+                  </>
+                )}
+                <Field id={`${r.id}-conf`} label="Confirmation (optional)">
+                  <Input
+                    id={`${r.id}-conf`}
+                    value={r.confirmation ?? ""}
+                    onChange={(e) => update(r.id, { confirmation: e.target.value })}
+                  />
+                </Field>
+              </fieldset>
+            </li>
+          ))}
+        </ul>
+
+        <input type="hidden" name="payload" value={payload} />
+        {saveState.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {saveState.error}
+          </p>
+        )}
+        {saveState.failed && saveState.failed.length > 0 && <Failed list={saveState.failed} />}
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={saving || !chosen.length}>
+            {saving ? "Adding…" : `Add ${chosen.length} to the trip`}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setRows(null)}>
+            Start over
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
 

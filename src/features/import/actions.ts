@@ -9,9 +9,14 @@ import { addLodging, addTransit } from "@/features/trips/actions";
 import { requireUserId } from "@/lib/supabase/server";
 import { TRANSIT_MODES } from "@/types/database";
 
-import { type ImportCandidate, parseBookings } from "./parse";
+import { type ImportCandidate, parseBookings, travelersIn } from "./parse";
+import { mergeTravelers, type Travelers } from "./travelers";
 
-export type ReadState = { candidates?: ImportCandidate[]; error?: string; note?: string; inboxId?: string };
+export type ReadState = { candidates?: ImportCandidate[]; error?: string; note?: string; inboxId?: string; people?: Travelers };
+
+/** Everyone named on the reservation(s), across every pasted email, file or page. */
+const peopleIn = (inputs: { text?: string; html?: string; ics?: string }[]): Travelers =>
+  inputs.reduce<Travelers>((acc, i) => mergeTravelers(acc, i.ics ? { names: [], count: null } : travelersIn(i)), { names: [], count: null });
 export type SaveState = { ok?: boolean; error?: string; note?: string; failed?: string[] };
 
 const MAX_FILE = 5 * 1024 * 1024;
@@ -43,7 +48,7 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (name.endsWith(".pdf") || file.type === "application/pdf") {
       const pdfText = await readPdf(bytes);
-      if (!pdfText) return { error: "Couldn't read text from that PDF. If it's a scanned image, paste the details instead." };
+      if (!pdfText) return { error: "Couldn't read that PDF, even as an image. Paste the confirmation details instead." };
       inputs.push({ text: pdfText });
     } else {
       const content = new TextDecoder().decode(bytes);
@@ -92,7 +97,7 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
   if (!candidates.length) {
     return { error: "No flights, stays or tickets found. Try pasting the whole confirmation email, including the dates and times." };
   }
-  return { candidates, note: `Found ${candidates.length}. Check the details, then add them.` };
+  return { candidates, people: peopleIn(inputs), note: `Found ${candidates.length}. Check the details, then add them.` };
 }
 
 type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];
@@ -118,7 +123,7 @@ async function readInbox(supabase: Supabase, inboxId: string, ctx: { defaultTz: 
   if (!candidates.length) {
     return { error: `No flights, stays or tickets found in "${item.subject ?? "that email"}". Open it and paste the details instead.`, inboxId };
   }
-  return { candidates, inboxId, note: `Found ${candidates.length} in "${item.subject ?? "your email"}". Check the details, then add them.` };
+  return { candidates, inboxId, people: peopleIn(inputs), note: `Found ${candidates.length} in "${item.subject ?? "your email"}". Check the details, then add them.` };
 }
 
 /** Hide a forwarded email without importing it. */
@@ -158,13 +163,17 @@ async function finishInbox(supabase: Supabase, inboxId: string, tripId: string) 
 async function readPdf(bytes: Uint8Array): Promise<string | null> {
   try {
     const { extractText, getDocumentProxy } = await import("unpdf");
-    const pdf = await getDocumentProxy(bytes);
+    // pdf.js may take over the buffer it's given; keep the original for the image fallback.
+    const pdf = await getDocumentProxy(bytes.slice());
     const { text } = await extractText(pdf, { mergePages: true });
     const out = Array.isArray(text) ? text.join("\n") : text;
-    return out.trim() ? out.slice(0, 200_000) : null;
+    if (out.trim().length > 40) return out.slice(0, 200_000);
   } catch {
-    return null;
+    // fall through to reading the page images
   }
+  // No text layer ("Print to PDF", scans): read the pages as images.
+  const { ocrPdf } = await import("./ocr");
+  return ocrPdf(bytes);
 }
 
 /** A saved email (.eml): use its HTML part (structured data lives there), else its text part. */
@@ -331,4 +340,13 @@ export async function saveImport(tripId: string, _: SaveState, formData: FormDat
     note: `Added ${parts.join(", ")}.${moved ? ` ${moved} attached file${moved === 1 ? " is" : "s are"} now under Export, Tickets & files.` : ""} Your days have been updated.`,
     failed,
   };
+}
+
+/** "This reservation is for 3": match the trip's head count to the booking. */
+export async function setTravelers(tripId: string, count: number) {
+  const n = Math.round(count);
+  if (!(n >= 1 && n <= 50)) return;
+  const { supabase } = await requireUserId();
+  await supabase.from("trips").update({ party_size: n }).eq("id", tripId);
+  revalidatePath(`/trips/${tripId}`, "layout");
 }

@@ -46,6 +46,21 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Import bookings accepts files up to 5 MB.
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
+  // Reading PDFs without a text layer (OCR): native canvas and Tesseract stay outside the bundle,
+  // and the English language data ships with the import pages.
+  serverExternalPackages: ["@napi-rs/canvas", "tesseract.js", "tesseract.js-core"],
+  // The Tesseract worker runs in its own thread and loads these at runtime, so tracing can't see them.
+  // (Keys are globs: "[tripId]" would be read as a character class, hence "*".)
+  outputFileTracingIncludes: {
+    "/trips/*/import": [
+      "./node_modules/@tesseract.js-data/eng/4.0.0/**",
+      "./node_modules/tesseract.js/src/**",
+      "./node_modules/tesseract.js-core/**",
+      ...["bmp-js", "idb-keyval", "is-url", "node-fetch", "whatwg-url", "tr46", "webidl-conversions", "regenerator-runtime", "wasm-feature-detect", "zlibjs"].map(
+        (p) => `./node_modules/${p}/**`,
+      ),
+    ],
+  },
   async headers() {
     return [
       { source: "/:path*", headers: headersWith(policy()) },

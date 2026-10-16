@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
+import { getMembers } from "@/features/group/queries";
 import { ImportFlow } from "@/features/import/import-flow";
 import { allTimezones } from "@/features/trips/timezones";
 import { getTrip } from "@/features/trips/queries";
@@ -9,6 +10,8 @@ import { env } from "@/lib/env";
 import { requireUserId } from "@/lib/supabase/server";
 
 export const metadata = { title: "Import bookings" };
+// Reading a PDF without a text layer (OCR) can take several seconds.
+export const maxDuration = 60;
 
 export default function ImportPage(props: PageProps<"/trips/[tripId]/import">) {
   return (
@@ -20,15 +23,25 @@ export default function ImportPage(props: PageProps<"/trips/[tripId]/import">) {
 
 async function ImportContent({ params }: PageProps<"/trips/[tripId]/import">) {
   const { tripId } = await params;
-  const { canEdit } = await getTrip(tripId);
+  const { trip, canEdit } = await getTrip(tripId);
   const { supabase, userId } = await requireUserId();
-  const [{ data: profile }, { data: inbox }] = await Promise.all([
+  const [{ members }, { data: profile }, { data: inbox }] = await Promise.all([
+    getMembers(tripId),
     supabase.from("profiles").select("import_token").eq("id", userId).maybeSingle(),
-    supabase.from("import_inbox").select("id, subject, from_address, received_at, attachments").eq("status", "new").order("received_at", { ascending: false }).limit(20),
+    supabase
+      .from("import_inbox")
+      .select("id, subject, from_address, received_at, attachments")
+      .eq("status", "new")
+      .order("received_at", { ascending: false })
+      .limit(20),
   ]);
   const domain = env("INBOUND_EMAIL_DOMAIN");
   const address = domain && profile?.import_token ? `${profile.import_token}@${domain}` : null;
-  const when = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const when = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
   return (
     <div className="mx-auto grid max-w-3xl gap-6">
       <div>
@@ -43,6 +56,8 @@ async function ImportContent({ params }: PageProps<"/trips/[tripId]/import">) {
           tripId={tripId}
           timezones={allTimezones()}
           address={address}
+          members={members.map((m) => m.name)}
+          partySize={trip.party_size}
           inbox={(inbox ?? []).map((m) => ({
             id: m.id,
             subject: m.subject,

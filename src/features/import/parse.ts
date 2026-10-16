@@ -4,6 +4,9 @@ import { airportByCode } from "@/features/places/airports";
 import { timezoneFor } from "@/features/places/timezone";
 import type { TransitMode } from "@/types/database";
 
+import { AIRLINES, GROUND, namedFlightIn } from "./carriers";
+import { mergeTravelers, type Travelers, travelersInJsonLd, travelersInText } from "./travelers";
+
 /**
  * Reads bookings out of what travelers already have: confirmation emails
  * (pasted text or HTML), calendar files (.ics), ticket PDFs and links.
@@ -56,18 +59,57 @@ export function parseBookings(input: { text?: string | null; html?: string | nul
     const text = html ? htmlToText(html) : (input.text ?? "");
     if (text.trim()) out.push(...fromText(text, ctx));
   }
-  return dedupe(out);
+  return dropSummaries(dedupe(out));
+}
+
+/** Who's on the reservation: names and a head count, from structured data and the text. */
+export function travelersIn(input: { text?: string | null; html?: string | null }): Travelers {
+  const html = input.html ?? (input.text && /<\/?[a-z][\s\S]*>/i.test(input.text) ? input.text : null);
+  const fromLd = html ? travelersInJsonLd(jsonLdBlocks(html)) : { names: [], count: null };
+  const text = html ? htmlToText(html) : (input.text ?? "");
+  return mergeTravelers(fromLd, travelersInText(squeeze(text).slice(0, 200_000)));
+}
+
+/**
+ * Connecting itineraries often repeat the whole journey as a summary
+ * ("DTW → LIS") above the real legs (DTW → EWR, EWR → LIS). Drop a leg when
+ * two other legs chain from its origin to its destination around the same day
+ * and it has no flight number of its own.
+ */
+function dropSummaries(list: ImportCandidate[]) {
+  const legs = list.filter((c): c is ImportCandidate & ImportLeg => c.kind === "transit");
+  const day = (c: ImportLeg) => Date.parse(c.departLocal.slice(0, 10));
+  return list.filter((c) => {
+    if (c.kind !== "transit") return true;
+    const chained = legs.some(
+      (a) =>
+        a !== c &&
+        a.from === c.from &&
+        Math.abs(day(a) - day(c)) <= 86_400_000 &&
+        legs.some((b) => b !== c && b !== a && b.from === a.to && b.to === c.to && day(b) >= day(a) && day(b) - day(a) <= 2 * 86_400_000),
+    );
+    return !(chained && (!c.number || legs.some((a) => a !== c && a.number === c.number)));
+  });
 }
 
 function dedupe(list: ImportCandidate[]) {
-  const seen = new Set<string>();
-  return list.filter((c) => {
+  // One per leg (route + day), stay or ticket; when two readings disagree, keep the one with fewer things to check.
+  const best = new Map<string, ImportCandidate>();
+  const order: string[] = [];
+  for (const c of list) {
     const key =
-      c.kind === "transit" ? `t|${c.from}|${c.to}|${c.departLocal.slice(0, 13)}` : c.kind === "stay" ? `s|${c.name.toLowerCase()}|${c.checkInLocal.slice(0, 10)}` : `a|${c.title.toLowerCase()}|${c.date}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+      c.kind === "transit"
+        ? `t|${c.from.toLowerCase()}|${c.to.toLowerCase()}|${c.departLocal.slice(0, 10)}`
+        : c.kind === "stay"
+          ? `s|${c.name.toLowerCase()}|${c.checkInLocal.slice(0, 10)}`
+          : `a|${c.title.toLowerCase()}|${c.date}`;
+    const prev = best.get(key);
+    if (!prev) {
+      best.set(key, c);
+      order.push(key);
+    } else if (c.warnings.length < prev.warnings.length) best.set(key, c);
+  }
+  return order.map((k) => best.get(k)!);
 }
 
 let counter = 0;
@@ -140,6 +182,13 @@ function jsonLdBlocks(html: string): Json[] {
         else if (obj(v)) {
           const o = v as Json;
           if (Array.isArray(o["@graph"])) (o["@graph"] as unknown[]).forEach(walk);
+          // Packages of reservations (a trip with several flights, or a flight per passenger).
+          for (const k of ["subReservation", "reservations", "itemListElement"]) if (o[k]) walk(o[k]);
+          // One reservation listing several flights: split into one reservation per flight.
+          if (Array.isArray(o.reservationFor)) {
+            for (const leg of o.reservationFor as unknown[]) if (obj(leg)) blocks.push({ ...o, reservationFor: leg });
+            return;
+          }
           blocks.push(o);
         }
       };
@@ -412,8 +461,14 @@ const PAIR_RE = () => /\b([A-Z]{3})\b(?:[ \t]*(?:→|->|–|—|-|to|›|>|\/)[ 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
   january: 1, february: 2, march: 3, april: 4, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+  // French, Spanish, Portuguese, Italian, German (rail and European airline confirmations)
+  janvier: 1, février: 2, fevrier: 2, mars: 3, avril: 4, mai: 5, juin: 6, juillet: 7, août: 8, aout: 8, septembre: 9, octobre: 10, novembre: 11, décembre: 12, decembre: 12,
+  enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+  janeiro: 1, fevereiro: 2, março: 3, marco: 3, maio: 5, junho: 6, julho: 7, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
+  gennaio: 1, febbraio: 2, aprile: 4, maggio: 5, giugno: 6, luglio: 7, settembre: 9, ottobre: 10,
+  januar: 1, februar: 2, märz: 3, maerz: 3, juni: 6, juli: 7, oktober: 10, dezember: 12,
 };
-const NOT_AIRPORTS = new Set(["THE", "AND", "FOR", "YOU", "ARE", "PNR", "USD", "EUR", "GBP", "CAD", "GMT", "UTC", "EST", "PST", "CST", "MST", "EDT", "PDT", "CET", "TAX", "FEE", "VAT", "NEW", "ALL", "ONE", "TWO", "OUT", "NOT", "PER", "VIA", "AIR", "BAG", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]);
+const NOT_AIRPORTS = new Set(["THE", "AND", "FOR", "YOU", "ARE", "PNR", "USD", "EUR", "GBP", "CAD", "GMT", "UTC", "EST", "PST", "CST", "MST", "EDT", "PDT", "CET", "TAX", "FEE", "VAT", "NEW", "ALL", "ONE", "TWO", "OUT", "NOT", "PER", "VIA", "AIR", "BAG", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC", "CAN", "BUT", "HAS", "HER", "HIS", "ITS", "OUR", "ADD", "GET", "SEE", "AGE", "ANY", "BOX", "DAY", "END", "FEW", "OFF", "OLD", "OWN", "RUN", "SET", "TOP", "USE", "WAY", "WHO", "WHY", "YES", "ROW", "ARR", "DEP", "SEC", "MIN", "HRS", "HOW", "NOW", "LOG", "APP", "WEB", "MAP", "FAQ", "BIZ", "ECO", "CAB", "SKY", "KEY", "PIN", "QTY", "REF", "ETA", "ETD", "STD", "STA", "LHS", "RHS", "ADT", "CHD", "INF", "TKT"]);
 
 type Hit = { index: number; value: string };
 
@@ -424,13 +479,17 @@ export function datesIn(text: string, year: number): Hit[] {
   for (const m of text.matchAll(/\b(20\d{2})-(\d{2})-(\d{2})\b/g)) {
     if (ok(+m[1], +m[2], +m[3])) hits.push({ index: m.index!, value: `${m[1]}-${m[2]}-${m[3]}` });
   }
-  for (const m of text.matchAll(/\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(20\d{2}))?\b/g)) {
+  for (const m of text.matchAll(/\b([A-Za-zÀ-ÿ]{3,10})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(20\d{2}))?\b/g)) {
     const mo = MONTHS[m[1].toLowerCase()];
     if (mo && ok(+(m[3] ?? year), mo, +m[2])) hits.push({ index: m.index!, value: `${m[3] ?? year}-${pad(mo)}-${pad(+m[2])}` });
   }
-  for (const m of text.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?,?(?:\s+(20\d{2}))?\b/g)) {
+  for (const m of text.matchAll(/\b(\d{1,2})(?:st|nd|rd|th|er|º|°)?\.?\s+(?:de\s+)?([A-Za-zÀ-ÿ]{3,10})\.?,?(?:\s+(?:de\s+)?(20\d{2}))?(?![A-Za-zÀ-ÿ])/g)) {
     const mo = MONTHS[m[2].toLowerCase()];
     if (mo && ok(+(m[3] ?? year), mo, +m[1])) hits.push({ index: m.index!, value: `${m[3] ?? year}-${pad(mo)}-${pad(+m[1])}` });
+  }
+  // European day.month.year: "14.05.2027"
+  for (const m of text.matchAll(/\b(\d{1,2})\.(\d{1,2})\.(20\d{2})\b/g)) {
+    if (ok(+m[3], +m[2], +m[1])) hits.push({ index: m.index!, value: `${m[3]}-${pad(+m[2])}-${pad(+m[1])}` });
   }
   for (const m of text.matchAll(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2}|\d{2})\b/g)) {
     const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
@@ -441,43 +500,46 @@ export function datesIn(text: string, year: number): Hit[] {
 
 function timesIn(text: string): Hit[] {
   const hits: Hit[] = [];
-  for (const m of text.matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s?m\.?\b|\b([01]?\d|2[0-3]):([0-5]\d)\b(?!\s*[ap]\.?m)/gi)) {
+  // "6:05 PM", "6 p.m.", "6:00a" (JetBlue), "18:30", "08h01" (French). "18:30 Amsterdam" is 24-hour, not "a.m.".
+  for (const m of text.matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s?m\.?(?![a-z])|\b(\d{1,2}):(\d{2})([ap])(?![a-z])|\b([01]?\d|2[0-3])[:h]([0-5]\d)\b(?!\s*[ap]\.?m(?![a-z]))/gi)) {
     let h: number;
     let min: number;
-    if (m[3]) {
-      h = +m[1] % 12 + (m[3].toLowerCase() === "p" ? 12 : 0);
-      min = +(m[2] ?? 0);
-      if (+m[1] > 12) continue;
+    if (m[3] || m[6]) {
+      const hour = +(m[1] ?? m[4]);
+      h = (hour % 12) + ((m[3] ?? m[6]).toLowerCase() === "p" ? 12 : 0);
+      min = +(m[2] ?? m[5] ?? 0);
+      if (hour > 12) continue;
     } else {
-      h = +m[4];
-      min = +m[5];
+      h = +m[7];
+      min = +m[8];
     }
     hits.push({ index: m.index!, value: `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}` });
   }
   return hits;
 }
 
+/** Airlines that print their ICAO prefix instead ("EZY8915" is easyJet U2 8915). */
+const ICAO_PREFIX: Record<string, string> = { EZY: "U2", EJU: "U2", EZS: "U2", RYR: "FR", BAW: "BA", DLH: "LH", AFR: "AF", KLM: "KL", UAL: "UA", AAL: "AA", DAL: "DL", WZZ: "W6", VLG: "VY" };
+
 function flightNumberIn(text: string): string | null {
+  const icao = /\b(EZY|EJU|EZS|RYR|BAW|DLH|AFR|KLM|UAL|AAL|DAL|WZZ|VLG)\s?(\d{1,4})\b/.exec(text);
+  if (icao) return `${ICAO_PREFIX[icao[1]]} ${Number(icao[2])}`;
   // A labeled number first ("Flight# DL0022", "Flight: UA 958"), then any airline-code-plus-digits.
   const m =
     /\bflight\s*(?:#|no\.?|number)?\s*:?\s*([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})\b/i.exec(text) ??
     /\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})\b/.exec(text);
-  if (!m) return null;
+  if (!m) return namedFlightIn(text);
   const n = String(Number(m[2]));
-  return n === "0" ? null : `${m[1].toUpperCase()} ${n}`;
+  return n === "0" ? namedFlightIn(text) : `${m[1].toUpperCase()} ${n}`;
 }
 
-/** Airline names for the most common codes, so imported legs read "Delta DL 22". */
-const AIRLINES: Record<string, string> = {
-  AA: "American", AC: "Air Canada", AF: "Air France", AS: "Alaska", AY: "Finnair", AZ: "ITA Airways", B6: "JetBlue", BA: "British Airways",
-  CX: "Cathay Pacific", DL: "Delta", EI: "Aer Lingus", EK: "Emirates", EY: "Etihad", F9: "Frontier", FR: "Ryanair", IB: "Iberia",
-  JL: "Japan Airlines", KL: "KLM", LH: "Lufthansa", LX: "SWISS", NH: "ANA", NK: "Spirit", OS: "Austrian", QF: "Qantas", QR: "Qatar Airways",
-  SK: "SAS", SN: "Brussels Airlines", SQ: "Singapore Airlines", TK: "Turkish Airlines", TP: "TAP Air Portugal", U2: "easyJet",
-  UA: "United", VS: "Virgin Atlantic", WN: "Southwest", WS: "WestJet", AM: "Aeroméxico", LA: "LATAM", AV: "Avianca", CM: "Copa",
-};
-const airlineOf = (flight: string | null) => (flight ? (AIRLINES[flight.slice(0, 2)] ?? null) : null);
+/** Airline name for a flight number, so imported legs read "Delta DL 22" (see carriers.ts). */
+const airlineOf = (flight: string | null) => (flight ? (AIRLINES[flight.split(" ")[0]] ?? null) : null);
 
 function confirmationIn(text: string): string | null {
+  // Booking.com and some hotels group digits: "CONFIRMATION NUMBER: 6697.906.063"
+  const grouped = /\b(?:confirmation|booking|reservation)\s*(?:number|no\.?|#)\s*[:#]?\s*(\d{3,4}(?:[. ]\d{3}){2,3})\b/i.exec(text);
+  if (grouped) return grouped[1].replace(/[. ]/g, "");
   const re = /\b(?:confirmation|booking|reservation|record locator|pnr|reference|ref\.?)(?:\s+(?:reference|number|code|no\.?|#))?\s*[:#]?\s*([A-Za-z0-9]{5,10})\b/gi;
   for (const m of text.matchAll(re)) {
     const code = m[1];
@@ -535,6 +597,8 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
     const date =
       segDates.filter((d) => d.index >= lineStart && d.index < lineEnd).at(0) ??
       segDates.filter((d) => d.index < p.index).at(-1) ??
+      // A date heading above several legs ("Depart: Thursday, December 17") applies to all of them.
+      dates.filter((d) => d.index < p.index && p.index - d.index < 1500).at(-1) ??
       segDates.find((d) => d.index > p.end) ??
       nearest(dates, p.index, 400);
     if (!date) return;
@@ -629,10 +693,20 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
     });
   }
 
+  // Itineraries that list each stop on its own (or each leg on one line):
+  //   5:05pm Detroit (DTW) - 7:20am Newark (EWR)   United 1022
+  //   DTW 6:05 AM / ORD 6:58 AM, with connections and layovers between.
+  out.push(...fromStopEvents(text, ctx, dates, times, conf));
+
+  // Trains, buses and ferries written as text (when no flights were found).
+  if (!out.some((c) => c.kind === "transit")) out.push(...fromGroundText(text, ctx, dates, times, conf));
+
   // Stays: a check-in date and a check-out date.
+  const grid = bookingGridStay(text, ctx, times, conf);
+  if (grid) out.push(grid);
   const cin = /check[- ]?in\b[^\n]{0,60}/i.exec(text);
   const cout = /check[- ]?out\b[^\n]{0,60}/i.exec(text);
-  if (cin && cout) {
+  if (!grid && cin && cout) {
     const inDate = nearest(dates, cin.index, 120, true) ?? nearest(dates, cin.index, 80);
     const outDate = nearest(dates, cout.index, 120, true) ?? nearest(dates, cout.index, 80);
     if (inDate && outDate && outDate.value > inDate.value) {
@@ -704,4 +778,266 @@ export function htmlToText(html: string) {
     .replace(/&gt;/g, ">")
     .replace(/[ \t]+/g, " ")
     .replace(/\n\s*\n+/g, "\n");
+}
+
+// ---------------------------------------------------------------------------
+// 3b. Stops with times: connections and layovers
+// ---------------------------------------------------------------------------
+type StopEvent = { code: string; time: string; index: number; lineEnd: number; date: string | null; plus1: boolean; explicitDate: boolean };
+
+/**
+ * Reads every airport that has a time beside it (same line, or the line just
+ * below), in order, and pairs them up: departure, arrival, departure, arrival.
+ * Handles connections (DTW → EWR, EWR → LIS), layover lines in between, both
+ * stops on one line or on separate lines, and "+1" next-day arrivals.
+ */
+function fromStopEvents(text: string, ctx: Ctx, dates: Hit[], times: Hit[], conf: string | null): ImportCandidate[] {
+  const parenCodes = [...text.matchAll(/\(([A-Z]{3})\)/g)].filter((m) => airportByCode(m[1]));
+  const codeRe = parenCodes.length >= 2 ? /\(([A-Z]{3})\)/g : /\b([A-Z]{3})\b/g;
+  const events: StopEvent[] = [];
+  let offset = 0;
+  const lines = text.split("\n");
+  lines.forEach((line, li) => {
+    const start = offset;
+    offset += line.length + 1;
+    if (/layover|connection time|stopover|change planes|total (?:travel|duration)|duration/i.test(line) && !/\d{1,2}:\d{2}\s*[ap]?/i.test(line.replace(/\b\d+\s*h(?:r|ours?)?\s*\d*\s*m(?:in)?\b/gi, ""))) return;
+    const codes = [...line.matchAll(codeRe)]
+      .map((m) => ({ code: m[1], index: start + m.index! }))
+      .filter((c) => !NOT_AIRPORTS.has(c.code) && airportByCode(c.code));
+    if (!codes.length) return;
+    let lineTimes = times.filter((t) => t.index >= start && t.index < start + line.length);
+    // A stop on its own line with its time on the next line ("DTW" / "6:05 AM").
+    if (!lineTimes.length && codes.length === 1 && lines[li + 1] !== undefined && ![...lines[li + 1].matchAll(codeRe)].some((m) => airportByCode(m[1]))) {
+      lineTimes = times.filter((t) => t.index >= offset && t.index < offset + lines[li + 1].length).slice(0, 1);
+    }
+    // Both places on one line, both times on the next ("Dublin (DUB) → Barcelona (BCN)" / "06:30 – 10:05").
+    if (!lineTimes.length && codes.length === 2 && lines[li + 1] !== undefined && ![...lines[li + 1].matchAll(codeRe)].some((m) => airportByCode(m[1]))) {
+      const next = times.filter((t) => t.index >= offset && t.index < offset + lines[li + 1].length);
+      if (next.length === 2) lineTimes = next;
+    }
+    if (!lineTimes.length) return;
+    const pick: { code: string; index: number; time: Hit }[] = [];
+    if (codes.length === lineTimes.length) codes.forEach((c, k) => pick.push({ ...c, time: lineTimes[k] }));
+    else if (codes.length === 1) pick.push({ ...codes[0], time: lineTimes.reduce((a, b) => (Math.abs(b.index - codes[0].index) < Math.abs(a.index - codes[0].index) ? b : a)) });
+    else return; // two places, one time: can't tell which it belongs to
+    for (const p of pick) {
+      const onLine = dates.find((d) => d.index >= start && d.index < start + line.length);
+      const before = [...dates].reverse().find((d) => d.index < p.index && p.index - d.index < 1500);
+      events.push({
+        code: p.code,
+        time: p.time.value,
+        index: p.index,
+        lineEnd: start + line.length,
+        date: (onLine ?? before)?.value ?? null,
+        explicitDate: Boolean(onLine),
+        plus1: /^\s*(?:[ap]\.?m\.?)?\s*(?:\(?\+\s?1\)?|next day)/i.test(text.slice(p.time.index + p.time.value.length - 1, p.time.index + 24).replace(/^\d/, "")),
+      });
+    }
+  });
+
+  const out: ImportCandidate[] = [];
+  let prevEnd = 0;
+  for (let i = 0; i + 1 < events.length; ) {
+    const dep = events[i];
+    const arr = events[i + 1];
+    if (dep.code === arr.code) {
+      i++;
+      continue;
+    }
+    i += 2;
+    const depDate = dep.date ?? dates[0]?.value;
+    if (!depDate) continue;
+    let arrDate = arr.explicitDate && arr.date ? arr.date : depDate;
+    if (arr.plus1 && arrDate === depDate) arrDate = addMinutes(`${depDate}T00:00`, 24 * 60).slice(0, 10);
+    const departLocal = `${depDate}T${dep.time}`;
+    let arriveLocal = `${arrDate}T${arr.time}`;
+    if (arriveLocal <= departLocal) arriveLocal = addMinutes(arriveLocal, 24 * 60);
+    const strip = (s: string) => s.replace(new RegExp(`\\b(${dep.code}|${arr.code})\\b`, "g"), "");
+    const fn =
+      flightNumberIn(strip(text.slice(text.lastIndexOf("\n", dep.index) + 1, arr.lineEnd))) ??
+      flightNumberIn(strip(text.slice(Math.max(prevEnd, dep.index - 300), Math.min(text.length, arr.lineEnd + 120))));
+    prevEnd = arr.lineEnd;
+    out.push({
+      id: nextId(),
+      kind: "transit",
+      mode: "flight",
+      carrier: airlineOf(fn),
+      number: fn,
+      from: dep.code,
+      to: arr.code,
+      departLocal,
+      departTz: airportTz(dep.code, depDate) ?? ctx.defaultTz,
+      arriveLocal,
+      arriveTz: airportTz(arr.code, arrDate) ?? ctx.defaultTz,
+      confirmation: conf,
+      found: "Text",
+      warnings: fn ? [] : ["No flight number found."],
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 3c. Trains, buses and ferries in text
+// ---------------------------------------------------------------------------
+const TIME_TOKEN = /\b\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?\b|\b(?:[01]?\d|2[0-3])[:.h][0-5]\d\b/gi;
+const placeOf = (s: string) =>
+  s
+    .replace(TIME_TOKEN, " ")
+    .replace(/\b(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?/gi, " ")
+    .replace(/\b\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?\b|\b20\d{2}-\d{2}-\d{2}\b/g, " ")
+    .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:,?\s+20\d{2})?/gi, " ")
+    .replace(/\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?(?:\s+20\d{2})?/gi, " ")
+    .replace(/\b(?:platform|track|gleis|voie|coach|car|seat|wagon)\b.*$/i, " ")
+    .replace(/\b(?:train|bus|ICE|IC|EC|ECE|RJX?|TGV|INOUI|OUIGO|AVE|Frecciarossa|Italo|Eurostar|Nightjet|KTX|Acela)\s*#?\s*\d{2,5}\b.*$/i, " ")
+    .replace(/^[\s:\-–—|,]+|[\s:\-–—|,]+$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, 120);
+
+function fromGroundText(text: string, ctx: Ctx, dates: Hit[], times: Hit[], conf: string | null): ImportCandidate[] {
+  const op = GROUND.find((g) => g.re.test(text));
+  const keyword = /\b(train|rail|railway|station|bahnhof|gare|stazione|bus|coach|ferry|terminal|zob)\b/i.exec(text)?.[1]?.toLowerCase();
+  if (!op && !keyword) return [];
+  const mode: TransitMode = op?.mode ?? (/bus|coach|zob/.test(keyword ?? "") ? "bus" : /ferry/.test(keyword ?? "") ? "ferry" : "train");
+  const numberRe = /\b(?:train|bus|coach|service|ICE|IC|EC|ECE|RJX?|TGV|INOUI|OUIGO|AVE|Avlo|Alvia|Frecciarossa|FR|Italo|Eurostar|Nightjet|NJ|KTX|Shinkansen|Acela|Northeast Regional|Amtrak)\s*(?:no\.?|#|number)?\s*:?\s*(\d{2,5})\b/i;
+
+  type Stop = { place: string; time: string | null; index: number; dep: boolean; date: string | null };
+  const stops: Stop[] = [];
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    const start = offset;
+    offset += line.length + 1;
+    // "08:01 Paris Gare du Nord → 09:30 London St Pancras" or "London Kings Cross 08:00 – Edinburgh 12:20"
+    const arrow = /^(.*?\S)\s*(?:→|->|⟶|–|—|>|\bto\b)\s*(\S.*)$/i.exec(line);
+    const lineTimes = times.filter((t) => t.index >= start && t.index < start + line.length);
+    const date = (dates.find((d) => d.index >= start && d.index < start + line.length) ?? [...dates].reverse().find((d) => d.index < start))?.value ?? null;
+    if (arrow && lineTimes.length >= 2 && !/^\s*(?:dep|arr)/i.test(line)) {
+      const a = placeOf(arrow[1]);
+      const b = placeOf(arrow[2]);
+      if (a.length >= 3 && b.length >= 3) {
+        stops.push({ place: a, time: lineTimes[0].value, index: start, dep: true, date });
+        stops.push({ place: b, time: lineTimes[1].value, index: start + 1, dep: false, date });
+        continue;
+      }
+    }
+    // "Departs: London St Pancras 08:01" / "Arrival 12:40 Hamburg ZOB" / "From: … To: …"
+    const lab = /^\s*(dep(?:art(?:s|ure|ing)?)?|abfahrt|départ|partenza|salida|from|origin|outbound from|arr(?:ive|ives|ival|iving)?|ankunft|arrivée|arrivo|llegada|to|destination)\b\.?\s*:?\s*(.+)$/i.exec(line);
+    if (lab) {
+      const place = placeOf(lab[2]);
+      if (place.length < 3) continue;
+      const dep = /^(dep|abf|dép|part|sal|from|orig|outb)/i.test(lab[1]);
+      const time = lineTimes[0]?.value ?? times.find((t) => t.index >= start + line.length && t.index < start + line.length + 60)?.value ?? null;
+      stops.push({ place, time, index: start, dep, date });
+    }
+  }
+
+  const out: ImportCandidate[] = [];
+  for (let i = 0; i + 1 < stops.length; i++) {
+    const d = stops[i];
+    const a = stops[i + 1];
+    if (!d.dep || a.dep || d.place.toLowerCase() === a.place.toLowerCase()) continue;
+    i++;
+    const day = d.date ?? dates[0]?.value;
+    if (!day || !d.time) continue;
+    const departLocal = `${day}T${d.time}`;
+    let arriveLocal = `${a.date && a.date !== d.date ? a.date : day}T${a.time ?? addMinutes(departLocal, 120).slice(11)}`;
+    if (arriveLocal <= departLocal) arriveLocal = addMinutes(arriveLocal, 24 * 60);
+    const seg = text.slice(Math.max(0, d.index - 300), a.index + 300);
+    const num = numberRe.exec(seg);
+    out.push({
+      id: nextId(),
+      kind: "transit",
+      mode,
+      carrier: op?.name ?? null,
+      number: num ? num[0].replace(/\s*(?:no\.?|#|number)\s*:?\s*/i, " ").replace(/\s+/g, " ").trim().slice(0, 30) : null,
+      from: d.place,
+      to: a.place,
+      departLocal,
+      departTz: ctx.defaultTz,
+      arriveLocal,
+      arriveTz: ctx.defaultTz,
+      confirmation: conf,
+      found: "Text",
+      warnings: ["Check the station names and the time zone.", ...(a.time ? [] : ["Couldn't read the arrival time."])],
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 3d. Booking.com-style date grid (often from a PDF read as an image)
+// ---------------------------------------------------------------------------
+/**
+ *   Hotel Scherer        CHECK-IN  CHECK-OUT  ROOMS  NIGHTS
+ *   Address: …           20        23         1      3
+ *   Salzburg, Austria    MAY       MAY
+ *                        Thursday  Sunday
+ *                        from 14:00  00:30 - 11:00
+ * The day numbers, months and times sit in columns under the headings, often
+ * on the same lines as the address. Day numbers may come through split ("2 0").
+ */
+function bookingGridStay(text: string, ctx: Ctx, times: Hit[], conf: string | null): ImportCandidate | null {
+  const head = /check[- ]?in\W{0,4}check[- ]?out(\W{0,4}rooms?)?(\W{0,4}nights?)?/i.exec(text);
+  if (!head) return null;
+  const after = text.slice(head.index, head.index + 600);
+  const lines = after.split("\n").slice(1, 6);
+  // Digits at the end of a line: "… 5020 20 2 3 1 3" → "202313"
+  let digits: string | null = null;
+  for (const l of lines) {
+    const m = /((?:\b\d{1,2}\s+){2,7}\d{1,2})\s*$/.exec(l);
+    if (m) {
+      digits = m[1].replace(/\s+/g, "");
+      break;
+    }
+  }
+  const monthLine = lines.map((l) => [...l.matchAll(/\b([A-Za-z]{3,9})\b/g)].map((m) => MONTHS[m[1].toLowerCase()]).filter(Boolean)).find((ms) => ms.length >= 1);
+  if (!digits || !monthLine) return null;
+  const m1 = monthLine[0];
+  const m2 = monthLine[1] ?? m1;
+  // The year isn't in the grid: use the one the confirmation mentions most (refund dates, footers), else the trip's.
+  const year = (() => {
+    const counts = new Map<number, number>();
+    for (const m of text.matchAll(/\b(20\d{2})\b/g)) if (+m[1] >= ctx.year - 1 && +m[1] <= ctx.year + 3) counts.set(+m[1], (counts.get(+m[1]) ?? 0) + 1);
+    return [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? ctx.year;
+  })();
+  const days = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+  // Split the digits into check-in day, check-out day, rooms and nights so the nights add up.
+  for (let a = 1; a <= 2; a++) {
+    for (let b = 1; b <= 2; b++) {
+      const din = +digits.slice(0, a);
+      const dout = +digits.slice(a, a + b);
+      const rest = digits.slice(a + b);
+      if (din < 1 || din > 31 || dout < 1 || dout > 31) continue;
+      const nights = m1 === m2 ? dout - din : days(year, m1) - din + dout;
+      if (nights < 1 || nights > 60) continue;
+      if (rest && !rest.endsWith(String(nights))) continue;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const yOut = m2 < m1 ? year + 1 : year;
+      const zone = head.index + head[0].length;
+      const near = times.filter((t) => t.index > zone && t.index < zone + 600);
+      const fromTime = /\bfrom\s+(\d{1,2}:\d{2})/i.exec(after)?.[1];
+      const untilTime = /(?:-|–|until|to)\s*(\d{1,2}:\d{2})\b/i.exec(after.slice(after.search(/\bfrom\s+\d/i) + 1 || 0))?.[1];
+      const name =
+        text
+          .split(/\n/)
+          .map((l) => l.trim())
+          .find((l) => /hotel|inn\b|resort|suites|hostel|lodge|apartment|b&b|guest ?house|palace|residence|villa|pension|gasthof|pousada|ryokan/i.test(l) && !/booking(\.com)? confirmation/i.test(l))
+          ?.replace(/\s*check[- ]?in.*$/i, "")
+          .trim() ?? "Stay";
+      const address = /address:\s*([^\n]+?)(?:\s+(?:\d{1,2}\s+){2,7}\d{1,2})?\s*$/im.exec(text)?.[1]?.trim() ?? null;
+      return {
+        id: nextId(),
+        kind: "stay",
+        name: name.slice(0, 200),
+        address: address ? address.slice(0, 300) : null,
+        checkInLocal: `${year}-${pad(m1)}-${pad(din)}T${(fromTime ?? near[0]?.value ?? "15:00").padStart(5, "0")}`,
+        checkOutLocal: `${yOut}-${pad(m2)}-${pad(dout)}T${(untilTime ?? "11:00").padStart(5, "0")}`,
+        confirmation: conf,
+        found: "Text",
+        warnings: ["Read from a layout with dates in columns. Check the dates and times."],
+      };
+    }
+  }
+  return null;
 }
