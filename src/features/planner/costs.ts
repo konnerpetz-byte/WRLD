@@ -5,10 +5,12 @@
  *   hotel: one standard double room in a 3-star hotel in a central area, per night
  *   day:   per person per day: three meals at casual restaurants, local transit,
  *          and one paid sight or activity
- * Built from published city budget guides and U.S. State Department per diem
- * levels, scaled to leisure travel. Season moves hotels a lot (summer Europe,
- * winter Caribbean): treat these as a starting point, not a quote.
- * Re-check yearly.
+ * These are WRLD's own rough estimates, written by hand (October 2026). They
+ * are NOT pulled from a dataset or checked city by city. Replace them with a
+ * sourced table (e.g. the State Department per diem Excel at
+ * allowances.state.gov/ExcelVersion.asp, scaled to leisure travel) before
+ * calling them accurate. Season moves hotels a lot (summer Europe, winter
+ * Caribbean): treat these as a starting point, not a quote.
  */
 export const DEST_COSTS: Record<string, { hotel: number; day: number }> = {
   // Europe
