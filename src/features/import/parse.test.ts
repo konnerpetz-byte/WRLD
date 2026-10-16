@@ -39,6 +39,40 @@ SHANE SMITH`;
     });
   });
 
+  it("United eTicket receipt: codes in parentheses, times above airports, partner-operated legs, award totals", () => {
+    const text = `Thank you for choosing United.
+Confirmation Number:
+QX7TRM
+Flight 1 of 2 LX86 Class: Economy (X)
+Sun, May 30, 2027 Sun, May 30, 2027
+12:40 PM 03:00 PM
+Zürich, CH (ZRH) Montreal, QC, CA (YUL)
+Flight Operated by SWISS International Airlines.
+Flight 2 of 2 AC8583 Class: Economy (X)
+Sun, May 30, 2027 Sun, May 30, 2027
+07:50 PM 09:45 PM
+Montreal, QC, CA (YUL) Detroit, MI, US (DTW)
+Flight Operated by AIR CANADA EXPRESS - JAZZ.
+Traveler Details
+LOPEZ/MARIA
+eTicket number: 0160000000001 Seats: ZRH-YUL -----
+YUL-DTW -----
+CHEN/SAMUELROBERT
+eTicket number: 0160000000002 Seats: ZRH-YUL -----
+Frequent Flyer: UA-XXXXX111 Member YUL-DTW -----
+Total Per Passenger: 44,000 miles + 64.73 USD
+MileagePlus Accrual Details
+Samuel Chen
+Sun, May 30, 2027 86 Zürich, CH (ZRH) to
+Montreal, QC, CA (YUL) 0
+Baggage allowance and charges for this itinerary
+Sun, May 30, 2027
+Zürich, CH (ZRH - Kloten)
+to Detroit, MI, US (DTW)`;
+    const r = parseBookings({ text }, { ...ctx, year: 2027 });
+    expect(legs(r)).toEqual(["ZRH-YUL 2027-05-30T12:40 2027-05-30T15:00 LX 86", "YUL-DTW 2027-05-30T19:50 2027-05-30T21:45 AC 8583"]);
+    expect(travelersIn({ text })).toEqual({ names: ["Maria Lopez", "Samuel Chen"], count: 2 });
+  });
   it("Delta: labeled Departs/Arrives lines with airline names", () => {
     const text = `Your Flight Receipt - KONNER PETZ 16MAY27
 Confirmation #: H7KQ2P

@@ -69,7 +69,7 @@ export function travelersInText(text: string): Travelers {
         }
         const n = tidyName(lines[j].replace(/^\d+[.)]\s*/, ""));
         if (n) names.push(n);
-        else if (names.length && !/ticket|frequent|seat|known|skymiles|member|#|\d{6,}/i.test(lines[j])) break;
+        else if (names.length && !/ticket|frequent|seat|known|skymiles|member|#|\d{6,}|-{3,}|\b[A-Z]{3}-[A-Z]{3}\b/i.test(lines[j])) break;
       }
     }
     // "Passenger 1: Konner Petz", "Adult 2 - Shane Smith", "Traveler: Konner Petz", "NAME: KONNER PETZ", "Guest name: …"
@@ -84,13 +84,26 @@ export function travelersInText(text: string): Travelers {
   });
 
   // Inline list: "Travelers: Konner Petz, Shane Smith" (handled above for each part).
-  const list = unique(names);
+  // United prints "PETZ/KONNERJOSEPH" (first and middle run together); if the same person appears
+  // elsewhere as "Konner Petz", use that.
+  const list = unique(
+    names.map((n) => {
+      const w = n?.split(" ");
+      if (!n || !w || w.length !== 2 || w[0].length < 7) return n;
+      const last = w[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      for (const m of text.matchAll(new RegExp(`\\b([A-Z][a-zà-ÿ]{1,})[ \\t]+${last}\\b`, "g"))) {
+        if (m[1].length < w[0].length && w[0].toLowerCase().startsWith(m[1].toLowerCase())) return `${m[1]} ${w[1]}`;
+      }
+      return n;
+    }),
+  );
 
   // Head counts.
   let count: number | null = null;
   const nums = [
     ...text.matchAll(/\b(\d{1,2})[ \t]+(?:adults?|passengers?|travell?ers?|guests?|people|persons|pax)\b/gi),
-    ...text.matchAll(/\b(?:party of|guests?[ \t]*:|passengers?[ \t]*:|travell?ers?[ \t]*:|adults?[ \t]*:)[ \t]*(\d{1,2})\b/gi),
+    // Not "Total Per Passenger: 44,000 miles".
+    ...text.matchAll(/(?<!per[ \t]{1,3})\b(?:party of|guests?[ \t]*:|passengers?[ \t]*:|travell?ers?[ \t]*:|adults?[ \t]*:)[ \t]*(\d{1,2})(?![\d,.])/gi),
   ].map((m) => Number(m[1]));
   const kids = [...text.matchAll(/\b(\d{1,2})[ \t]+(?:children|child|kids?|infants?)\b/gi)].map((m) => Number(m[1]));
   if (nums.length) count = Math.max(...nums) + (kids.length ? Math.max(...kids) : 0);

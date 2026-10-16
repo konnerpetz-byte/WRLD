@@ -457,6 +457,18 @@ function squeeze(s: string) {
 
 /** "DTW → LIS", "DTW - LIS", "DTW to LIS", "DTW  LIS", or the two codes on consecutive lines. */
 const PAIR_RE = () => /\b([A-Z]{3})\b(?:[ \t]*(?:→|->|–|—|-|to|›|>|\/)[ \t]*|[ \t]{2,3}|[ \t]*\n[ \t]*)\b([A-Z]{3})\b/g;
+// Codes in parentheses after city names: "Zürich, CH (ZRH) Montreal, QC, CA (YUL)", "(ZRH - Kloten)\nto Detroit, MI, US (DTW)".
+const PAREN_PAIR_RE = () => /\(([A-Z]{3})(?:[ \t]*[-–][^)\n]{0,25})?\)([^()\n]{0,50}\n?[^()\n]{0,50}?)\(([A-Z]{3})(?:[ \t]*[-–][^)\n]{0,25})?\)/g;
+
+/** Every from/to airport pair written in the text, in order. */
+function pairMatches(text: string) {
+  const plain = [...text.matchAll(PAIR_RE())].map((m) => ({ from: m[1], to: m[2], index: m.index!, end: m.index! + m[0].length }));
+  const paren = [...text.matchAll(PAREN_PAIR_RE())]
+    // Two parenthesized codes separated by place names, not by a sentence.
+    .filter((m) => !/[.!?:;]|\b(?:and|or|via|flight|operated)\b/i.test(m[2]))
+    .map((m) => ({ from: m[1], to: m[3], index: m.index!, end: m.index! + m[0].length }));
+  return [...plain, ...paren.filter((q) => !plain.some((p) => p.index < q.end && q.index < p.end))].sort((a, b) => a.index - b.index);
+}
 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
@@ -550,11 +562,9 @@ function confirmationIn(text: string): string | null {
 }
 
 function airportPair(text: string): { from: string; to: string; index: number } | null {
-  const re = PAIR_RE();
-  for (const m of text.matchAll(re)) {
-    const [a, b] = [m[1], m[2]];
+  for (const { from: a, to: b, index } of pairMatches(text)) {
     if (a === b || NOT_AIRPORTS.has(a) || NOT_AIRPORTS.has(b)) continue;
-    if (airportByCode(a) && airportByCode(b)) return { from: a, to: b, index: m.index! };
+    if (airportByCode(a) && airportByCode(b)) return { from: a, to: b, index };
   }
   return null;
 }
@@ -579,10 +589,7 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
 
   // Flights: each airport pair, with the date, flight number and times that
   // belong to it (between the previous pair and the next one).
-  const re = PAIR_RE();
-  const pairs = [...text.matchAll(re)]
-    .map((m) => ({ from: m[1], to: m[2], index: m.index!, end: m.index! + m[0].length }))
-    .filter((p) => p.from !== p.to && !NOT_AIRPORTS.has(p.from) && !NOT_AIRPORTS.has(p.to) && airportByCode(p.from) && airportByCode(p.to));
+  const pairs = pairMatches(text).filter((p) => p.from !== p.to && !NOT_AIRPORTS.has(p.from) && !NOT_AIRPORTS.has(p.to) && airportByCode(p.from) && airportByCode(p.to));
   const seen = new Set<string>();
   pairs.forEach((p, i) => {
     const lineStart = text.lastIndexOf("\n", p.index) + 1;
@@ -611,9 +618,14 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
     const fn = flightNumberIn(strip(text.slice(lineStart, lineEnd))) ?? flightNumberIn(strip(text.slice(segStart, segEnd)));
 
     // Times: the ones after the pair first (depart, then arrive); else the ones before it.
+    // Column layouts (United receipts) put a row of two times directly above the airports row.
     const after = times.filter((t) => t.index >= p.end && t.index < segEnd);
     const before = times.filter((t) => t.index >= segStart && t.index < p.index);
-    const near = after.length >= 2 ? after : [...before.slice(-(2 - after.length)), ...after];
+    const prevLineStart = text.lastIndexOf("\n", lineStart - 2) + 1;
+    const rowAbove = before.filter((t) => t.index >= prevLineStart && t.index < lineStart);
+    const onLine = times.filter((t) => t.index >= lineStart && t.index < lineEnd);
+    const near =
+      rowAbove.length === 2 && !onLine.length ? rowAbove : after.length >= 2 ? after : [...before.slice(-(2 - after.length)), ...after];
     const departTz = airportTz(p.from, date.value) ?? ctx.defaultTz;
     const arriveTz = airportTz(p.to, date.value) ?? ctx.defaultTz;
     const departTime = near[0]?.value ?? null;
