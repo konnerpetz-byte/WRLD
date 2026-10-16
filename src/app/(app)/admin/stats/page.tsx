@@ -289,6 +289,10 @@ async function Connections() {
   const state = lastOk("state");
   const gsa = lastOk("gsa");
   const factor = (k: string) => cal?.find((c) => c.kind === k);
+  const { data: webhook } = await supabase.rpc("inbound_email_webhook_url");
+  // Your own inbox only (each traveler sees just theirs): forward yourself a confirmation to test.
+  const { count: inboxCountRaw } = await supabase.from("import_inbox").select("id", { count: "exact", head: true });
+  const inboxCount = inboxCountRaw ?? 0;
   const viatorKey = Boolean(env("VIATOR_API_KEY"));
   const next = new Date();
   next.setUTCMonth(next.getUTCMonth() + 1, 1);
@@ -344,6 +348,13 @@ async function Connections() {
       note: `Hotels at ${factor("lodging")?.factor ?? 0.55}× per diem (${factor("lodging")?.samples ?? 0} real stays logged), days at ${
         factor("day")?.factor ?? 0.6
       }× (${factor("day")?.samples ?? 0} trips). Re-measured daily; needs 10 to replace the starting assumption.`,
+    },
+    {
+      name: "Forward-to-import email",
+      ok: Boolean(env("INBOUND_EMAIL_DOMAIN")) && inboxCount > 0,
+      note: env("INBOUND_EMAIL_DOMAIN")
+        ? `Addresses end in @${env("INBOUND_EMAIL_DOMAIN")}. ${inboxCount} email${inboxCount === 1 ? "" : "s"} in your own inbox so far.`
+        : `Not on yet. In your email provider's inbound settings, point the webhook to: ${webhook ?? "(sign in as admin to see it)"} and then add INBOUND_EMAIL_DOMAIN in Vercel.`,
     },
     {
       name: "Travelpayouts (cash fares)",

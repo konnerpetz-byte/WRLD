@@ -45,6 +45,15 @@ export default function PrivacyPage() {
           trip&rsquo;s content, your name, photo and travel type.
         </li>
         <li>
+          <strong>Tickets and files:</strong> boarding passes, tickets and confirmations you upload to a trip. They&rsquo;re stored
+          privately; only people on that trip can open them. Delete them any time from the trip&rsquo;s Export tab.
+        </li>
+        <li>
+          <strong>Forwarded emails:</strong> booking confirmations you forward to your WRLD import address, with their PDF,
+          calendar and image attachments. They wait in your private inbox until you review them; dismissing one deletes its
+          attachments. Emails sent to an address that isn&rsquo;t yours are discarded.
+        </li>
+        <li>
           <strong>Travel type:</strong> your quiz answers and interests, used to suggest things to do.
         </li>
         <li>

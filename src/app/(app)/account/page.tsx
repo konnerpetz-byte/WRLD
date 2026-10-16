@@ -13,6 +13,7 @@ import {
   PasswordForm,
   ProfileForm,
 } from "@/features/account/account-forms";
+import { env } from "@/lib/env";
 import { requireUserId } from "@/lib/supabase/server";
 
 export const metadata = { title: "Account" };
@@ -72,6 +73,15 @@ async function AccountPageContent() {
               Replay the tour
             </Link>
           </p>
+          {env("INBOUND_EMAIL_DOMAIN") && profile?.import_token && (
+            <p className="mt-2 text-sm">
+              Forward booking emails to{" "}
+              <strong className="font-mono break-all">
+                {profile.import_token}@{env("INBOUND_EMAIL_DOMAIN")}
+              </strong>
+              . Keep this address private: anything sent to it shows up for you to review.
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           {isAdmin && (

@@ -55,6 +55,7 @@ async function TripsPageContent({ searchParams }: PageProps<"/trips">) {
         .order("position"),
       startSteps(supabase, userId),
     ]);
+  const { count: inboxCount } = await supabase.from("import_inbox").select("id", { count: "exact", head: true }).eq("status", "new");
   const totals = new Map((budgets ?? []).map((b) => [b.trip_id, b]));
 
   const now: Row[] = [];
@@ -113,6 +114,21 @@ async function TripsPageContent({ searchParams }: PageProps<"/trips">) {
           </Link>
         </Button>
       </header>
+
+      {Boolean(inboxCount) && (now[0] ?? upcoming[0]) && (
+        <Link
+          href={`/trips/${(now[0] ?? upcoming[0]).id}/import`}
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-open-soft px-5 py-4 focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <span>
+            <span className="block font-semibold">
+              {inboxCount} forwarded email{inboxCount === 1 ? "" : "s"} to review
+            </span>
+            <span className="block text-sm text-muted-foreground">Add the bookings in them to {(now[0] ?? upcoming[0]).title}, or pick another trip.</span>
+          </span>
+          <span className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Review</span>
+        </Link>
+      )}
 
       {steps && (
         <div className="mb-8">

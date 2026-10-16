@@ -11,7 +11,7 @@ import { TRANSIT_MODES } from "@/types/database";
 
 import { type ImportCandidate, parseBookings } from "./parse";
 
-export type ReadState = { candidates?: ImportCandidate[]; error?: string; note?: string };
+export type ReadState = { candidates?: ImportCandidate[]; error?: string; note?: string; inboxId?: string };
 export type SaveState = { ok?: boolean; error?: string; note?: string; failed?: string[] };
 
 const MAX_FILE = 5 * 1024 * 1024;
@@ -22,6 +22,10 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
   const { data: trip } = await supabase.from("trips").select("timezone, start_date").eq("id", tripId).maybeSingle();
   if (!trip) return { error: "Trip not found." };
   const ctx = { defaultTz: trip.timezone ?? "UTC", year: Number(trip.start_date.slice(0, 4)) };
+
+  // A forwarded email from the traveler's import inbox.
+  const inboxId = String(formData.get("inbox") ?? "");
+  if (/^[0-9a-f-]{36}$/i.test(inboxId)) return readInbox(supabase, inboxId, ctx);
 
   const text = String(formData.get("text") ?? "").slice(0, 200_000);
   const url = String(formData.get("url") ?? "").trim().slice(0, 2000);
@@ -89,6 +93,65 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
     return { error: "No flights, stays or tickets found. Try pasting the whole confirmation email, including the dates and times." };
   }
   return { candidates, note: `Found ${candidates.length}. Check the details, then add them.` };
+}
+
+type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];
+
+/** A forwarded email: its HTML or text, plus any calendar file or PDF attached. */
+async function readInbox(supabase: Supabase, inboxId: string, ctx: { defaultTz: string; year: number }): Promise<ReadState> {
+  const { data: item } = await supabase.from("import_inbox").select("*").eq("id", inboxId).maybeSingle();
+  if (!item) return { error: "That email isn't in your inbox anymore." };
+  const inputs: { text?: string; html?: string; ics?: string }[] = [];
+  if (item.html_body) inputs.push({ html: item.html_body });
+  else if (item.text_body) inputs.push({ text: item.text_body });
+  for (const a of item.attachments ?? []) {
+    if (!/calendar|ics|pdf/i.test(a.mime)) continue;
+    const { data: blob } = await supabase.storage.from("import-inbox").download(a.path);
+    if (!blob) continue;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (/pdf/i.test(a.mime)) {
+      const t = await readPdf(bytes);
+      if (t) inputs.push({ text: t });
+    } else inputs.push({ ics: new TextDecoder().decode(bytes) });
+  }
+  const candidates = inputs.flatMap((i) => parseBookings(i, ctx));
+  if (!candidates.length) {
+    return { error: `No flights, stays or tickets found in "${item.subject ?? "that email"}". Open it and paste the details instead.`, inboxId };
+  }
+  return { candidates, inboxId, note: `Found ${candidates.length} in "${item.subject ?? "your email"}". Check the details, then add them.` };
+}
+
+/** Hide a forwarded email without importing it. */
+export async function dismissInbox(inboxId: string) {
+  const { supabase } = await requireUserId();
+  const { data: item } = await supabase.from("import_inbox").select("attachments").eq("id", inboxId).maybeSingle();
+  if (!item) return;
+  const paths = (item.attachments ?? []).map((a) => a.path);
+  if (paths.length) await supabase.storage.from("import-inbox").remove(paths);
+  await supabase.from("import_inbox").update({ status: "dismissed" }).eq("id", inboxId);
+  revalidatePath("/trips", "layout");
+}
+
+/** After import: the email is marked done and its attachments (tickets, boarding passes) move into the trip's files. */
+async function finishInbox(supabase: Supabase, inboxId: string, tripId: string) {
+  const { data: item } = await supabase.from("import_inbox").select("attachments").eq("id", inboxId).maybeSingle();
+  if (!item) return 0;
+  let moved = 0;
+  for (const a of item.attachments ?? []) {
+    const { data: blob } = await supabase.storage.from("import-inbox").download(a.path);
+    if (!blob) continue;
+    const name = a.name.replace(/[^a-zA-Z0-9.\-_ ]+/g, "").trim().replace(/\s+/g, "-").slice(0, 100) || "file";
+    const path = `${tripId}/${crypto.randomUUID()}-${name}`;
+    const { error } = await supabase.storage.from("trip-files").upload(path, blob, { contentType: a.mime, upsert: false });
+    if (error) continue;
+    const { error: rowErr } = await supabase.from("trip_files").insert({ trip_id: tripId, name: a.name.slice(0, 200), path, size_bytes: a.size, mime: a.mime.slice(0, 100) });
+    if (rowErr) await supabase.storage.from("trip-files").remove([path]);
+    else moved++;
+  }
+  const paths = (item.attachments ?? []).map((a) => a.path);
+  if (paths.length) await supabase.storage.from("import-inbox").remove(paths);
+  await supabase.from("import_inbox").update({ status: "imported", trip_id: tripId }).eq("id", inboxId);
+  return moved;
 }
 
 /** PDF tickets and itineraries: their text layer. */
@@ -253,6 +316,9 @@ export async function saveImport(tripId: string, _: SaveState, formData: FormDat
     }
   }
 
+  const inboxId = String(formData.get("inbox") ?? "");
+  const moved = /^[0-9a-f-]{36}$/i.test(inboxId) ? await finishInbox(supabase, inboxId, tripId) : 0;
+
   revalidatePath(`/trips/${tripId}`, "layout");
   const parts = [
     added.transit && `${added.transit} ${added.transit === 1 ? "trip leg" : "trip legs"}`,
@@ -260,5 +326,9 @@ export async function saveImport(tripId: string, _: SaveState, formData: FormDat
     added.activity && `${added.activity} ${added.activity === 1 ? "ticket" : "tickets"}`,
   ].filter(Boolean);
   if (!parts.length) return { error: "Nothing could be added.", failed };
-  return { ok: true, note: `Added ${parts.join(", ")}. Your days have been updated.`, failed };
+  return {
+    ok: true,
+    note: `Added ${parts.join(", ")}.${moved ? ` ${moved} attached file${moved === 1 ? " is" : "s are"} now under Export, Tickets & files.` : ""} Your days have been updated.`,
+    failed,
+  };
 }

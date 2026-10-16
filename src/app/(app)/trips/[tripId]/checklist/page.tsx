@@ -3,6 +3,8 @@ import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { ChecklistCard } from "@/features/checklist/checklist";
 import { tripDocContext } from "@/features/documents/context";
 import { DocumentsCard } from "@/features/documents/documents-card";
+import { TravelExtras } from "@/features/documents/travel-extras";
+import { env } from "@/lib/env";
 import { documentsFor } from "@/features/documents/rules";
 import { getMembers } from "@/features/group/queries";
 import { requireUserId } from "@/lib/supabase/server";
@@ -41,8 +43,13 @@ async function ChecklistPageContent({
     avatar_url: m.avatar_url,
   }));
 
+  // Abroad = any stop outside the traveler's home country (or outside the U.S. when home isn't set).
+  const abroad = Boolean(ctx?.countries.some((c) => c !== (ctx.home ?? "US")));
+  const safe = (u: string | undefined) => (u && /^https:\/\//.test(u) ? u : null);
+
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      {abroad && <TravelExtras tripId={tripId} esimUrl={safe(env("AFFILIATE_ESIM_URL"))} insuranceUrl={safe(env("AFFILIATE_INSURANCE_URL"))} />}
       {ctx && (
         <DocumentsCard
           tripId={tripId}

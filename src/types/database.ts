@@ -123,6 +123,8 @@ export type Profile = Timestamps & {
   home_airport: string | null;
   /** When the first-run tour was finished or skipped; null shows it */
   tour_seen_at: string | null;
+  /** The private part of the traveler's forward-to-import address */
+  import_token: string;
 };
 
 export type Trip = Timestamps & {
@@ -729,6 +731,20 @@ export type CostPerDiem = {
   source_file: string;
   fetched_at: string;
 };
+/** A forwarded confirmation email waiting for review (written by the inbound-email Edge Function). */
+export type ImportInboxItem = {
+  id: string;
+  user_id: string;
+  from_address: string | null;
+  subject: string | null;
+  text_body: string | null;
+  html_body: string | null;
+  attachments: { name: string; mime: string; size: number; path: string }[];
+  status: "new" | "imported" | "dismissed";
+  trip_id: string | null;
+  received_at: string;
+};
+
 /** A ticket, boarding pass or confirmation file kept with a trip (bucket "trip-files"). */
 export type TripFile = {
   id: string;
@@ -753,6 +769,7 @@ export type Database = {
       currencies: ReadOnly<Currency>;
       countries: ReadOnly<Country>;
       cost_per_diem: ReadOnly<CostPerDiem>;
+      import_inbox: TableDef<ImportInboxItem, never, Partial<Pick<ImportInboxItem, "status" | "trip_id">>>;
       trip_files: TableDef<TripFile, Omit<TripFile, "id" | "created_at" | "uploaded_by" | "booking_type" | "booking_id"> & Partial<Pick<TripFile, "booking_type" | "booking_id">>, Partial<Pick<TripFile, "booking_type" | "booking_id">>>;
       cost_calibration: ReadOnly<CostCalibration>;
       cost_refresh_runs: ReadOnly<CostRefreshRun>;
@@ -836,6 +853,7 @@ export type Database = {
       mark_chat_read: { Args: { p_trip_id: UUID }; Returns: undefined };
       touch_activity: { Args: Record<string, never>; Returns: undefined };
       is_app_admin: { Args: Record<string, never>; Returns: boolean };
+      inbound_email_webhook_url: { Args: Record<string, never>; Returns: string };
       admin_stats: { Args: { p_days?: number }; Returns: AdminStats };
       trip_travel_types: {
         Args: { p_trip_id: UUID };
