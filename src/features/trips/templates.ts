@@ -33,7 +33,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 8,
     nights: 2,
     perPerson: 1300,
-    photo: { src: "https://images.unsplash.com/photo-1593810659067-3abb9b4dfa4c", alt: "A pink and yellow lifeguard tower on South Beach, Miami", focus: "50% 60%", credit: "Emanuel Ekström", page: "https://unsplash.com/photos/pink-and-yellow-wooden-lifeguard-house-on-beach-during-daytime-HgVE4_VWgos" },
+    photo: { src: "https://images.unsplash.com/photo-1693433582807-ab93ea7c297e", alt: "Broadway in downtown Nashville at dusk", focus: "52% 50%", credit: "Isaac Macdonald", page: "https://unsplash.com/photos/a-city-street-filled-with-lots-of-traffic-and-tall-buildings-Z941si-U2pw" },
     todo: [
       "Agree on the budget per person before booking",
       "Agree what a point is worth if anyone books with points",
@@ -51,7 +51,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 8,
     nights: 2,
     perPerson: 1500,
-    photo: { src: "https://images.unsplash.com/photo-1693433582807-ab93ea7c297e", alt: "Broadway in downtown Nashville at dusk", focus: "50% 45%", credit: "Isaac Macdonald", page: "https://unsplash.com/photos/a-city-street-filled-with-lots-of-traffic-and-tall-buildings-Z941si-U2pw" },
+    photo: { src: "https://images.unsplash.com/photo-1593810659067-3abb9b4dfa4c", alt: "Friends sitting under a pink and yellow lifeguard tower on Miami Beach", focus: "50% 66%", credit: "Emanuel Ekström", page: "https://unsplash.com/photos/pink-and-yellow-wooden-lifeguard-house-on-beach-during-daytime-HgVE4_VWgos" },
     todo: [
       "Agree on the budget per person before booking",
       "Agree what a point is worth if anyone books with points",
