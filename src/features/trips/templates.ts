@@ -68,7 +68,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 6,
     nights: 4,
     perPerson: 1450,
-    photo: { src: "https://images.unsplash.com/photo-1457537227909-08f41319e53c", alt: "Clear blue water on a sandy beach in Cancún", focus: "50% 55%", credit: "Joe Cooke", page: "https://unsplash.com/photos/clear-blue-ocean-washing-on-the-sandy-shore-on-a-clear-day-in-cancun-MPFiYu__1bA" },
+    photo: { src: "https://images.unsplash.com/photo-1457537227909-08f41319e53c", alt: "Clear blue water on a sandy beach in Cancún", focus: "50% 72%", credit: "Joe Cooke", page: "https://unsplash.com/photos/clear-blue-ocean-washing-on-the-sandy-shore-on-a-clear-day-in-cancun-MPFiYu__1bA" },
     todo: [
       "Set the dates with a vote",
       "Agree on the budget per person",
