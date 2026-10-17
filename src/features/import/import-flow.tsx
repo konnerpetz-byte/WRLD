@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertTriangle, BedDouble, CalendarDays, FileUp, Link2, Mail, Paperclip, Plane, Ticket, Train } from "lucide-react";
+import { AlertTriangle, BedDouble, CalendarDays, Camera, FileUp, Link2, Mail, Paperclip, Plane, Ticket, Train } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import type { TransitMode } from "@/types/database";
 
 import { dismissInbox, type ReadState, readImport, type SaveState, saveImport } from "./actions";
 import type { ImportCandidate } from "./parse";
+import { shrinkImage } from "./shrink-image";
 import { TravelPartners } from "./travel-partners";
 
 type Row = ImportCandidate & { include: boolean };
@@ -46,6 +47,29 @@ export function ImportFlow({
 }) {
   const [readState, read, reading] = useActionState<ReadState, FormData>(readImport.bind(null, tripId), {});
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [picked, setPicked] = useState(0);
+
+  // Photos are shrunk in the browser first (see shrink-image.ts), then everything goes up in one request.
+  async function submit(fd: FormData) {
+    setLocalError(null);
+    const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+    if (files.length > 6) return setLocalError("Pick up to 6 files at a time.");
+    setPreparing(true);
+    fd.delete("file");
+    let total = 0;
+    for (const f of files) {
+      const ready = await shrinkImage(f);
+      total += ready.size;
+      fd.append("file", ready);
+    }
+    setPreparing(false);
+    if (total > 4.3 * 1024 * 1024) return setLocalError("Those files are over 4 MB together. Try fewer at a time.");
+    startTransition(() => read(fd));
+  }
+  const busy = reading || preparing;
+  const error = localError ?? readState.error;
   const [handled, setHandled] = useState(readState);
   if (readState !== handled) {
     setHandled(readState);
@@ -113,7 +137,7 @@ export function ImportFlow({
           </ul>
         )}
       </section>
-      <form action={read} className="grid gap-6 rounded-2xl border bg-card p-5">
+      <form action={submit} className="grid gap-6 rounded-2xl border bg-card p-5">
         <div className="grid gap-2">
           <Label htmlFor="imp-text" className="text-base font-semibold">
             Paste a confirmation
@@ -133,17 +157,22 @@ export function ImportFlow({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid content-start gap-2">
             <Label htmlFor="imp-file" className="flex items-center gap-2 font-semibold">
-              <FileUp className="size-4" aria-hidden="true" /> Or upload a file
+              <FileUp className="size-4" aria-hidden="true" /> Or upload screenshots or files
             </Label>
             <Input
               id="imp-file"
               name="file"
               type="file"
-              accept=".ics,.ical,.pdf,.eml,.html,.htm,.txt,text/calendar,application/pdf,message/rfc822,text/html,text/plain"
+              multiple
+              // No HEIC here on purpose: iPhones then hand over photos as JPEG.
+              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,.ics,.ical,.pdf,.eml,.html,.htm,.txt,text/calendar,application/pdf,message/rfc822,text/html,text/plain"
               aria-describedby="imp-file-help"
+              onChange={(e) => setPicked(e.target.files?.length ?? 0)}
             />
             <p id="imp-file-help" className="text-xs text-muted-foreground">
-              A calendar file (.ics) from &ldquo;Add to calendar&rdquo;, a ticket or itinerary PDF, or a saved email (.eml). Up to 5 MB.
+              <Camera className="mr-1 inline size-3" aria-hidden="true" />
+              Screenshots or photos of a confirmation or boarding pass (JPG, PNG). If it runs over several screens, pick them all
+              together. Also: a ticket or itinerary PDF, a calendar file (.ics) or a saved email (.eml). Up to 6 files.
             </p>
           </div>
           <div className="grid content-start gap-2">
@@ -158,16 +187,18 @@ export function ImportFlow({
           </div>
         </div>
 
-        {readState.error && (
+        {error && (
           <p role="alert" className="text-sm text-destructive">
-            {readState.error}
+            {error}
           </p>
         )}
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={reading}>
-            {reading ? "Reading…" : "Find my bookings"}
+          <Button type="submit" disabled={busy}>
+            {busy ? "Reading…" : "Find my bookings"}
           </Button>
-          <p className="text-xs text-muted-foreground">Nothing is added until you check it.</p>
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {busy && picked > 0 ? "Reading images takes a few seconds each." : "Nothing is added until you check it."}
+          </p>
         </div>
       </form>
     </div>

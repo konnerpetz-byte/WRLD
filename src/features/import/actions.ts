@@ -10,6 +10,7 @@ import { requireUserId } from "@/lib/supabase/server";
 import { TRANSIT_MODES } from "@/types/database";
 
 import { type ImportCandidate, parseBookings, travelersIn } from "./parse";
+import { isHeic } from "./ocr";
 import { mergeTravelers, type Travelers } from "./travelers";
 
 export type ReadState = { candidates?: ImportCandidate[]; error?: string; note?: string; inboxId?: string; people?: Travelers };
@@ -19,7 +20,12 @@ const peopleIn = (inputs: { text?: string; html?: string; ics?: string }[]): Tra
   inputs.reduce<Travelers>((acc, i) => mergeTravelers(acc, i.ics ? { names: [], count: null } : travelersIn(i)), { names: [], count: null });
 export type SaveState = { ok?: boolean; error?: string; note?: string; failed?: string[] };
 
-const MAX_FILE = 5 * 1024 * 1024;
+// Vercel rejects request bodies over 4.5 MB; the form shrinks photos before sending.
+const MAX_FILE = 4 * 1024 * 1024;
+const MAX_TOTAL = 4.3 * 1024 * 1024;
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|heic|heif)$/;
+const isImage = (name: string, type: string, bytes: Uint8Array) =>
+  /^image\//.test(type) || IMAGE_EXT.test(name) || (bytes[0] === 0xff && bytes[1] === 0xd8) || (bytes[0] === 0x89 && bytes[1] === 0x50);
 
 /** Step 1: read whatever was pasted, uploaded or linked, and return what was found (nothing is saved). */
 export async function readImport(tripId: string, _: ReadState, formData: FormData): Promise<ReadState> {
@@ -34,7 +40,7 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
 
   const text = String(formData.get("text") ?? "").slice(0, 200_000);
   const url = String(formData.get("url") ?? "").trim().slice(0, 2000);
-  const file = formData.get("file");
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0).slice(0, 6);
 
   const inputs: { text?: string; html?: string; ics?: string }[] = [];
   if (text.trim()) {
@@ -42,11 +48,18 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
     else inputs.push({ text });
   }
 
-  if (file instanceof File && file.size > 0) {
-    if (file.size > MAX_FILE) return { error: "That file is over 5 MB." };
+  // Screenshots of one confirmation are read together, in the order they were picked.
+  const images: Uint8Array[] = [];
+  let heic = false;
+  if (files.reduce((n, f) => n + f.size, 0) > MAX_TOTAL) return { error: "Those files are over 4 MB together. Try fewer at a time." };
+  for (const file of files) {
+    if (file.size > MAX_FILE) return { error: `${file.name} is over 4 MB.` };
     const name = file.name.toLowerCase();
     const bytes = new Uint8Array(await file.arrayBuffer());
-    if (name.endsWith(".pdf") || file.type === "application/pdf") {
+    if (isImage(name, file.type, bytes)) {
+      if (isHeic(bytes)) heic = true;
+      else images.push(bytes);
+    } else if (name.endsWith(".pdf") || file.type === "application/pdf") {
       const pdfText = await readPdf(bytes);
       if (!pdfText) return { error: "Couldn't read that PDF, even as an image. Paste the confirmation details instead." };
       inputs.push({ text: pdfText });
@@ -57,6 +70,15 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
       else if (/<html|<body|<div|<table|<script/i.test(content)) inputs.push({ html: content });
       else inputs.push({ text: content });
     }
+  }
+  if (heic && !images.length && !inputs.length) {
+    return { error: "That photo is in iPhone's HEIC format, which can't be read here. Take a screenshot of it instead, or upload it from Safari." };
+  }
+  if (images.length) {
+    const { ocrImages } = await import("./ocr");
+    const seen = await ocrImages(images);
+    if (seen) inputs.push({ text: seen });
+    else if (!inputs.length) return { error: "Couldn't read any text in that image. Try a sharper screenshot, or paste the details instead." };
   }
 
   let linkPage: { html: string; finalUrl: string } | null = null;
@@ -109,15 +131,24 @@ async function readInbox(supabase: Supabase, inboxId: string, ctx: { defaultTz: 
   const inputs: { text?: string; html?: string; ics?: string }[] = [];
   if (item.html_body) inputs.push({ html: item.html_body });
   else if (item.text_body) inputs.push({ text: item.text_body });
+  const images: Uint8Array[] = [];
   for (const a of item.attachments ?? []) {
-    if (!/calendar|ics|pdf/i.test(a.mime)) continue;
+    if (!/calendar|ics|pdf|^image\//i.test(a.mime)) continue;
     const { data: blob } = await supabase.storage.from("import-inbox").download(a.path);
     if (!blob) continue;
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    if (/pdf/i.test(a.mime)) {
+    if (/^image\//i.test(a.mime)) {
+      if (!isHeic(bytes)) images.push(bytes);
+    } else if (/pdf/i.test(a.mime)) {
       const t = await readPdf(bytes);
       if (t) inputs.push({ text: t });
     } else inputs.push({ ics: new TextDecoder().decode(bytes) });
+  }
+  // Images are only read when the email itself had nothing (a forwarded screenshot), since logos and banners aren't bookings.
+  if (images.length && !inputs.flatMap((i) => parseBookings(i, ctx)).length) {
+    const { ocrImages } = await import("./ocr");
+    const seen = await ocrImages(images);
+    if (seen) inputs.push({ text: seen });
   }
   const candidates = inputs.flatMap((i) => parseBookings(i, ctx));
   if (!candidates.length) {
