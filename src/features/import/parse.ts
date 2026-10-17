@@ -548,6 +548,47 @@ function flightNumberIn(text: string): string | null {
 /** Airline name for a flight number, so imported legs read "Delta DL 22" (see carriers.ts). */
 const airlineOf = (flight: string | null) => (flight ? (AIRLINES[flight.split(" ")[0]] ?? null) : null);
 
+/** OCR reads "ü" as "ii" ("Miinchen", "Ziirich", "Diisseldorf"). */
+const fixUmlauts = (s: string) => s.replace(/\b([A-Z])ii(?=[a-z]{2})/g, "$1ü");
+
+const STAY_WORDS = /hotel|inn\b|resort|suites|hostel|lodge|apartment|airbnb|b&b|guest ?house|palace|residence|villa|pousada|ryokan/i;
+
+/** The property's name: the line under "Where?" / "Property:" first, else the first line naming a hotel (not a lone logo word like "HOTELS"). */
+function stayName(text: string): string | null {
+  const lines = text.split(/\n/).map((l) => l.trim());
+  const clean = (l: string) => fixUmlauts(l.replace(/^(your (stay|reservation|booking) at|reservation at|welcome to)\s*/i, "")).slice(0, 200);
+  for (let i = 0; i < lines.length; i++) {
+    const head = /^(where\??|property|hotel|accommodation|your hotel|your stay|unterkunft)\s*:?\s*(.*)$/i.exec(lines[i]);
+    if (!head) continue;
+    const next = head[2] || lines.slice(i + 1, i + 3).find(Boolean) || "";
+    if (next.length > 3 && next.length < 90 && /[a-z]/i.test(next) && !/\d{3,}|:/.test(next)) return clean(next);
+  }
+  const line = lines.find(
+    (l) => l.length > 3 && l.length < 90 && STAY_WORDS.test(l) && /\S+\s+\S+/.test(l) && !/check[- ]?(in|out)|booking|reservation|room\b/i.test(l),
+  );
+  return line ? clean(line) : null;
+}
+
+/**
+ * An address line without an "Address:" label: a street number and a postal code with a comma
+ * ("Landshuter Allee 174, 80637 München, Germany", "350 5th Ave, New York, NY 10118").
+ * Prefers the line right after the property name.
+ */
+function streetLine(text: string, name: string | null): string | null {
+  const lines = text.split(/\n/).map((l) => l.trim());
+  const looks = (l: string) =>
+    l.length > 8 &&
+    l.length < 120 &&
+    l.includes(",") &&
+    /\b\d{1,5}[a-z]?\b/i.test(l) &&
+    (/\b\d{4,5}\b/.test(l) || /\b[A-Z]{2}\s+\d{5}\b/.test(l) || /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/.test(l)) &&
+    /[A-Za-zÀ-ÿ]{3,}/.test(l) &&
+    !/\b(eur|usd|gbp|chf|total|price|tel|phone|booking|confirmation|guests?|adults?|room)\b|[€$£]|\d{1,2}[:.]\d{2}\s*(?:am|pm|[ap]\.m\.)|\b\d{1,2}\.\d{1,2}\.\d{2,4}\b/i.test(l);
+  const at = name ? lines.findIndex((l) => fixUmlauts(l).includes(name)) : -1;
+  const pick = (at >= 0 ? lines.slice(at + 1, at + 4).find(looks) : undefined) ?? lines.find(looks);
+  return pick ? fixUmlauts(pick).replace(/[.\s]+$/, "").slice(0, 300) : null;
+}
+
 /**
  * "Address: Line-Eid-Str. 2, 78467" with the city on the next line ("Konstanz, Germany").
  * The next line joins only when it reads like more address, not a new label ("Phone: …").
@@ -564,14 +605,14 @@ export function addressIn(text: string): string | null {
   if (next && next.length <= 80 && !/:/.test(next) && /[A-Za-zÀ-ÿ]/.test(next) && !/^(?:phone|tel|gps|email|check|www\.|http)/i.test(next)) {
     addr = addr ? `${addr.replace(/,\s*$/, "")}, ${next}` : next;
   }
-  return addr ? addr.slice(0, 300) : null;
+  return addr ? fixUmlauts(addr).slice(0, 300) : null;
 }
 
 function confirmationIn(text: string): string | null {
   // Booking.com and some hotels group digits: "CONFIRMATION NUMBER: 6697.906.063"
   const grouped = /\b(?:confirmation|booking|reservation)\s*(?:number|no\.?|#)\s*[:#]?\s*(\d{3,4}(?:[. ]\d{3}){2,3})\b/i.exec(text);
   if (grouped) return grouped[1].replace(/[. ]/g, "");
-  const re = /\b(?:confirmation|booking|reservation|record locator|pnr|reference|ref\.?)(?:\s+(?:reference|number|code|no\.?|#))?\s*[:#]?\s*([A-Za-z0-9]{5,10})\b/gi;
+  const re = /\b(?:confirmation|booking|reservation|record locator|pnr|reference|ref\.?)(?:\s+(?:reference|number|code|no\.?|n[°º]|nr\.?|#))?\s*[:#]?\s*([A-Za-z0-9]{5,12})\b/gi;
   for (const m of text.matchAll(re)) {
     const code = m[1];
     // Real codes are capitals and/or digits ("K4ZP9Q", "4521889"), not words ("reference").
@@ -737,27 +778,41 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
   if (grid) out.push(grid);
   const cin = /check[- ]?in\b[^\n]{0,60}/i.exec(text);
   const cout = /check[- ]?out\b[^\n]{0,60}/i.exec(text);
-  if (!grid && cin && cout) {
-    const inDate = nearest(dates, cin.index, 120, true) ?? nearest(dates, cin.index, 80);
-    const outDate = nearest(dates, cout.index, 120, true) ?? nearest(dates, cout.index, 80);
+  // Hotels that write "Arrival: 17.5.2027 / Departure: 20.5.2027" (Meininger, many direct bookings).
+  // Only when no flight or train was found, since those use the same words.
+  const hotelish = !out.some((c) => c.kind === "transit") && /\b(hotel|hostel|room|guests?|check[- ]?in|stay|night)\b/i.test(text);
+  const labeled = (re: RegExp) => {
+    for (const m of text.matchAll(re)) {
+      const end = m.index! + m[0].length;
+      const lineEnd = text.indexOf("\n", end) === -1 ? text.length : text.indexOf("\n", end);
+      const d = dates.find((h) => h.index >= end && h.index < Math.min(lineEnd, end + 40));
+      if (d) return d;
+    }
+    return null;
+  };
+  const inLabel = /\b(?:check[- ]?in|arrival|arriving|arrive|anreise|ankunft|llegada|arriv[ée]e)(?:[ \t]+date)?[ \t]*:?[ \t]*/gi;
+  const outLabel = /\b(?:check[- ]?out|departure|departing|depart|abreise|salida|d[ée]part)(?:[ \t]+date)?[ \t]*:?[ \t]*/gi;
+  const inLabeled = hotelish ? labeled(inLabel) : labeled(/\bcheck[- ]?in(?:[ \t]+date)?[ \t]*:?[ \t]*/gi);
+  const outLabeled = hotelish ? labeled(outLabel) : labeled(/\bcheck[- ]?out(?:[ \t]+date)?[ \t]*:?[ \t]*/gi);
+  if (!grid && ((cin && cout) || (inLabeled && outLabeled))) {
+    const inDate = inLabeled ?? (cin ? (nearest(dates, cin.index, 120, true) ?? nearest(dates, cin.index, 80)) : null);
+    const outDate = outLabeled ?? (cout ? (nearest(dates, cout.index, 120, true) ?? nearest(dates, cout.index, 80)) : null);
     if (inDate && outDate && outDate.value > inDate.value) {
-      const inTime = nearest(times, cin.index, 120, true);
-      const outTime = nearest(times, cout.index, 120, true);
-      const name =
-        text
-          .split(/\n/)
-          .map((l) => l.trim())
-          .find((l) => l.length > 3 && l.length < 90 && /hotel|inn\b|resort|suites|hostel|lodge|apartment|airbnb|b&b|guest ?house|palace|residence|villa|pousada|ryokan/i.test(l) && !/check[- ]?(in|out)/i.test(l)) ?? "Stay";
+      // Times on the check-in/out lines ("Check-in: From 3 p.m."), else right after the dates.
+      const onLine = (m: RegExpExecArray | null) => (m ? times.find((t) => t.index >= m.index && t.index < m.index + m[0].length) : undefined);
+      const inTime = onLine(cin) ?? (cin ? nearest(times, cin.index, 120, true) : null);
+      const outTime = onLine(cout) ?? (cout ? nearest(times, cout.index, 120, true) : null);
+      const name = stayName(text);
       out.push({
         id: nextId(),
         kind: "stay",
-        name: name.replace(/^(your (stay|reservation|booking) at|reservation at|welcome to)\s*/i, "").slice(0, 200),
-        address: addressIn(text),
+        name: name ?? "Stay",
+        address: addressIn(text) ?? streetLine(text, name),
         checkInLocal: `${inDate.value}T${inTime?.value ?? "15:00"}`,
         checkOutLocal: `${outDate.value}T${outTime?.value ?? "11:00"}`,
         confirmation: conf,
         found: "Text",
-        warnings: name === "Stay" ? ["Couldn't find the property name. Add it."] : [],
+        warnings: name ? [] : ["Couldn't find the property name. Add it."],
       });
     }
   }

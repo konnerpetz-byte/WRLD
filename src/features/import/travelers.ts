@@ -58,7 +58,7 @@ export function travelersInText(text: string): Travelers {
     const line = raw.replace(/^[^A-Za-zÀ-ÿ0-9]+/, "");
     // A heading followed by a list of names.
     if (
-      /^(passengers?|travell?ers?|guests?|guest names?|travell?er (?:details|info(?:rmation)?|names?)|passenger (?:details|info(?:rmation)?|names?\(?s?\)?)|who'?s (?:flying|going|travell?ing)|names? of travell?ers?)\s*:?\s*$/i.test(
+      /^(passengers?|travell?ers?|guests?|guest names?|travell?er (?:details|info(?:rmation)?|names?)|passenger (?:details|info(?:rmation)?|names?\(?s?\)?)|who'?s (?:flying|going|travell?ing)|who is (?:booking|travell?ing|staying)\??|booked by|(?:lead|main) (?:guest|traveller|traveler)|names? of travell?ers?)\s*:?\s*$/i.test(
         line
       )
     ) {

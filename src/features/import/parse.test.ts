@@ -343,6 +343,40 @@ Arrival 12:40 Hamburg ZOB
 });
 
 describe("hotels", () => {
+  it("Hotel app screenshot (OCR): Arrival/Departure labels, Where? heading, unlabeled address, Booking N°", () => {
+    // Shape of OCR text from a phone screenshot of a direct hotel booking (details made up).
+    const text = `£ Your booking was ~~ A
+EXAMPLE
+HOTELS
+Booking N°: 2004567812
+Guests: 2
+Room: 1
+"ah ! | ol r B Co »
+Hey Sam,
+Great news! The update to your reservation
+was successful.
+Who is booking?
+Sam Rivera
+Where?
+EXAMPLE Hotel Hamburg Altona
+Beispielstrasse 12, 22765 Hamburg, Germany.
+GET DIRECTIONS
+When?
+Arrival: 3.6.2027
+Departure: 6.6.2027
+Check-in: From 3 p.m.
+Check-out: By 11 a.m.
+Twin room (rate incl. breakfast)
+2 adults
+03.06 - 06.06 - 291,00 EUR
+Total: 291,00 EUR`;
+    const r = parseBookings({ text }, { ...ctx, year: 2027 });
+    expect(r.map((c) => (c.kind === "stay" ? [c.name, c.address, c.checkInLocal, c.checkOutLocal, c.confirmation] : c.kind))).toEqual([
+      ["EXAMPLE Hotel Hamburg Altona", "Beispielstrasse 12, 22765 Hamburg, Germany", "2027-06-03T15:00", "2027-06-06T11:00", "2004567812"],
+    ]);
+    expect(travelersIn({ text })).toEqual({ names: ["Sam Rivera"], count: 2 });
+  });
+
   it("Booking.com PDF with a text layer: address over two lines, check-in and check-out stacked", () => {
     const text = `Hotel Example Lakeside
 Address: Seestrasse 4, 78462
