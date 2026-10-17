@@ -486,6 +486,29 @@ Arrival 12:40 Hamburg ZOB
 });
 
 describe("hotels", () => {
+  it("Hotel chain app (OCR): check-in and check-out side by side, chain name without 'hotel', menu rows ignored", () => {
+    // Shape of OCR text from a Hilton Honors app screenshot (details made up).
+    const text = `Hilton Example Airport
+
+Hotel Details > Mh
+Check In Check Out
+Fri, Jun 4, 2027 Sun, Jun 6, 2027
+3:00PM 11:00 AM
+«© 2 nights fetal 2 guests
+
+Confirmation: 1234567890  [f]
+
+Chat with us Stay details
+@® Hilton Honors Benefits
+Y Restaurants
+E Hotel guide`;
+    const r = parseBookings({ text }, { ...ctx, year: 2027 });
+    expect(r.map((c) => (c.kind === "stay" ? [c.name, c.address, c.checkInLocal, c.checkOutLocal, c.confirmation] : c.kind))).toEqual([
+      ["Hilton Example Airport", null, "2027-06-04T15:00", "2027-06-06T11:00", "1234567890"],
+    ]);
+    expect(travelersIn({ text }).count).toBe(2);
+  });
+
   it("Hotel app screenshot (OCR): Arrival/Departure labels, Where? heading, unlabeled address, Booking N°", () => {
     // Shape of OCR text from a phone screenshot of a direct hotel booking (details made up).
     const text = `£ Your booking was ~~ A

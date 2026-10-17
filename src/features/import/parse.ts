@@ -636,7 +636,11 @@ const airlineOf = (flight: string | null) => (flight ? (AIRLINES[flight.split(" 
 /** OCR reads "ü" as "ii" ("Miinchen", "Ziirich", "Diisseldorf"). */
 const fixUmlauts = (s: string) => s.replace(/\b([A-Z])ii(?=[a-z]{2})/g, "$1ü").replace(/([a-z])B(e\b|en\b)/g, "$1ß$2");
 
-const STAY_WORDS = /hotel|inn\b|resort|suites|hostel|lodge|apartment|airbnb|b&b|guest ?house|palace|residence|villa|pousada|ryokan/i;
+// Generic words, plus chain names that often stand alone ("Hilton Zurich Airport", "Courtyard Munich City Center").
+const STAY_WORDS =
+  /hotel|inn\b|resort|suites|hostel|lodge|apartment|airbnb|b&b|guest ?house|palace|residence|villa|pousada|ryokan|\b(hilton|hampton|doubletree|conrad|waldorf|marriott|courtyard|sheraton|westin|renaissance|ritz-carlton|st\. regis|aloft|moxy|hyatt|andaz|kimpton|holiday inn|crowne plaza|intercontinental|indigo|novotel|ibis|sofitel|mercure|pullman|fairmont|radisson|best western|wyndham|ramada|four seasons|mandarin oriental|shangri-la|motel one|premier inn|travelodge|nh collection|melia|meliá|accor|mövenpick|movenpick|steigenberger|scandic|citizenm|ace hotel|the standard)\b/i;
+// App buttons and menu rows that name the hotel generically.
+const NOT_STAY_NAME = /check[- ]?(in|out)|booking|reservation|room\b|details|guide|policies|information|info\b|benefits|amenities|directions|contact|>|floor ?plan|honors|bonvoy|rewards|points/i;
 
 /** The property's name: the line under "Where?" / "Property:" first, else the first line naming a hotel (not a lone logo word like "HOTELS"). */
 function stayName(text: string): string | null {
@@ -650,7 +654,7 @@ function stayName(text: string): string | null {
     if (next.length > 3 && next.length < 90 && /[a-z]/i.test(next) && !/\d{3,}|:/.test(next)) return clean(next);
   }
   const line = lines.find(
-    (l) => l.length > 3 && l.length < 90 && STAY_WORDS.test(l) && /\S+\s+\S+/.test(l) && !/check[- ]?(in|out)|booking|reservation|room\b/i.test(l),
+    (l) => l.length > 3 && l.length < 90 && STAY_WORDS.test(l) && /\S+\s+\S+/.test(l) && !NOT_STAY_NAME.test(l),
   );
   return line ? clean(line) : null;
 }
@@ -669,7 +673,9 @@ function streetLine(text: string, name: string | null): string | null {
     /\b\d{1,5}[a-z]?\b/i.test(l) &&
     (/\b\d{4,5}\b/.test(l) || /\b[A-Z]{2}\s+\d{5}\b/.test(l) || /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/.test(l)) &&
     /[A-Za-zÀ-ÿ]{3,}/.test(l) &&
-    !/\b(eur|usd|gbp|chf|total|price|tel|phone|booking|confirmation|guests?|adults?|room)\b|[€$£]|\d{1,2}[:.]\d{2}\s*(?:am|pm|[ap]\.m\.)|\b\d{1,2}\.\d{1,2}\.\d{2,4}\b/i.test(l);
+    !/\b(eur|usd|gbp|chf|total|price|tel|phone|booking|confirmation|guests?|adults?|room)\b|[€$£]|\d{1,2}[:.]\d{2}\s*(?:am|pm|[ap]\.m\.)|\b\d{1,2}\.\d{1,2}\.\d{2,4}\b/i.test(l) &&
+    // Not a date line ("Sat, May 29, 2027 Sun, May 30, 2027"): the year looks like a postal code.
+    !/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b|\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*,/i.test(l);
   const at = name ? lines.findIndex((l) => fixUmlauts(l).includes(name)) : -1;
   const pick = (at >= 0 ? lines.slice(at + 1, at + 4).find(looks) : undefined) ?? lines.find(looks);
   return pick ? fixUmlauts(pick).replace(/[.\s]+$/, "").slice(0, 300) : null;
@@ -1065,13 +1071,19 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
   const inLabeled = hotelish ? labeled(inLabel) : labeled(/\bcheck[- ]?in(?:[ \t]+date)?[ \t]*:?[ \t]*/gi);
   const outLabeled = hotelish ? labeled(outLabel) : labeled(/\bcheck[- ]?out(?:[ \t]+date)?[ \t]*:?[ \t]*/gi);
   if (!grid && ((cin && cout) || (inLabeled && outLabeled))) {
-    const inDate = inLabeled ?? (cin ? (nearest(dates, cin.index, 120, true) ?? nearest(dates, cin.index, 80)) : null);
-    const outDate = outLabeled ?? (cout ? (nearest(dates, cout.index, 120, true) ?? nearest(dates, cout.index, 80)) : null);
+    // Side-by-side columns (Hilton, Marriott, IHG apps): "Check In   Check Out" on one line, then
+    // both dates on the next line and both times on the one after. Left is check-in, right is check-out.
+    const sideBySide = cin && cout && cout.index > cin.index && !text.slice(cin.index, cout.index).includes("\n");
+    const colDates = sideBySide ? dates.filter((d) => d.index > cout.index && d.index < cout.index + 300).slice(0, 2) : [];
+    const columns = colDates.length === 2 ? colDates : null;
+    const colTimes = columns ? times.filter((t) => t.index > columns[1].index && t.index < columns[1].index + 120).slice(0, 2) : [];
+    const inDate = columns?.[0] ?? inLabeled ?? (cin ? (nearest(dates, cin.index, 120, true) ?? nearest(dates, cin.index, 80)) : null);
+    const outDate = columns?.[1] ?? outLabeled ?? (cout ? (nearest(dates, cout.index, 120, true) ?? nearest(dates, cout.index, 80)) : null);
     if (inDate && outDate && outDate.value > inDate.value) {
       // Times on the check-in/out lines ("Check-in: From 3 p.m."), else right after the dates.
       const onLine = (m: RegExpExecArray | null) => (m ? times.find((t) => t.index >= m.index && t.index < m.index + m[0].length) : undefined);
-      const inTime = onLine(cin) ?? (cin ? nearest(times, cin.index, 120, true) : null);
-      const outTime = onLine(cout) ?? (cout ? nearest(times, cout.index, 120, true) : null);
+      const inTime = (colTimes.length === 2 ? colTimes[0] : undefined) ?? onLine(cin) ?? (cin ? nearest(times, cin.index, 120, true) : null);
+      const outTime = (colTimes.length === 2 ? colTimes[1] : undefined) ?? onLine(cout) ?? (cout ? nearest(times, cout.index, 120, true) : null);
       const name = stayName(text);
       out.push({
         id: nextId(),
