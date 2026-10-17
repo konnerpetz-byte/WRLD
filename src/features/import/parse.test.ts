@@ -343,6 +343,40 @@ Arrival 12:40 Hamburg ZOB
 });
 
 describe("hotels", () => {
+  it("Booking.com PDF with a text layer: address over two lines, check-in and check-out stacked", () => {
+    const text = `Hotel Example Lakeside
+Address: Seestrasse 4, 78462
+Konstanz, Germany
+Phone: +49 0000 000000
+GPS Coordinates: N 047°
+40.000, E 09° 9.000
+YOUR GROUP
+2 adults
+Booking Confirmation
+CONFIRMATION NUMBER: 1234.567.891
+CHECK-IN
+27
+MAY
+Thursday
+from 15:00
+CHECK-OUT
+29
+MAY
+Saturday
+until 12:00
+ROOMS
+1 /
+NIGHTS
+2`;
+    const stay = parseBookings({ text }, { ...ctx, year: 2027 }).find((c) => c.kind === "stay");
+    expect(stay && stay.kind === "stay" ? [stay.checkInLocal, stay.checkOutLocal, stay.confirmation, stay.address] : null).toEqual([
+      "2027-05-27T15:00",
+      "2027-05-29T12:00",
+      "1234567891",
+      "Seestrasse 4, 78462, Konstanz, Germany",
+    ]);
+  });
+
   it("Booking.com PDF read as an image: dates in columns beside the address", () => {
     // Shape of OCR output from a "Print to PDF" Booking.com confirmation (details changed).
     const text = `Booking.com Booking Confirmation
@@ -364,7 +398,7 @@ You'll get a full refund if you cancel before
     const stay = r.find((c) => c.kind === "stay");
     expect(
       stay && stay.kind === "stay" ? [stay.name, stay.checkInLocal, stay.checkOutLocal, stay.confirmation, stay.address] : null
-    ).toEqual(["Hotel Example", "2027-05-20T14:00", "2027-05-23T11:00", "1234567890", "Hauptstrasse 12, Altstadt, 5020"]);
+    ).toEqual(["Hotel Example", "2027-05-20T14:00", "2027-05-23T11:00", "1234567890", "Hauptstrasse 12, Altstadt, 5020, Salzburg, Austria"]);
     expect(r.filter((c) => c.kind !== "stay")).toEqual([]);
     expect(travelersIn({ text })).toEqual({ names: ["Alex Rivera"], count: 2 });
   });

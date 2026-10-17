@@ -548,6 +548,25 @@ function flightNumberIn(text: string): string | null {
 /** Airline name for a flight number, so imported legs read "Delta DL 22" (see carriers.ts). */
 const airlineOf = (flight: string | null) => (flight ? (AIRLINES[flight.split(" ")[0]] ?? null) : null);
 
+/**
+ * "Address: Line-Eid-Str. 2, 78467" with the city on the next line ("Konstanz, Germany").
+ * The next line joins only when it reads like more address, not a new label ("Phone: …").
+ */
+export function addressIn(text: string): string | null {
+  const m = /^[^\S\n]*(?:address|property address|hotel address|adresse|anschrift|direcci[oó]n|indirizzo|endere[cç]o)[^\S\n]*:[^\S\n]*([^\n]*)(?:\n([^\n]*))?/im.exec(text);
+  if (!m) return null;
+  // Booking.com grids put the check-in/out day numbers at the end of the line ("… 5020 20 2 3 1 3").
+  let addr = m[1].replace(/(?:\s+(?:\d{1,2}\s+){2,7}\d{1,2})\s*$/, "").trim();
+  // …and the month and weekday columns at the end of the next one ("Salzburg, Austria MAY MAY").
+  const next = (m[2] ?? "")
+    .replace(/(?:\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEPT?|OCT|NOV|DEC|\d{1,2}|(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day))+\s*$/, "")
+    .trim();
+  if (next && next.length <= 80 && !/:/.test(next) && /[A-Za-zÀ-ÿ]/.test(next) && !/^(?:phone|tel|gps|email|check|www\.|http)/i.test(next)) {
+    addr = addr ? `${addr.replace(/,\s*$/, "")}, ${next}` : next;
+  }
+  return addr ? addr.slice(0, 300) : null;
+}
+
 function confirmationIn(text: string): string | null {
   // Booking.com and some hotels group digits: "CONFIRMATION NUMBER: 6697.906.063"
   const grouped = /\b(?:confirmation|booking|reservation)\s*(?:number|no\.?|#)\s*[:#]?\s*(\d{3,4}(?:[. ]\d{3}){2,3})\b/i.exec(text);
@@ -733,7 +752,7 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
         id: nextId(),
         kind: "stay",
         name: name.replace(/^(your (stay|reservation|booking) at|reservation at|welcome to)\s*/i, "").slice(0, 200),
-        address: null,
+        address: addressIn(text),
         checkInLocal: `${inDate.value}T${inTime?.value ?? "15:00"}`,
         checkOutLocal: `${outDate.value}T${outTime?.value ?? "11:00"}`,
         confirmation: conf,
@@ -1037,7 +1056,7 @@ function bookingGridStay(text: string, ctx: Ctx, times: Hit[], conf: string | nu
           .find((l) => /hotel|inn\b|resort|suites|hostel|lodge|apartment|b&b|guest ?house|palace|residence|villa|pension|gasthof|pousada|ryokan/i.test(l) && !/booking(\.com)? confirmation/i.test(l))
           ?.replace(/\s*check[- ]?in.*$/i, "")
           .trim() ?? "Stay";
-      const address = /address:\s*([^\n]+?)(?:\s+(?:\d{1,2}\s+){2,7}\d{1,2})?\s*$/im.exec(text)?.[1]?.trim() ?? null;
+      const address = addressIn(text);
       return {
         id: nextId(),
         kind: "stay",
