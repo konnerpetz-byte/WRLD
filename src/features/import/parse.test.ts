@@ -107,6 +107,68 @@ DTW 7h 15m CDG`;
     expect(partnersOnBooking({ names: ["Mariaj Lopez", "Samuel Chen"], count: 2 }, ["Maria Lopez"]).others).toEqual(["Samuel Chen"]);
   });
 
+  it("Swiss / Air Canada app cards (OCR): route banner, unlabeled booking code, codes split into columns", () => {
+    // Shape of OCR text from three app screenshots of one trip (details made up).
+    const second = `ZRH YUL > DTW
+| May 30, 2027 Economy
+@ AC1234
+YUL
+Montreal
+Scheduled
+7:50 PM
+Gate -
+Terminal -
+Passengers
+Th 55m
+QWERTZ
+DTW
+Detroit
+Scheduled
+9:45PM
+Gate -`;
+    const first = `ZRH > YUL DTW
+May 30, 2027 Economy
+QWERTZ O
+47 LX099
+Operated by SWISS INTERNATIONAL AIR LINES
+ZRH > YUL
+Zurich Montreal
+Scheduled Scheduled
+12:40 PM 8h 20m 3:00PM
+Gate - Gate -
+Seat 30J, 30K
+Passengers 2 >`;
+    const people = `xX Passengers (2)
+
+MARIAJOSE LOPEZ Seat: 30J
+
+» Edit passenger details
+Ticket 0160000000001 O
+
+SAMUEL CHEN Seat: 30K
+
+» Edit passenger details
+Ticket 0160000000002 O`;
+    const r = parseBookings({ text: [second, first, people].join("\n\n") }, { ...ctx, year: 2027 });
+    expect(legs(r).sort()).toEqual(["YUL-DTW 2027-05-30T19:50 2027-05-30T21:45 AC 1234", "ZRH-YUL 2027-05-30T12:40 2027-05-30T15:00 LX 99"]);
+    expect(r.every((c) => c.confirmation === "QWERTZ")).toBe(true);
+    expect(travelersIn({ text: people })).toEqual({ names: ["Mariajose Lopez", "Samuel Chen"], count: 2 });
+  });
+
+  it("Delta app trip header (OCR): 'Confirmation # | CODE', menu-bar junk isn't a flight number", () => {
+    const text = `< BACK DTW - CDG ®)
+Confirmation # | ZXCVBN (§
+To Paris,
+Thu, Jun 10 | 4:55 PM - 7:10 AM
+Documents Required
+Update Your Trip
+A SO) XY 2 —
+Explore Book Trips Account More`;
+    const r = parseBookings({ text }, { ...ctx, year: 2027 });
+    expect(legs(r)).toEqual(["DTW-CDG 2027-06-10T16:55 2027-06-11T07:10 ?"]);
+    expect(r[0].confirmation).toBe("ZXCVBN");
+  });
+
   it("Delta: labeled Departs/Arrives lines with airline names", () => {
     const text = `Your Flight Receipt - KONNER PETZ 16MAY27
 Confirmation #: H7KQ2P

@@ -74,11 +74,18 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
   if (heic && !images.length && !inputs.length) {
     return { error: "That photo is in iPhone's HEIC format, which can't be read here. Take a screenshot of it instead, or upload it from Safari." };
   }
+  // Screenshots: the AI reader when it's set up (any app layout), else OCR and the text rules.
+  let fromImages: { candidates: ImportCandidate[]; people: Travelers } | null = null;
   if (images.length) {
-    const { ocrImages } = await import("./ocr");
-    const seen = await ocrImages(images);
-    if (seen) inputs.push({ text: seen });
-    else if (!inputs.length) return { error: "Couldn't read any text in that image. Try a sharper screenshot, or paste the details instead." };
+    const { readImagesWithAI } = await import("./vision");
+    fromImages = await readImagesWithAI(images, ctx);
+    if (!fromImages?.candidates.length) {
+      fromImages = null;
+      const { ocrImages } = await import("./ocr");
+      const seen = await ocrImages(images);
+      if (seen) inputs.push({ text: seen });
+      else if (!inputs.length) return { error: "Couldn't read any text in that image. Try a sharper screenshot, or paste the details instead." };
+    }
   }
 
   let linkPage: { html: string; finalUrl: string } | null = null;
@@ -96,7 +103,7 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
 
   if (!inputs.length) return { error: "Paste a confirmation, choose a file, or add a link." };
 
-  const candidates = inputs.flatMap((i) => parseBookings(i, ctx));
+  const candidates = [...(fromImages?.candidates ?? []), ...inputs.flatMap((i) => parseBookings(i, ctx))];
   if (!candidates.length && url) {
     // A public page with no booking details (a tour or event page): offer it as an item to schedule.
     const page = linkPage;
@@ -119,7 +126,8 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
   if (!candidates.length) {
     return { error: "No flights, stays or tickets found. Try pasting the whole confirmation email, including the dates and times." };
   }
-  return { candidates, people: peopleIn(inputs), note: `Found ${candidates.length}. Check the details, then add them.` };
+  const people = fromImages ? mergeTravelers(peopleIn(inputs), fromImages.people) : peopleIn(inputs);
+  return { candidates, people, note: `Found ${candidates.length}. Check the details, then add them.` };
 }
 
 type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];

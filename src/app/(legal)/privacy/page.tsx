@@ -105,6 +105,11 @@ export default function PrivacyPage() {
           <strong>Vercel</strong>: website hosting and cookieless visitor statistics, United States.
         </li>
         <li>
+          <strong>Anthropic</strong> (United States): when you import a screenshot or photo of a booking, the image may be sent to
+          Anthropic&rsquo;s Claude model to read the flight, stay and traveler details, which you then check before anything is
+          saved. Under Anthropic&rsquo;s commercial terms, this data isn&rsquo;t used to train its models.
+        </li>
+        <li>
           <strong>Map and place services:</strong> Photon (komoot), Nominatim (OpenStreetMap), OpenFreeMap, Wikidata and Wikipedia.
           They receive the place names, addresses or map areas you search for or view. Map tiles are requested by your browser, so
           OpenFreeMap sees your IP address.

@@ -13,6 +13,10 @@ async function withWorker<T>(run: (worker: Worker) => Promise<T>): Promise<T | n
       cacheMethod: "none",
       gzip: true,
     });
+    // Tesseract.js defaults to "single block", which drops the big headings and scattered boxes of an
+    // app screen (airport codes, booking codes). Automatic page layout reads them.
+    const { PSM } = await import("tesseract.js");
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
     return await run(worker);
   } catch {
     return null;

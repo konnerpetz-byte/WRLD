@@ -13,6 +13,8 @@ const tidyName = (raw: string): string | null => {
   let s = raw
     .replace(/\s{2,}.*$/, "") // drop columns after a wide gap ("KONNER PETZ    Ticket 006...")
     .replace(/\s*[|(•·].*$/, "")
+    // Seat beside the name: "SHANEA ROMERO   Seat: 30K"
+    .replace(/\s+seats?\b.*$/i, "")
     // App rows end in a link: "SHANEA ROMERO   View" (OCR: "VIE", "Vie w")
     .replace(/\s+(?:view|vie\s?w?|edit|details|change|manage|>)\s*$/i, "")
     .replace(/[,;:]+$/, "")
@@ -57,21 +59,21 @@ export function travelersInText(text: string): Travelers {
 
   lines.forEach((raw, i) => {
     // OCR leaves stray marks at line starts (": Guest name: …", "© CONFIRMATION…").
-    const line = raw.replace(/^[^A-Za-zÀ-ÿ0-9]+/, "");
+    // …and app close buttons read as letters ("xX Passengers (2)").
+    const line = raw.replace(/^[^A-Za-zÀ-ÿ0-9]+/, "").replace(/^(?:[xX×]{1,2}|[<>]|[a-z]{1,2})\s+(?=[A-Z])/, "");
     // A heading followed by a list of names.
     if (
       /^(?:(?:show|view|hide|all) )?(?:passengers?|travell?ers?|guests?|guest names?|travell?er (?:details|info(?:rmation)?|names?)|passenger (?:details|info(?:rmation)?|names?\(?s?\)?)|who'?s (?:flying|going|travell?ing)|who is (?:booking|travell?ing|staying)\??|booked by|(?:lead|main) (?:guest|traveller|traveler)|names? of travell?ers?)(?:\s*\(\d{1,2}\))?\s*[:>v⌄]?\s*$/i.test(
         line
       )
     ) {
-      for (let j = i + 1; j < Math.min(lines.length, i + 12); j++) {
-        if (!lines[j]) {
-          if (names.length) break;
-          continue;
-        }
-        const n = tidyName(lines[j].replace(/^\d+[.)]\s*/, ""));
+      for (let j = i + 1; j < Math.min(lines.length, i + 20); j++) {
+        // Screenshots put blank lines between cards; a list ends at a line that isn't a name or a detail.
+        if (!lines[j]) continue;
+        // Numbering ("1."), or a seat badge in front of the name ("40H", OCR'd as "Zola]" or "20)").
+        const n = tidyName(lines[j].replace(/^(?:\d+[.)]|\S{1,6}[\])]|\d{1,2}[A-K])\s*/, ""));
         if (n) names.push(n);
-        else if (names.length && !/ticket|frequent|seat|known|skymiles|member|#|\d{6,}|-{3,}|\b[A-Z]{3}-[A-Z]{3}\b/i.test(lines[j])) break;
+        else if (names.length && !/ticket|frequent|seat|known|skymiles|member|#|\d{6,}|-{3,}|\b[A-Z]{3}-[A-Z]{3}\b|\bedit\b|economy|premium|business|first|\bclass\b|basic|cabin|boarding|zone|group/i.test(lines[j])) break;
       }
     }
     // "Passenger 1: Konner Petz", "Adult 2 - Shane Smith", "Traveler: Konner Petz", "NAME: KONNER PETZ", "Guest name: …"
@@ -155,7 +157,8 @@ const samePerson = (a: string, b: string) => {
   if (letters(a) === letters(b)) return true;
   const [short, long] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
   // Apps run a middle initial into the first name ("KONNERJ PETZ" is Konner J. Petz).
-  const same = (x: string, y: string) => x === y || (Math.min(x.length, y.length) >= 4 && Math.abs(x.length - y.length) <= 2 && (x.startsWith(y) || y.startsWith(x)));
+  // Also a middle name run in ("KONNERJOSEPH PETZ"), as long as the shorter name has 4+ letters.
+  const same = (x: string, y: string) => x === y || (Math.min(x.length, y.length) >= 4 && (x.startsWith(y) || y.startsWith(x)));
   return short.every((w) => long.some((l) => same(w, l)));
 };
 

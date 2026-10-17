@@ -469,7 +469,27 @@ function pairMatches(text: string) {
     // Two parenthesized codes separated by place names, not by a sentence.
     .filter((m) => !/[.!?:;]|\b(?:and|or|via|flight|operated)\b/i.test(m[2]))
     .map((m) => ({ from: m[1], to: m[3], index: m.index!, end: m.index! + m[0].length }));
-  return [...plain, ...paren.filter((q) => !plain.some((p) => p.index < q.end && q.index < p.end))].sort((a, b) => a.index - b.index);
+  const chains = chainLines(text);
+  return [...plain, ...paren.filter((q) => !plain.some((p) => p.index < q.end && q.index < p.end))]
+    .filter((p) => !chains.some(([a, b]) => p.index >= a && p.index < b))
+    .sort((a, b) => a.index - b.index);
+}
+
+const isAirport = (c: string) => !NOT_AIRPORTS.has(c) && !!airportByCode(c);
+
+/**
+ * Lines naming three or more airports ("ZRH > YUL > DTW") are a whole itinerary
+ * (an app's route banner), not one flight, so no leg is read from them.
+ */
+function chainLines(text: string): [number, number][] {
+  const out: [number, number][] = [];
+  let at = 0;
+  for (const line of text.split("\n")) {
+    const codes = new Set([...line.matchAll(/\b[A-Z]{3}\b/g)].map((m) => m[0]).filter(isAirport));
+    if (codes.size >= 3 && line.replace(/\b[A-Z]{3}\b|[\s>›→\-–—|/•·]/g, "").length <= 6) out.push([at, at + line.length]);
+    at += line.length + 1;
+  }
+  return out;
 }
 
 const MONTHS: Record<string, number> = {
@@ -535,34 +555,53 @@ function timesIn(text: string): Hit[] {
 /** Airlines that print their ICAO prefix instead ("EZY8915" is easyJet U2 8915). */
 const ICAO_PREFIX: Record<string, string> = { EZY: "U2", EJU: "U2", EZS: "U2", RYR: "FR", BAW: "BA", DLH: "LH", AFR: "AF", KLM: "KL", UAL: "UA", AAL: "AA", DAL: "DL", WZZ: "W6", VLG: "VY" };
 
-function flightNumberIn(text: string): string | null {
-  const icao = /\b(EZY|EJU|EZS|RYR|BAW|DLH|AFR|KLM|UAL|AAL|DAL|WZZ|VLG)\s?(\d{1,4})\b/.exec(text);
-  if (icao) return `${ICAO_PREFIX[icao[1]]} ${Number(icao[2])}`;
-  // A labeled number first ("Flight# DL0022", "Flight: UA 958"), then any airline-code-plus-digits.
-  // Screenshots read zeros as the letter O ("DLO022"), so O counts as a digit after a known airline code.
-  const candidates = [
-    ...text.matchAll(/\bflight\s*(?:#|no\.?|number)?\s*:?\s*([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/gi),
-    ...text.matchAll(/\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/g),
+const PNR_WORDS = new Set(["CHANGE", "CANCEL", "MANAGE", "DETAIL", "SELECT", "REVIEW", "UPDATE", "TRAVEL", "FLIGHT", "BOOKED", "ACTIVE", "STATUS", "TICKET", "RETURN", "UNITED", "ALASKA", "QANTAS", "CHECKS", "BOARDS", "ONTIME", "DELAYS", "DIRECT", "NONSTOP", "PRIORITY", "SKYMIL", "MEMBER", "GROUPS", "ZONE", "ARRIVE", "DEPART", "EXPLORE", "ACCOUNT", "TRIPS"]);
+
+type FlightHit = { number: string; index: number; end: number };
+
+/**
+ * Flight numbers in the text, in order. Labeled ones ("Flight# DL0022", "Flight: UA 958") may use any
+ * code; unlabeled ones must be a known airline's (so "XY 2" from an app's menu bar isn't a flight).
+ * Screenshots read zeros as the letter O ("DLO022"), so O counts as a digit after a known code.
+ */
+function flightHits(text: string): FlightHit[] {
+  const out: FlightHit[] = [];
+  const icao = /\b(EZY|EJU|EZS|RYR|BAW|DLH|AFR|KLM|UAL|AAL|DAL|WZZ|VLG)\s?(\d{1,4})\b/g;
+  for (const m of text.matchAll(icao)) out.push({ number: `${ICAO_PREFIX[m[1]]} ${Number(m[2])}`, index: m.index!, end: m.index! + m[0].length });
+  const found = [
+    ...[...text.matchAll(/\bflight\s*(?:#|no\.?|number)?\s*:?\s*([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/gi)].map((m) => ({ m, labeled: true })),
+    ...[...text.matchAll(/\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/g)].map((m) => ({ m, labeled: false })),
   ];
-  for (const m of candidates) {
+  for (const { m, labeled } of found) {
     const code = m[1].toUpperCase();
     const raw = m[2].toUpperCase();
+    if (!labeled && !AIRLINES[code]) continue;
     if (raw.includes("O") && (!AIRLINES[code] || !/\d/.test(raw))) continue;
     // Aircraft, not flights: "Airbus A330-200", "Boeing 787", "A321neo".
     const before = text.slice(Math.max(0, m.index! - 12), m.index!);
     const after = text.slice(m.index! + m[0].length, m.index! + m[0].length + 4);
     if (/(airbus|boeing|embraer|bombardier|aircraft|airplane|plane)\s*$/i.test(before) || /^(-\d|neo|ceo|max)/i.test(after)) continue;
     const n = String(Number(raw.replace(/O/g, "0")));
-    if (n !== "0") return `${code} ${n}`;
+    if (n === "0") continue;
+    const index = m.index! + m[0].length - m[1].length - m[2].length - (/\s/.test(m[0].slice(-m[2].length - 1, -m[2].length)) ? 1 : 0);
+    if (!out.some((h) => h.index <= index && index < h.end)) out.push({ number: `${code} ${n}`, index, end: m.index! + m[0].length });
   }
-  return namedFlightIn(text);
+  return out.sort((a, b) => a.index - b.index);
+}
+
+function flightNumberIn(text: string): string | null {
+  // A labeled number wins over an unlabeled one earlier in the text.
+  const hits = flightHits(text);
+  const labeled = /\bflight\s*(?:#|no\.?|number)?\s*:?\s*/i.exec(text);
+  const pick = (labeled && hits.find((h) => h.index >= labeled.index && h.index <= labeled.index + labeled[0].length + 1)) || hits[0];
+  return pick?.number ?? namedFlightIn(text);
 }
 
 /** Airline name for a flight number, so imported legs read "Delta DL 22" (see carriers.ts). */
 const airlineOf = (flight: string | null) => (flight ? (AIRLINES[flight.split(" ")[0]] ?? null) : null);
 
 /** OCR reads "ü" as "ii" ("Miinchen", "Ziirich", "Diisseldorf"). */
-const fixUmlauts = (s: string) => s.replace(/\b([A-Z])ii(?=[a-z]{2})/g, "$1ü");
+const fixUmlauts = (s: string) => s.replace(/\b([A-Z])ii(?=[a-z]{2})/g, "$1ü").replace(/([a-z])B(e\b|en\b)/g, "$1ß$2");
 
 const STAY_WORDS = /hotel|inn\b|resort|suites|hostel|lodge|apartment|airbnb|b&b|guest ?house|palace|residence|villa|pousada|ryokan/i;
 
@@ -571,9 +610,10 @@ function stayName(text: string): string | null {
   const lines = text.split(/\n/).map((l) => l.trim());
   const clean = (l: string) => fixUmlauts(l.replace(/^(your (stay|reservation|booking) at|reservation at|welcome to)\s*/i, "")).slice(0, 200);
   for (let i = 0; i < lines.length; i++) {
-    const head = /^(where\??|property|hotel|accommodation|your hotel|your stay|unterkunft)\s*:?\s*(.*)$/i.exec(lines[i]);
+    // A heading on its own ("Where?") or with a colon ("Property: Hotel X"); not "property's local time".
+    const head = /^(where\??|property|hotel|accommodation|your hotel|your stay|unterkunft)\s*(?::\s*(.*))?$/i.exec(lines[i]);
     if (!head) continue;
-    const next = head[2] || lines.slice(i + 1, i + 3).find(Boolean) || "";
+    const next = head[2]?.trim() || lines.slice(i + 1, i + 3).find(Boolean) || "";
     if (next.length > 3 && next.length < 90 && /[a-z]/i.test(next) && !/\d{3,}|:/.test(next)) return clean(next);
   }
   const line = lines.find(
@@ -621,15 +661,115 @@ export function addressIn(text: string): string | null {
   return addr ? fixUmlauts(addr).slice(0, 300) : null;
 }
 
+/**
+ * Flight cards in airline apps (Swiss, Air Canada, Delta, United…): a flight number, then the two
+ * airports as big codes and/or city names (often split into columns by OCR), then "Scheduled" times.
+ * Each flight number starts a card; places are matched to the airport codes seen anywhere in the text,
+ * so "Montreal … Detroit" reads as YUL → DTW. Only adds flights the other readers missed.
+ */
+function cardLegs(text: string, ctx: Ctx, dates: Hit[], times: Hit[], conf: string | null, summary: Map<string, Hit>, found: ImportCandidate[]): ImportCandidate[] {
+  const hits = flightHits(text);
+  if (!hits.length) return [];
+  const chains = chainLines(text);
+  const inChain = (i: number) => chains.some(([a, b]) => i >= a && i < b);
+  const codes = [...new Set([...text.matchAll(/\b[A-Z]{3}\b/g)].map((m) => m[0]).filter(isAirport))];
+  const fold = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const folded = fold(text);
+  const names: { re: RegExp; code: string }[] = [];
+  for (const code of codes) {
+    const a = airportByCode(code)!;
+    const words = [a.city.split(/\s*[(,/]/)[0], a.name.replace(/\b(international|intl|airport|aeroporto|aeropuerto|flughafen|a[ée]roport)\b.*$/i, "").split(/\s*[/,(-]/)[0]];
+    for (const w of new Set(words.map((x) => fold(x).trim()).filter((x) => x.length >= 4))) names.push({ re: new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g"), code });
+  }
+  const out: ImportCandidate[] = [];
+  const has = (n: string) => [...found, ...out].some((c) => c.kind === "transit" && c.number === n);
+  hits.forEach((h, i) => {
+    if (has(h.number)) return;
+    const end = Math.min(hits[i + 1]?.index ?? text.length, h.index + 1500);
+    const places: { code: string; index: number }[] = [];
+    for (const m of text.slice(h.end, end).matchAll(/\b[A-Z]{3}\b/g)) {
+      const at = h.end + m.index!;
+      if (codes.includes(m[0]) && !inChain(at)) places.push({ code: m[0], index: at });
+    }
+    for (const { re, code } of names) {
+      for (const m of folded.slice(h.end, end).matchAll(re)) if (!inChain(h.end + m.index!)) places.push({ code, index: h.end + m.index! });
+    }
+    places.sort((a, b) => a.index - b.index);
+    const from = places[0]?.code;
+    const to = places.find((p) => p.code !== from)?.code;
+    if (!from || !to) return;
+    const ts = times.filter((t) => t.index > h.end && t.index < end);
+    const departTime = ts[0]?.value ?? null;
+    const arriveTime = ts[1]?.value ?? null;
+    // A date on the flight number's own line ("BA0238  Sun 15 Nov 2026"), else the one above the card.
+    const lineStart = text.lastIndexOf("\n", h.index) + 1;
+    const lineEnd = text.indexOf("\n", h.end) === -1 ? text.length : text.indexOf("\n", h.end);
+    const sameLine = dates.find((d) => d.index >= lineStart && d.index < lineEnd);
+    const before = sameLine ?? dates.filter((d) => d.index < h.index && h.index - d.index < 400).at(-1);
+    const inCard = dates.find((d) => d.index > h.end && d.index < end);
+    let date = before ?? inCard;
+    if (!date) return;
+    // Already read by another reader, with its number, within a day.
+    const near = (a: string) => Math.abs(Date.parse(`${a.slice(0, 10)}T00:00Z`) - Date.parse(`${date!.value}T00:00Z`)) <= 86_400_000;
+    if (found.some((c) => c.kind === "transit" && c.from === from && c.to === to && c.number && near(c.departLocal))) return;
+    let day = date.value;
+    const s = departTime && arriveTime ? summary.get(`${departTime}-${arriveTime}`) : undefined;
+    if (s) day = s.value;
+    else if (!before && inCard && ts[1] && inCard.index > ts[1].index && arriveTime! < departTime!) day = addMinutes(`${day}T00:00`, -24 * 60).slice(0, 10);
+    date = { ...date, value: day };
+    const departLocal = `${day}T${departTime ?? "09:00"}`;
+    let arriveLocal = arriveTime ? `${day}T${arriveTime}` : addMinutes(departLocal, 120);
+    if (arriveTime && departTime && arriveTime < departTime) arriveLocal = addMinutes(arriveLocal, 24 * 60);
+    const warnings: string[] = [];
+    if (!departTime || !arriveTime) warnings.push("Couldn't read both times. Check them.");
+    out.push({
+      id: nextId(),
+      kind: "transit",
+      mode: "flight",
+      carrier: airlineOf(h.number),
+      number: h.number,
+      from,
+      to,
+      departLocal,
+      departTz: airportTz(from, day) ?? ctx.defaultTz,
+      arriveLocal,
+      arriveTz: airportTz(to, day) ?? ctx.defaultTz,
+      confirmation: conf,
+      found: "Text",
+      warnings,
+    });
+  });
+  // A card read here replaces a leg on the same route and day that had no flight number.
+  for (const c of out) {
+    if (c.kind !== "transit") continue;
+    const i = found.findIndex((o) => o.kind === "transit" && !o.number && o.from === c.from && o.to === c.to && o.departLocal.slice(0, 10) === c.departLocal.slice(0, 10));
+    if (i >= 0) found.splice(i, 1);
+  }
+  return out;
+}
+
 function confirmationIn(text: string): string | null {
   // Booking.com and some hotels group digits: "CONFIRMATION NUMBER: 6697.906.063"
   const grouped = /\b(?:confirmation|booking|reservation)\s*(?:number|no\.?|#)\s*[:#]?\s*(\d{3,4}(?:[. ]\d{3}){2,3})\b/i.exec(text);
   if (grouped) return grouped[1].replace(/[. ]/g, "");
-  const re = /\b(?:confirmation|booking|reservation|record locator|pnr|reference|ref\.?)(?:\s+(?:reference|number|code|no\.?|n[°º]|nr\.?|#))?\s*[:#]?\s*([A-Za-z0-9]{5,12})\b/gi;
+  // "Confirmation # | HQRTPB" (Delta app), "Booking code: X7K2PQ", "Record locator ABC123"
+  const re = /\b(?:confirmation|booking|reservation|record locator|pnr|reference|ref\.?|buchungs(?:code|nummer)|code de r[ée]servation|r[ée]f[ée]rence(?: de r[ée]servation)?|c[óo]digo de reserva|localizador|codice (?:di )?prenotazione)(?:\s+(?:reference|number|code|no\.?|n[°º]|nr\.?|#))?[\s:#|]{0,6}([A-Za-z0-9]{5,12})\b/gi;
   for (const m of text.matchAll(re)) {
     const code = m[1];
     // Real codes are capitals and/or digits ("K4ZP9Q", "4521889"), not words ("reference").
     if (code === code.toUpperCase() && (/\d/.test(code) || /^[A-Z]{5,}$/.test(code)) && !/^(NUMBER|CODE)$/.test(code)) return code;
+  }
+  // Apps that show the booking code alone beside the route (Swiss, Lufthansa, Air Canada: "BRNUBA ⧉"):
+  // a line that is just a six-character code. Only for flights, and never a word or airline name.
+  if (/\b[A-Z]{3}\b[^\n]{0,40}\b[A-Z]{3}\b/.test(text)) {
+    for (const m of text.matchAll(/^[^A-Za-z0-9\n]{0,3}([A-Z][A-Z0-9]{5})(?:[ \t]+\S{1,2})?[ \t]*$/gm)) {
+      const code = m[1];
+      if (PNR_WORDS.has(code) || Object.values(AIRLINES).some((n) => n.toUpperCase() === code)) continue;
+      // Not a flight number ("AC8583", "DLO022").
+      const fl = /^([A-Z]{2}|[A-Z]\d|\d[A-Z])([\dO]{1,4})$/.exec(code);
+      if (fl && AIRLINES[fl[1]] && /\d/.test(fl[2])) continue;
+      return code;
+    }
   }
   return null;
 }
@@ -804,6 +944,9 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
   // Itineraries that list each stop on its own (or each leg on one line):
   //   5:05pm Detroit (DTW) - 7:20am Newark (EWR)   United 1022
   //   DTW 6:05 AM / ORD 6:58 AM, with connections and layovers between.
+  // Airline-app flight cards: everything about a flight sits between its number and the next one.
+  out.push(...cardLegs(text, ctx, dates, times, conf, summary, out));
+
   // Skip legs already read above at the same clock times within a day (an app card read twice,
   // once with its arrival date).
   const near1Day = (a: string, b: string) => Math.abs(Date.parse(`${a.slice(0, 10)}T00:00Z`) - Date.parse(`${b.slice(0, 10)}T00:00Z`)) <= 86_400_000;
