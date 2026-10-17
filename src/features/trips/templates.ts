@@ -20,7 +20,7 @@ export type TripTemplate = {
   nights: number;
   perPerson: number;
   /** Free stock photo (Unsplash License: free for commercial use, no attribution required). */
-  photo: { src: string; alt: string; focus: string; credit: string; page: string };
+  photo: { src: string; alt: string; focus: string; credit: string; page: string; /** Where the photo was taken, shown on the tile */ place: string };
   todo: string[];
   packing: string[];
 };
@@ -33,7 +33,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 8,
     nights: 2,
     perPerson: 1300,
-    photo: { src: "https://images.unsplash.com/photo-1693433582807-ab93ea7c297e", alt: "Broadway in downtown Nashville at dusk", focus: "52% 50%", credit: "Isaac Macdonald", page: "https://unsplash.com/photos/a-city-street-filled-with-lots-of-traffic-and-tall-buildings-Z941si-U2pw" },
+    photo: { src: "https://images.unsplash.com/photo-1693433582807-ab93ea7c297e", alt: "Broadway in downtown Nashville at dusk", focus: "52% 50%", credit: "Isaac Macdonald", page: "https://unsplash.com/photos/a-city-street-filled-with-lots-of-traffic-and-tall-buildings-Z941si-U2pw", place: "Broadway, Nashville, Tennessee" },
     todo: [
       "Agree on the budget per person before booking",
       "Agree what a point is worth if anyone books with points",
@@ -51,7 +51,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 8,
     nights: 2,
     perPerson: 1500,
-    photo: { src: "https://images.unsplash.com/photo-1593810659067-3abb9b4dfa4c", alt: "Friends sitting under a pink and yellow lifeguard tower on Miami Beach", focus: "50% 66%", credit: "Emanuel Ekström", page: "https://unsplash.com/photos/pink-and-yellow-wooden-lifeguard-house-on-beach-during-daytime-HgVE4_VWgos" },
+    photo: { src: "https://images.unsplash.com/photo-1593810659067-3abb9b4dfa4c", alt: "Friends sitting under a pink and yellow lifeguard tower on Miami Beach", focus: "50% 66%", credit: "Emanuel Ekström", page: "https://unsplash.com/photos/pink-and-yellow-wooden-lifeguard-house-on-beach-during-daytime-HgVE4_VWgos", place: "South Beach, Miami Beach, Florida" },
     todo: [
       "Agree on the budget per person before booking",
       "Agree what a point is worth if anyone books with points",
@@ -68,7 +68,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 6,
     nights: 4,
     perPerson: 1450,
-    photo: { src: "https://images.unsplash.com/photo-1457537227909-08f41319e53c", alt: "Clear blue water on a sandy beach in Cancún", focus: "50% 72%", credit: "Joe Cooke", page: "https://unsplash.com/photos/clear-blue-ocean-washing-on-the-sandy-shore-on-a-clear-day-in-cancun-MPFiYu__1bA" },
+    photo: { src: "https://images.unsplash.com/photo-1457537227909-08f41319e53c", alt: "Clear blue water on a sandy beach in Cancún", focus: "50% 72%", credit: "Joe Cooke", page: "https://unsplash.com/photos/clear-blue-ocean-washing-on-the-sandy-shore-on-a-clear-day-in-cancun-MPFiYu__1bA", place: "Cancún, Mexico" },
     todo: [
       "Set the dates with a vote",
       "Agree on the budget per person",
@@ -84,7 +84,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 4,
     nights: 3,
     perPerson: 1050,
-    photo: { src: "https://images.unsplash.com/photo-1660525185695-05d8a6435258", alt: "Boats on the Chicago River between downtown towers", focus: "50% 60%", credit: "Zander Betterton", page: "https://unsplash.com/photos/a-river-with-chicago-river-and-boats-ff6MPtScTQM" },
+    photo: { src: "https://images.unsplash.com/photo-1660525185695-05d8a6435258", alt: "Boats on the Chicago River between downtown towers", focus: "50% 60%", credit: "Zander Betterton", page: "https://unsplash.com/photos/a-river-with-chicago-river-and-boats-ff6MPtScTQM", place: "Chicago River, Chicago, Illinois" },
     todo: ["Vote on where", "Agree on the budget per person", "Book the stay", "Pick one thing each person wants to do"],
     packing: ["Comfortable walking shoes", "Phone charger", "ID"],
   },
@@ -95,7 +95,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 6,
     nights: 7,
     perPerson: 1550,
-    photo: { src: "https://images.unsplash.com/photo-1571076345370-02c48d31815d", alt: "Sunset over the Grand Canyon from Cape Royal", focus: "50% 50%", credit: "John Fowler", page: "https://unsplash.com/photos/view-of-grand-canyon-during-golde-hour-NRDAqLCv65Q" },
+    photo: { src: "https://images.unsplash.com/photo-1571076345370-02c48d31815d", alt: "Sunset over the Grand Canyon from Cape Royal", focus: "50% 50%", credit: "John Fowler", page: "https://unsplash.com/photos/view-of-grand-canyon-during-golde-hour-NRDAqLCv65Q", place: "Cape Royal, Grand Canyon, Arizona" },
     todo: [
       "Agree on dates around school breaks",
       "Decide how costs are split (per person or per household)",
