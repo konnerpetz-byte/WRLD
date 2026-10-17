@@ -18,7 +18,7 @@ const STEPS = [
   },
   {
     title: "See where that money goes furthest",
-    body: "WRLD prices flights, hotel and days on the ground across the U.S., Mexico, the Caribbean, Europe and beyond, and shows what fits. On a typical budget most fits are closer to home; points and off-peak months bring Europe within reach.",
+    body: "WRLD prices flights, hotel and days on the ground across the U.S., Mexico, the Caribbean, Europe and beyond, and shows what fits. On a smaller budget it finds weekend road trips you can drive to; points and off-peak months bring Europe within reach.",
     link: { href: "/plan", label: "Try it with your budget" },
   },
   {

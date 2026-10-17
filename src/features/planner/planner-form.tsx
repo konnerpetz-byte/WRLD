@@ -19,6 +19,8 @@ export type PlannerInitial = {
   month: string;
   region: string;
   sort: string;
+  /** "any", "drive" or "fly" */
+  go?: string;
 };
 
 const field = "h-11 w-full rounded-lg border bg-background px-3 text-base tabular-nums focus-visible:outline-2 focus-visible:outline-ring";
@@ -140,7 +142,7 @@ export function PlannerForm({
         </div>
       </fieldset>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="grid gap-1.5 text-sm font-medium">
           Nights
           <input name="nights" type="number" min={1} max={30} defaultValue={initial.nights} className={field} />
@@ -157,6 +159,14 @@ export function PlannerForm({
                 {s.label}: {s.hint}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="grid gap-1.5 text-sm font-medium">
+          Getting there
+          <select name="go" defaultValue={initial.go ?? "any"} className={field}>
+            <option value="any">Fly or drive</option>
+            <option value="drive">Road trip</option>
+            <option value="fly">Fly</option>
           </select>
         </label>
         <label className="grid gap-1.5 text-sm font-medium">

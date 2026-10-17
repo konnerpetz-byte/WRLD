@@ -13,6 +13,11 @@ import { type Style, STYLES } from "./costs";
 import { type PlanSort, parsePoints, planTrips, POINT_KEYS, type Points, sortOptions } from "./plan";
 import { PlannerForm } from "./planner-form";
 import { TripCard } from "./planner-results";
+import { airportByCode } from "@/features/places/airports";
+import { driveTrips, nearestState } from "./drive";
+import { DriveResults } from "./drive-results";
+import { gasPriceFor, gasSourceNote, loadGasPrices } from "./gas-prices";
+import { loadRoutes } from "./routes";
 
 const IATA = /^[A-Z]{3}$/;
 const int = (v: string | undefined, min: number, max: number, fallback: number) => {
@@ -108,7 +113,22 @@ export async function PlannerView({
   const sort: PlanSort = sp.sort === "cash" || sp.sort === "value" ? sp.sort : "most";
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
 
-  const ready = IATA.test(home) && (budgetSet || Boolean(only));
+  // How they'll get there: flights, a road trip, or show both.
+  const go: "any" | "drive" | "fly" = sp.go === "drive" || sp.go === "fly" ? sp.go : "any";
+  const homeAirport = IATA.test(home) ? airportByCode(home) : null;
+  const canDrive = !only && budgetSet && cash > 0 && go !== "fly" && homeAirport?.country === "US";
+  const [gas, routes] = canDrive && homeAirport ? await Promise.all([loadGasPrices(), loadRoutes(home, { latitude: homeAirport.latitude, longitude: homeAirport.longitude })]) : [null, null];
+  const drives =
+    canDrive && homeAirport && gas
+      ? driveTrips(
+          homeAirport,
+          { cash, travelers, style, nights },
+          { home: gasPriceFor(gas, nearestState(homeAirport)), at: (st) => gasPriceFor(gas, st) },
+          routes,
+        )
+      : [];
+
+  const ready = IATA.test(home) && (budgetSet || Boolean(only)) && go !== "drive";
   const plan = ready
     ? await planTrips(
         supabase,
@@ -199,6 +219,7 @@ export async function PlannerView({
             month,
             region,
             sort,
+            go,
           }}
           keep={{ to: only ?? undefined, trip: fixedTrip ? undefined : forTrip?.id }}
           action={basePath}
@@ -208,6 +229,10 @@ export async function PlannerView({
           styles={Object.entries(STYLES).map(([value, s]) => ({ value, label: s.label, hint: s.hint }))}
         />
       </section>
+
+      {canDrive && gas && (go === "drive" || !fits.length) && (
+        <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} />
+      )}
 
       {plan && (
         <section id="results" aria-labelledby="results-h" className="grid scroll-mt-6 gap-4">
@@ -358,6 +383,10 @@ export async function PlannerView({
             </div>
           </details>
         </section>
+      )}
+
+      {canDrive && gas && go !== "drive" && fits.length > 0 && (
+        <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} />
       )}
 
       <PointsOrCash

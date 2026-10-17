@@ -9,7 +9,7 @@ import { PlannerView } from "@/features/planner/planner-view";
 export const metadata: Metadata = {
   title: "Where can our budget take us?",
   description:
-    "Enter a budget, where you fly from and how many are going. WRLD prices flights, hotel and days there for dozens of places and shows the trips that fit, including what your points can cover.",
+    "Enter a budget, where you're starting from and how many are going. WRLD prices flights or a road trip, hotel and days there and shows the trips that fit, including weekend drives and what your points can cover.",
   alternates: { canonical: "/plan" },
 };
 
@@ -23,8 +23,8 @@ export default function PublicPlanPage({ searchParams }: PageProps<"/plan">) {
           Where can your budget take you?
         </h1>
         <p className="mt-4 mb-10 max-w-[38rem] text-lg text-muted-foreground">
-          Put in what you can spend. WRLD prices the whole trip, flights, hotel and days there, and shows the places that fit. Got credit card points?
-          Add them and watch the list grow. No account needed.
+          Put in what you can spend. WRLD prices the whole trip, flights or a road trip, hotel and days there, and shows the places that fit. On
+          a smaller budget it finds weekend getaways you can drive to. Got credit card points? Add them and watch the list grow. No account needed.
         </p>
         <Suspense fallback={<PageSkeleton />}>
           <Planner searchParams={searchParams} />
