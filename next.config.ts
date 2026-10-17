@@ -44,6 +44,9 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   poweredByHeader: false,
+  // Destination photos are free stock from Unsplash (Unsplash License: free for commercial use, no
+  // attribution required; credits are kept in src/features/trips/templates.ts anyway).
+  images: { remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com", pathname: "/photo-*" }] },
   // Import bookings accepts files up to 5 MB.
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
   // Reading PDFs without a text layer (OCR): native canvas and Tesseract stay outside the bundle,
