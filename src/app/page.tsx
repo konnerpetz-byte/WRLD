@@ -18,7 +18,7 @@ const STEPS = [
   },
   {
     title: "See where that money goes furthest",
-    body: "WRLD prices flights, hotel and days on the ground for dozens of cities, and shows the trips that fit. Points and off-peak months stretch the list.",
+    body: "WRLD prices flights, hotel and days on the ground across the U.S., Mexico, the Caribbean, Europe and beyond, and shows what fits. On a typical budget most fits are closer to home; points and off-peak months bring Europe within reach.",
     link: { href: "/plan", label: "Try it with your budget" },
   },
   {
@@ -184,7 +184,8 @@ export default function Home() {
               Start from the trip you&rsquo;re planning
             </h2>
             <p className="mt-3 max-w-[38rem] text-lg text-muted-foreground">
-              Each one comes with a group size, a starting budget per person and a checklist, so the first message to the group is a plan.
+              Each one comes with a group size, a checklist and a starting budget set from what Americans actually spend on that kind of trip,
+              so the first number the group sees is realistic.
             </p>
             <ul className="mt-10 grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
               {TEMPLATES.map((t, i) => (
@@ -222,8 +223,8 @@ export default function Home() {
                 Have $1,500 and a long weekend?
               </h2>
               <p className="mt-2 text-base sm:text-lg">
-                Enter your budget, where you fly from and who&rsquo;s coming. See every trip that fits, flights, hotel and days there
-                included. No account needed.
+                That&rsquo;s about what Americans spend on a trip. Enter your budget, where you fly from and who&rsquo;s coming, and see every
+                trip that fits, flights, hotel and days there included. No account needed.
               </p>
             </div>
             <Button asChild size="lg" className="h-12 shrink-0 rounded-full bg-travel-foreground px-7 text-base text-travel hover:bg-travel-foreground/90">

@@ -33,12 +33,12 @@ export default function OpengraphImage() {
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", marginLeft: 48, flex: 1 }}>
-          {bubble("Lisbon? if it's under $1,200")}
-          {bubble("WRLD found it for $1,140 each", true)}
+          {bubble("Nashville? if it's under $1,500")}
+          {bubble("WRLD has it at $1,381 each", true)}
           {bubble("wait HOW")}
           <div style={{ display: "flex", marginTop: 26, background: "#0f3d33", borderRadius: 28, overflow: "hidden", flexDirection: "column" }}>
-            <div style={{ color: "#f4f8f5", fontSize: 28, padding: "22px 26px", display: "flex" }}>Going in May: saves $210 each</div>
-            <div style={{ background: "#ffc83d", color: "#362700", fontSize: 28, fontWeight: 700, padding: "18px 26px", display: "flex" }}>Official tickets: saves $46 each</div>
+            <div style={{ color: "#f4f8f5", fontSize: 28, padding: "22px 26px", display: "flex" }}>Flights, hotel, food, plans: $1,381</div>
+            <div style={{ background: "#ffc83d", color: "#362700", fontSize: 28, fontWeight: 700, padding: "18px 26px", display: "flex" }}>Points cover the hotel: friends owe $321</div>
           </div>
         </div>
       </div>
