@@ -41,7 +41,10 @@ export function TripForm({
   initial,
   initialStops,
   submitLabel,
+  template,
 }: {
+  /** Trip type it was started from (adds that type's checklist on create) */
+  template?: string;
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   countries: Country[];
   initial?: TripValues;
@@ -66,6 +69,7 @@ export function TripForm({
 
   return (
     <form action={formAction} className="grid gap-6 rounded-xl border bg-card p-6">
+      {template && <input type="hidden" name="template" value={template} />}
       <div className="grid gap-2">
         <Label htmlFor="title">Trip name</Label>
         <Input id="title" name="title" placeholder="Portugal and Bavaria" required maxLength={120} defaultValue={initial?.title} />

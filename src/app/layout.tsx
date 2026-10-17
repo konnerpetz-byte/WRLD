@@ -22,8 +22,10 @@ const wrldSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: "WRLD: take the quiz, set your budget, we'll take it from here", template: "%s · WRLD" },
-  description: "Trip planning for groups: a day-by-day plan built around your real flights and travel type, priced in cash and points, at a budget everyone can afford.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://wrldtrips.com"),
+  title: { default: "WRLD: group trips, planned together and split fairly", template: "%s · WRLD" },
+  description:
+    "Turn the group chat into a trip. Plan the days together, see what everyone's points cover, and split it fairly, even when someone pays in miles. Free for the group.",
   applicationName: "WRLD",
   appleWebApp: { capable: true, title: "WRLD", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
@@ -31,8 +33,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#253a33" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1713" },
+    { media: "(prefers-color-scheme: light)", color: "#0f3d33" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a1a16" },
   ],
   // Draw edge to edge on phones; content pads itself with the safe-area insets.
   viewportFit: "cover",

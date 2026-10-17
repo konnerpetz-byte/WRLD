@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
+import { templateById } from "@/features/trips/templates";
 import { createTrip } from "@/features/trips/trip-actions";
 import { TripForm } from "@/features/trips/trip-form";
 import { requireUserId } from "@/lib/supabase/server";
@@ -44,6 +45,8 @@ async function NewTripPageContent({ searchParams }: { searchParams: PageProps<"/
     : undefined;
   const budget = Math.round(Number(sp.budget));
   const party = Math.round(Number(sp.party));
+  // Started from a trip type on the homepage ("Bachelorette weekend").
+  const template = templateById(sp.template);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -51,14 +54,19 @@ async function NewTripPageContent({ searchParams }: { searchParams: PageProps<"/
       <p className="mt-1 mb-8 text-muted-foreground">
         {prefilled
           ? `Filled in from Explore: ${city}, ${nights} nights. Change anything, then create the trip.`
-          : "Add the cities you’re visiting and when. Each day gets morning, afternoon and evening blocks on that city’s clock."}
+          : template
+            ? `${template.name}: ${template.party} people and a starting budget of $${template.perPerson.toLocaleString("en-US")} each are filled in. Add where and when, then invite the group. A checklist for this kind of trip comes with it.`
+            : "Add the cities you’re visiting and when. Each day gets morning, afternoon and evening blocks on that city’s clock."}
       </p>
       <TripForm
         action={createTrip}
         countries={countries ?? []}
         submitLabel="Create trip"
+        template={template?.id}
         initial={
-          prefilled
+          template && !prefilled
+            ? { title: template.name, party_size: template.party, budget: template.party * template.perPerson, currency: "USD" }
+            : prefilled
             ? {
                 title: `${city} trip`,
                 party_size: party >= 1 && party <= 50 ? party : 1,

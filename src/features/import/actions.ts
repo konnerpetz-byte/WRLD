@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { importActivity } from "@/features/itinerary/place-actions";
 import { safeFetch } from "@/features/spots/unfurl";
+import { recordPoints } from "@/features/budget/points-actions";
 import { addExpense, addLodging, addTransit } from "@/features/trips/actions";
 import { requireUserId } from "@/lib/supabase/server";
 import { TRANSIT_MODES } from "@/types/database";
@@ -433,7 +434,7 @@ export async function saveImport(tripId: string, _: SaveState, formData: FormDat
  */
 async function paidFor(
   tripId: string,
-  item: { cost?: number | null; currency?: string | null; paidBy?: string | null; split?: string[] },
+  item: { cost?: number | null; currency?: string | null; points?: number | null; paidBy?: string | null; split?: string[] },
   link: { lodging_id?: string; transit_segment_id?: string },
   description: string,
   category: "lodging" | "transit",
@@ -441,9 +442,24 @@ async function paidFor(
   tripCurrency: string,
   failed: string[],
 ) {
-  if (!item.paidBy || item.cost == null || item.cost <= 0) return;
+  if (!item.paidBy) return;
   const id = link.lodging_id ?? link.transit_segment_id;
   if (!id) return;
+  // Miles or points used: counted at the group's agreed value in who-owes-whom (fair split).
+  if (item.points && item.points > 0) {
+    const r = await recordPoints(tripId, {
+      description: description.slice(0, 200),
+      program: null,
+      points: item.points,
+      value_cents: null,
+      paidBy: item.paidBy,
+      split: item.split ?? [],
+      lodgingId: link.lodging_id ?? null,
+      transitId: link.transit_segment_id ?? null,
+    });
+    if (r.error) failed.push(`${description}: saved, but the points weren't (${r.error})`);
+  }
+  if (item.cost == null || item.cost <= 0) return;
   const fd = new FormData();
   fd.set("description", description.slice(0, 200));
   fd.set("amount", String(item.cost));

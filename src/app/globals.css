@@ -20,46 +20,52 @@
   color-scheme: light;
   --radius: 0.75rem;
 
-  --background: #fdf6f0;
-  --foreground: #1d2b26;
+  /* 2026-10 refresh: pine + mint paper + sunny, for group-trip organizers. Contrast noted where it matters. */
+  --background: #f3f7f4; /* mint paper */
+  --foreground: #10231d;
   --card: #ffffff;
-  --card-foreground: #1d2b26;
+  --card-foreground: #10231d;
   --popover: #ffffff;
-  --popover-foreground: #1d2b26;
-  --primary: #3e5d52;
-  --primary-foreground: #fbe8d8;
-  --secondary: #f3e9df;
-  --secondary-foreground: #1d2b26;
-  --muted: #f3ebe3;
-  --muted-foreground: #5c6b64;
-  --accent: #efe4d8;
-  --accent-foreground: #1d2b26;
+  --popover-foreground: #10231d;
+  --primary: #0f3d33; /* pine: 11.9:1 with white */
+  --primary-foreground: #f4f8f5;
+  --secondary: #e4eee8;
+  --secondary-foreground: #10231d;
+  --muted: #e9f0eb;
+  --muted-foreground: #4e5f58; /* 6.2:1 on mint paper */
+  --accent: #e2ece6;
+  --accent-foreground: #10231d;
   --destructive: #b42318;
-  --border: #e3d6c9;
-  --input: #877869; /* form field borders: 4.3:1 on white (WCAG non-text contrast) */
-  --ring: #5e7f73;
+  --border: #d3dfd7;
+  --input: #6c7f77; /* form field borders: 4.2:1 on white (WCAG non-text contrast) */
+  --ring: #2f6bff;
 
-  --brand: #4d6d61; /* cream text on it: 4.8:1 */
-  --brand-cream: #fbe8d8;
-  --travel: #f0a35a;
-  --travel-foreground: #4a2a08;
-  --travel-soft: #fde9d2;
-  --open: #3e5d52;
-  --open-foreground: #fbe8d8;
-  --open-soft: #e4ece7;
-  --hatch: #e3d6c9;
+  --brand: #165446; /* sunny-white text on it: 8.4:1 */
+  --brand-cream: #fff6dc;
+  --travel: #ffc83d; /* sunny: dark text only */
+  --travel-foreground: #362700;
+  --travel-soft: #fff1c4;
+  --open: #0f3d33;
+  --open-foreground: #f4f8f5;
+  --open-soft: #dbeae2;
+  --hatch: #d3dfd7;
 
-  --sidebar: #253a33;
-  --sidebar-foreground: #e9e1d6;
+  /* Group chat bubbles (marketing and invites) */
+  --chat: #2f6bff; /* white text: 4.6:1 */
+  --chat-foreground: #ffffff;
+  --chat-friend: #e3e9e5;
+
+  --sidebar: #0f3d33;
+  --sidebar-foreground: #e3eee8;
 
   /* Drawn marketing maps */
-  --map-land: #f7eee5;
-  --map-street: #e6d8ca;
-  --map-water: #c9dad2;
+  --map-land: #eef4ef;
+  --map-street: #d6e2d9;
+  --map-water: #bfd6ee;
   --map-route: var(--brand);
-  --map-park: #e6ead9;
-  --map-label: #5f7269;
-  --travel-ink: #8f4f0e;
+  --map-park: #d8e8d2;
+  --map-label: #4f665c;
+  --travel-ink: #855a00; /* 5.3:1 on mint paper */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -86,15 +92,18 @@
 
     --brand: #46665a;
     --brand-cream: #fbe8d8;
-    --travel: #f0a35a;
-    --travel-foreground: #2b1804;
-    --travel-soft: #3a2a18;
+    --travel: #ffc83d;
+    --travel-foreground: #2a1f00;
+    --travel-soft: #3a3214;
+    --chat: #4f83ff;
+    --chat-foreground: #ffffff;
+    --chat-friend: #24342e;
     --open: #a9c9bc;
     --open-foreground: #122019;
     --open-soft: #1f2f28;
     --hatch: #2c3d36;
 
-    --sidebar: #0e1713;
+    --sidebar: #0a1a16;
     --sidebar-foreground: #d8d0c6;
 
     --map-land: #24332d;
@@ -103,7 +112,7 @@
     --map-route: #8fb5a6;
     --map-park: #263a2f;
     --map-label: #9fb3aa;
-    --travel-ink: #f0a35a;
+    --travel-ink: #ffc83d;
   }
 }
 
@@ -135,6 +144,9 @@
   --color-travel-foreground: var(--travel-foreground);
   --color-travel-soft: var(--travel-soft);
   --color-travel-ink: var(--travel-ink);
+  --color-chat: var(--chat);
+  --color-chat-foreground: var(--chat-foreground);
+  --color-chat-friend: var(--chat-friend);
   --color-open: var(--open);
   --color-open-foreground: var(--open-foreground);
   --color-open-soft: var(--open-soft);
@@ -407,5 +419,59 @@ dialog.sheet[open]::backdrop {
   @keyframes wrld-me-pulse {
     0% { box-shadow: 0 0 0 0 rgb(47 111 222 / 0.45), 0 1px 4px rgb(0 0 0 / 0.3); }
     100% { box-shadow: 0 0 0 14px rgb(47 111 222 / 0), 0 1px 4px rgb(0 0 0 / 0.3); }
+  }
+}
+
+/* Homepage hero: the group chat plays in once, message by message, then the plan settles.
+   Everything is visible from the start when motion is reduced. */
+@media (prefers-reduced-motion: no-preference) {
+  .chat-step {
+    opacity: 0;
+    animation: chat-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    animation-delay: calc(var(--step, 0) * 650ms + 250ms);
+  }
+  .chat-typing {
+    animation: chat-typing-out 1ms linear forwards;
+    animation-delay: calc(var(--step, 0) * 650ms + 250ms);
+  }
+  .chat-typing span {
+    animation: chat-dot 900ms ease-in-out infinite;
+  }
+  .chat-typing span:nth-child(2) { animation-delay: 150ms; }
+  .chat-typing span:nth-child(3) { animation-delay: 300ms; }
+  @keyframes chat-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes chat-typing-out {
+    to { opacity: 0; visibility: hidden; }
+  }
+  @keyframes chat-dot {
+    0%, 100% { opacity: 0.35; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-2px); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-typing { display: none; }
+}
+
+/*
+ * Apple HIG: touch targets at least 44×44pt. On touch screens, small buttons and pills keep their
+ * look but get an invisible 44px hit area centered on them.
+ */
+@media (pointer: coarse) {
+  [data-slot="button"],
+  .tap {
+    position: relative;
+  }
+  [data-slot="button"]::after,
+  .tap::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
   }
 }

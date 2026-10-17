@@ -537,7 +537,7 @@ function PriceFields({
             : `The budget converts it to ${tripCurrency} at the latest rate.`}
         </p>
       )}
-      {row.cost != null && row.cost > 0 && members.length > 1 && (
+      {((row.cost != null && row.cost > 0) || (row.points != null && row.points > 0)) && members.length > 1 && (
         <fieldset className="grid gap-2 rounded-lg border border-dashed p-3">
           <legend className="px-1 text-xs font-medium">Splitting it?</legend>
           <label className="grid gap-1 text-xs" htmlFor={`${row.id}-paid`}>
@@ -571,7 +571,9 @@ function PriceFields({
                   </label>
                 ))}
               </div>
-              <p className="text-muted-foreground">It shows under Budget → who owes whom.</p>
+              <p className="text-muted-foreground">
+                It shows under Budget → who owes whom.{row.points ? " Miles count at the value your group agreed per point." : ""}
+              </p>
             </div>
           )}
         </fieldset>

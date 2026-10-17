@@ -12,6 +12,8 @@ import {
 import { CATEGORY_LABEL } from "@/features/budget/labels";
 import { GroupBudgetCard } from "@/features/budget/group-budget-card";
 import { computeBalances } from "@/features/budget/balances";
+import { pointsAsExpenses } from "@/features/budget/points-split";
+import { PointsSplitCard } from "@/features/budget/points-split-card";
 import { getMembers } from "@/features/group/queries";
 import {
   deleteExpense,
@@ -55,6 +57,7 @@ async function BudgetPageContent({
     participants,
     settlements,
     comfort,
+    pointsPaid,
   ] = await Promise.all([
     getTrip(tripId),
     supabase.from("trip_budget_by_category").select("*").eq("trip_id", tripId),
@@ -81,6 +84,7 @@ async function BudgetPageContent({
       .eq("trip_id", tripId)
       .order("settled_on", { ascending: false }),
     supabase.rpc("trip_budget_comfort_summary", { p_trip_id: tripId }),
+    supabase.from("points_contributions").select("*").eq("trip_id", tripId).order("created_at", { ascending: false }),
   ]);
   const comfortRow = comfort.data?.[0];
   const comfortSummary = {
@@ -100,17 +104,24 @@ async function BudgetPageContent({
       p.user_id,
     ]);
   const group = members.length > 1;
+  // Points someone spent for the group count like cash at the agreed value (fair split).
+  const tripCents = Number(trip.point_value_cents ?? 1);
+  const pointsRows = (pointsPaid.data ?? []).map((p) => ({ ...p, points: Number(p.points), value_cents: p.value_cents == null ? null : Number(p.value_cents) }));
+  const pointsBal = pointsAsExpenses(pointsRows, tripCents, members.map((m) => m.user_id));
   const balances = computeBalances({
     members: members.map((m) => m.user_id),
-    expenses: (expenses.data ?? []).map((e) => ({
-      id: e.id,
-      paid_by: e.paid_by,
-      amount_in_trip_currency:
-        e.amount_in_trip_currency === null
-          ? null
-          : Number(e.amount_in_trip_currency),
-    })),
-    participants: partsByExpense,
+    expenses: [
+      ...(expenses.data ?? []).map((e) => ({
+        id: e.id,
+        paid_by: e.paid_by,
+        amount_in_trip_currency:
+          e.amount_in_trip_currency === null
+            ? null
+            : Number(e.amount_in_trip_currency),
+      })),
+      ...pointsBal.expenses,
+    ],
+    participants: new Map([...partsByExpense, ...pointsBal.participants]),
     settlements: (settlements.data ?? []).map((s) => ({
       from_user: s.from_user,
       to_user: s.to_user,
@@ -365,8 +376,8 @@ async function BudgetPageContent({
                 Who owes whom
               </h3>
               <p className="mb-3 text-sm text-muted-foreground">
-                From what&rsquo;s logged under &ldquo;Spent so far&rdquo;, split
-                as entered.
+                From what&rsquo;s logged under &ldquo;Spent so far&rdquo; and
+                &ldquo;Paid with points&rdquo;, split as entered.
               </p>
               {balances.transfers.length === 0 ? (
                 <p className="text-sm">Everyone&rsquo;s square.</p>
@@ -465,6 +476,24 @@ async function BudgetPageContent({
               )}
             </section>
           )}
+          <PointsSplitCard
+            tripId={tripId}
+            currency={cur}
+            valueCents={tripCents}
+            rows={pointsRows.map((p) => ({
+              id: p.id,
+              paidBy: p.paid_by,
+              payerName: (p.paid_by && name.get(p.paid_by)) || "A former member",
+              description: p.description,
+              program: p.program,
+              points: p.points,
+              valueCents: p.value_cents,
+              sharedBy: p.split_with.length || null,
+            }))}
+            members={members.map((m) => ({ id: m.user_id, name: m.name }))}
+            me={me}
+            canEdit={canEdit}
+          />
           {canEdit && (
             <ExpenseForm
               tripId={tripId}

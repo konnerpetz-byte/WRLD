@@ -8,6 +8,7 @@ import { geocode } from "@/features/places/geocode";
 import { timezoneFor } from "@/features/places/timezone";
 import { requireUserId } from "@/lib/supabase/server";
 import type { ActionState } from "./actions";
+import { templateById } from "./templates";
 
 const blankToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 
@@ -131,6 +132,16 @@ export async function createTrip(_: ActionState, formData: FormData): Promise<Ac
     .from("trip_stops")
     .insert(stops.map((s) => ({ ...withoutId(s), trip_id: data.id })));
   if (stopError) return { error: "The trip was created, but its cities didn't save. Open it and add them again." };
+
+  // Started from a trip type: add its checklist (best effort; the trip is already saved).
+  const template = templateById(String(formData.get("template") ?? ""));
+  if (template) {
+    const rows = [
+      ...template.todo.map((title, i) => ({ trip_id: data.id, list: "todo" as const, title, position: i, created_by: userId })),
+      ...template.packing.map((title, i) => ({ trip_id: data.id, list: "packing" as const, title, position: i, created_by: userId })),
+    ];
+    await supabase.from("checklist_items").insert(rows);
+  }
 
   redirect(`/trips/${data.id}`);
 }

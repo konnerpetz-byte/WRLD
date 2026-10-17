@@ -143,6 +143,8 @@ export type Trip = Timestamps & {
   notes: string | null;
   /** People sharing the trip's costs, for per-person totals. */
   party_size: number;
+  /** What the group agreed a point or mile is worth, in cents of the trip currency (fair split). */
+  point_value_cents: number;
   /** Destination center, for the map. */
   latitude: number | null;
   longitude: number | null;
@@ -207,6 +209,25 @@ export type Settlement = {
   settled_on: ISODate;
   created_by: UUID | null;
   created_at: ISODateTime;
+};
+
+/**
+ * Points or miles someone spent on the group's behalf. Worth points × value_cents (or the trip's
+ * point_value_cents) in the trip currency for who-owes-whom; never part of the cash budget.
+ */
+export type PointsContribution = Timestamps & {
+  id: UUID;
+  trip_id: UUID;
+  paid_by: UUID | null;
+  description: string;
+  program: string | null;
+  points: number;
+  value_cents: number | null;
+  /** Empty = everyone on the trip */
+  split_with: UUID[];
+  lodging_id: UUID | null;
+  transit_segment_id: UUID | null;
+  created_by: UUID | null;
 };
 
 export type ChecklistItem = Timestamps & {
@@ -782,6 +803,7 @@ export type Database = {
       trip_messages: TableDef<TripMessage, InsertOf<TripMessage, 'trip_id' | 'user_id' | 'body'>, never>;
       expense_participants: TableDef<ExpenseParticipant, ExpenseParticipant, never>;
       settlements: TableDef<Settlement, InsertOf<Settlement, 'trip_id' | 'from_user' | 'to_user' | 'amount' | 'currency'>, never>;
+      points_contributions: TableDef<PointsContribution, InsertOf<PointsContribution, 'trip_id' | 'paid_by' | 'description' | 'points' | 'created_by'>, UpdateOf<PointsContribution>>;
       checklist_items: TableDef<ChecklistItem, InsertOf<ChecklistItem, 'trip_id' | 'list' | 'title'>, UpdateOf<ChecklistItem>>;
       item_votes: TableDef<ItemVote, InsertOf<ItemVote, 'item_id' | 'user_id' | 'trip_id'>, never>;
       account_details: TableDef<AccountDetails, InsertOf<AccountDetails, 'user_id'>, UpdateOf<AccountDetails>>;
