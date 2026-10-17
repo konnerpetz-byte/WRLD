@@ -19,7 +19,8 @@ export type TripTemplate = {
   party: number;
   nights: number;
   perPerson: number;
-  photo: { src: string; alt: string; focus: string };
+  /** Free stock photo (Unsplash License: free for commercial use, no attribution required). */
+  photo: { src: string; alt: string; focus: string; credit: string; page: string };
   todo: string[];
   packing: string[];
 };
@@ -32,7 +33,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 8,
     nights: 2,
     perPerson: 1300,
-    photo: { src: "/photos/lisbon-alfama-sunset.webp", alt: "Lisbon rooftops at sunset", focus: "50% 62%" },
+    photo: { src: "https://images.unsplash.com/photo-1593810659067-3abb9b4dfa4c", alt: "A pink and yellow lifeguard tower on South Beach, Miami", focus: "50% 60%", credit: "Emanuel Ekström", page: "https://unsplash.com/photos/pink-and-yellow-wooden-lifeguard-house-on-beach-during-daytime-HgVE4_VWgos" },
     todo: [
       "Agree on the budget per person before booking",
       "Agree what a point is worth if anyone books with points",
@@ -50,7 +51,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 8,
     nights: 2,
     perPerson: 1500,
-    photo: { src: "/photos/marseille-calanque.webp", alt: "A turquoise cove among limestone cliffs", focus: "45% 60%" },
+    photo: { src: "https://images.unsplash.com/photo-1693433582807-ab93ea7c297e", alt: "Broadway in downtown Nashville at dusk", focus: "50% 45%", credit: "Isaac Macdonald", page: "https://unsplash.com/photos/a-city-street-filled-with-lots-of-traffic-and-tall-buildings-Z941si-U2pw" },
     todo: [
       "Agree on the budget per person before booking",
       "Agree what a point is worth if anyone books with points",
@@ -67,7 +68,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 6,
     nights: 4,
     perPerson: 1450,
-    photo: { src: "/photos/arrabida-beach.webp", alt: "A wide sandy beach with calm blue water", focus: "50% 70%" },
+    photo: { src: "https://images.unsplash.com/photo-1457537227909-08f41319e53c", alt: "Clear blue water on a sandy beach in Cancún", focus: "50% 55%", credit: "Joe Cooke", page: "https://unsplash.com/photos/clear-blue-ocean-washing-on-the-sandy-shore-on-a-clear-day-in-cancun-MPFiYu__1bA" },
     todo: [
       "Set the dates with a vote",
       "Agree on the budget per person",
@@ -83,7 +84,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 4,
     nights: 3,
     perPerson: 1050,
-    photo: { src: "/photos/porto-douro-dusk.webp", alt: "Dusk over the river in Porto", focus: "50% 50%" },
+    photo: { src: "https://images.unsplash.com/photo-1660525185695-05d8a6435258", alt: "Boats on the Chicago River between downtown towers", focus: "50% 60%", credit: "Zander Betterton", page: "https://unsplash.com/photos/a-river-with-chicago-river-and-boats-ff6MPtScTQM" },
     todo: ["Vote on where", "Agree on the budget per person", "Book the stay", "Pick one thing each person wants to do"],
     packing: ["Comfortable walking shoes", "Phone charger", "ID"],
   },
@@ -94,7 +95,7 @@ export const TEMPLATES: TripTemplate[] = [
     party: 6,
     nights: 7,
     perPerson: 1550,
-    photo: { src: "/photos/annecy-canal.webp", alt: "A canal lined with flower boxes, mountains behind", focus: "45% 55%" },
+    photo: { src: "https://images.unsplash.com/photo-1571076345370-02c48d31815d", alt: "Sunset over the Grand Canyon from Cape Royal", focus: "50% 50%", credit: "John Fowler", page: "https://unsplash.com/photos/view-of-grand-canyon-during-golde-hour-NRDAqLCv65Q" },
     todo: [
       "Agree on dates around school breaks",
       "Decide how costs are split (per person or per household)",

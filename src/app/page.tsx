@@ -200,6 +200,9 @@ export default function Home() {
                         className="object-cover transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:transition-none"
                         style={{ objectPosition: t.photo.focus }}
                       />
+                      <span className="absolute right-3 bottom-2 text-[11px] text-white/90 [text-shadow:0_1px_2px_rgb(0_0_0/0.6)]">
+                        Photo: {t.photo.credit}, Unsplash
+                      </span>
                     </div>
                     <div className="mt-3 flex items-baseline justify-between gap-3">
                       <h3 className="text-lg font-semibold group-hover:underline group-hover:underline-offset-4">{t.name}</h3>
