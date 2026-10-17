@@ -571,6 +571,8 @@ function flightHits(text: string): FlightHit[] {
   const found = [
     ...[...text.matchAll(/\bflight\s*(?:#|no\.?|number)?\s*:?\s*([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/gi)].map((m) => ({ m, labeled: true })),
     ...[...text.matchAll(/\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/g)].map((m) => ({ m, labeled: false })),
+    // An app's airline logo read as a character stuck to the number ("1LX086"); known two-letter codes only.
+    ...[...text.matchAll(/(?<![A-Za-z0-9])[0-9|!l]([A-Z]{2})([\dO]{2,4})\b/g)].map((m) => ({ m, labeled: false })),
   ];
   for (const { m, labeled } of found) {
     const code = m[1].toUpperCase();
@@ -672,19 +674,28 @@ function cardLegs(text: string, ctx: Ctx, dates: Hit[], times: Hit[], conf: stri
   if (!hits.length) return [];
   const chains = chainLines(text);
   const inChain = (i: number) => chains.some(([a, b]) => i >= a && i < b);
-  const codes = [...new Set([...text.matchAll(/\b[A-Z]{3}\b/g)].map((m) => m[0]).filter(isAirport))];
   const fold = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const folded = fold(text);
+  const seenCount = new Map<string, number>();
+  for (const m of text.matchAll(/\b[A-Z]{3}\b/g)) if (isAirport(m[0])) seenCount.set(m[0], (seenCount.get(m[0]) ?? 0) + 1);
   const names: { re: RegExp; code: string }[] = [];
-  for (const code of codes) {
+  const named = new Set<string>();
+  for (const code of seenCount.keys()) {
     const a = airportByCode(code)!;
     const words = [a.city.split(/\s*[(,/]/)[0], a.name.replace(/\b(international|intl|airport|aeroporto|aeropuerto|flughafen|a[ée]roport)\b.*$/i, "").split(/\s*[/,(-]/)[0]];
-    for (const w of new Set(words.map((x) => fold(x).trim()).filter((x) => x.length >= 4))) names.push({ re: new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g"), code });
+    for (const w of new Set(words.map((x) => fold(x).trim()).filter((x) => x.length >= 4))) {
+      const re = new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g");
+      names.push({ re, code });
+      if (re.test(folded)) named.add(code);
+      re.lastIndex = 0;
+    }
   }
+  // A code counts on a card only if something backs it up: its city is named, or it appears twice
+  // (OCR noise like "LTT" is a real airport code, but nothing else on screen points to it).
+  const codes = [...seenCount.keys()].filter((c) => named.has(c) || seenCount.get(c)! >= 2);
   const out: ImportCandidate[] = [];
-  const has = (n: string) => [...found, ...out].some((c) => c.kind === "transit" && c.number === n);
   hits.forEach((h, i) => {
-    if (has(h.number)) return;
+    if (out.some((c) => c.kind === "transit" && c.number === h.number)) return;
     const end = Math.min(hits[i + 1]?.index ?? text.length, h.index + 1500);
     const places: { code: string; index: number }[] = [];
     for (const m of text.slice(h.end, end).matchAll(/\b[A-Z]{3}\b/g)) {
@@ -700,27 +711,52 @@ function cardLegs(text: string, ctx: Ctx, dates: Hit[], times: Hit[], conf: stri
     if (!from || !to) return;
     const ts = times.filter((t) => t.index > h.end && t.index < end);
     const departTime = ts[0]?.value ?? null;
-    const arriveTime = ts[1]?.value ?? null;
+    let arriveTime = ts[1]?.value ?? null;
+    // Flight length on the card ("1h 55m"; OCR may read the 1 as T, l or I).
+    // Not a connection or layover ("Connection: 2h 42m").
+    const dur = /(?:^|[^\w])(\d{1,2}|[TlI])\s?h(?:rs?)?\s?(\d{1,2})\s?m(?:in)?\b/.exec(
+      text.slice(h.end, end).replace(/^.*\b(connection|connecting|layover|lay-over|stopover|change planes|transfer)\b.*$/gim, ""),
+    );
+    const minutes = dur ? (/\d/.test(dur[1]) ? +dur[1] : 1) * 60 + +dur[2] : null;
     // A date on the flight number's own line ("BA0238  Sun 15 Nov 2026"), else the one above the card.
     const lineStart = text.lastIndexOf("\n", h.index) + 1;
     const lineEnd = text.indexOf("\n", h.end) === -1 ? text.length : text.indexOf("\n", h.end);
     const sameLine = dates.find((d) => d.index >= lineStart && d.index < lineEnd);
-    const before = sameLine ?? dates.filter((d) => d.index < h.index && h.index - d.index < 400).at(-1);
     const inCard = dates.find((d) => d.index > h.end && d.index < end);
+    // A date row between the number and the times belongs to this flight ("LX86 / Sun, May 30, 2027 / 12:40 PM").
+    const dateRow = inCard && ts[0] && inCard.index < ts[0].index ? inCard : undefined;
+    const before = sameLine ?? dateRow ?? dates.filter((d) => d.index < h.index && h.index - d.index < 400).at(-1);
     let date = before ?? inCard;
     if (!date) return;
-    // Already read by another reader, with its number, within a day.
-    const near = (a: string) => Math.abs(Date.parse(`${a.slice(0, 10)}T00:00Z`) - Date.parse(`${date!.value}T00:00Z`)) <= 86_400_000;
-    if (found.some((c) => c.kind === "transit" && c.from === from && c.to === to && c.number && near(c.departLocal))) return;
     let day = date.value;
     const s = departTime && arriveTime ? summary.get(`${departTime}-${arriveTime}`) : undefined;
     if (s) day = s.value;
     else if (!before && inCard && ts[1] && inCard.index > ts[1].index && arriveTime! < departTime!) day = addMinutes(`${day}T00:00`, -24 * 60).slice(0, 10);
     date = { ...date, value: day };
     const departLocal = `${day}T${departTime ?? "09:00"}`;
-    let arriveLocal = arriveTime ? `${day}T${arriveTime}` : addMinutes(departLocal, 120);
-    if (arriveTime && departTime && arriveTime < departTime) arriveLocal = addMinutes(arriveLocal, 24 * 60);
     const warnings: string[] = [];
+    // When the arrival is missing or doesn't fit the flight length (a dropped "PM"), work it out
+    // from the departure, the length and the two airports' time zones.
+    if (departTime && minutes) {
+      const fromTz = airportTz(from, day);
+      const toTz = airportTz(to, day);
+      if (fromTz && toTz) {
+        const offset = (tz: string) => {
+          const probe = new Date(`${day}T12:00:00Z`);
+          return (Date.parse(`${utcToLocal(probe, tz)}:00Z`) - probe.getTime()) / 60_000;
+        };
+        const expected = addMinutes(departLocal, minutes - offset(fromTz) + offset(toTz));
+        const read = arriveTime ? (arriveTime < departTime ? addMinutes(`${day}T${arriveTime}`, 24 * 60) : `${day}T${arriveTime}`) : null;
+        const gap = (x: string, shift: number) => Math.abs(Date.parse(`${x}:00Z`) + shift * 3_600_000 - Date.parse(`${expected}:00Z`)) / 60_000;
+        // Only fill a missing arrival, or fix one exactly 12 hours off (a dropped "PM").
+        if (!read || (gap(read, 0) > 30 && (gap(read, 12) <= 30 || gap(read, -12) <= 30))) {
+          arriveTime = expected.slice(11);
+          warnings.push("Arrival time worked out from the flight length. Check it.");
+        }
+      }
+    }
+    const arriveDay = departTime && arriveTime && arriveTime < departTime ? addMinutes(`${day}T00:00`, 24 * 60).slice(0, 10) : day;
+    const arriveLocal = arriveTime ? `${arriveDay}T${arriveTime}` : addMinutes(departLocal, 120);
     if (!departTime || !arriveTime) warnings.push("Couldn't read both times. Check them.");
     out.push({
       id: nextId(),
@@ -739,13 +775,28 @@ function cardLegs(text: string, ctx: Ctx, dates: Hit[], times: Hit[], conf: stri
       warnings,
     });
   });
-  // A card read here replaces a leg on the same route and day that had no flight number.
-  for (const c of out) {
-    if (c.kind !== "transit") continue;
-    const i = found.findIndex((o) => o.kind === "transit" && !o.number && o.from === c.from && o.to === c.to && o.departLocal.slice(0, 10) === c.departLocal.slice(0, 10));
-    if (i >= 0) found.splice(i, 1);
+  // Reconcile with what the other readers found. A card shows its own number, route and times
+  // together, so it is trusted over a reader that attached a number from a neighboring card.
+  const legs = (xs: ImportCandidate[]) => xs.filter((c): c is ImportCandidate & ImportLeg => c.kind === "transit");
+  const cards = legs(out);
+  // 1. A number another reader put on a different route than its card shows: that leg is misattributed.
+  for (const c of cards) {
+    for (let i = found.length - 1; i >= 0; i--) {
+      const o = found[i];
+      if (o.kind === "transit" && o.number === c.number && (o.from !== c.from || o.to !== c.to)) found.splice(i, 1);
+    }
   }
-  return out;
+  const day = (x: string) => Date.parse(`${x.slice(0, 10)}T00:00Z`);
+  const kept: ImportCandidate[] = [];
+  for (const c of cards) {
+    // 2. Already read with this number on this route: keep the other reader's (it has more context, like dates in an email).
+    if (legs(found).some((o) => o.number === c.number && o.from === c.from && o.to === c.to)) continue;
+    // 3. Same route within a day under no number or another number: the card's reading replaces it.
+    const i = found.findIndex((o) => o.kind === "transit" && o.from === c.from && o.to === c.to && o.number !== c.number && Math.abs(day(o.departLocal) - day(c.departLocal)) <= 86_400_000);
+    if (i >= 0) found.splice(i, 1);
+    kept.push(c);
+  }
+  return kept;
 }
 
 function confirmationIn(text: string): string | null {

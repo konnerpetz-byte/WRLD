@@ -155,6 +155,53 @@ Ticket 0160000000002 O`;
     expect(travelersIn({ text: people })).toEqual({ names: ["Mariajose Lopez", "Samuel Chen"], count: 2 });
   });
 
+  it("Swiss / Air Canada cards with OCR noise: logo stuck to the number, stray airport code, dropped PM", () => {
+    // OCR variants seen when the same screenshots are saved differently (details made up).
+    const second = `@ AC1234
+
+YUL
+
+Montreal
+Scheduled
+
+7:50PM
+Gate -
+
+ZRH YUL > DTW
+| May 30, 2027 Economy
+
+me LTT  —
+
+QWERTZ
+
+»- DTW
+
+Detroit
+Scheduled
+
+1h 55m 9:45 ays
+Gate -`;
+    const first = `ZRH > YUL DTW
+May 30, 2027 Economy
+
+QWERTZ O
+
+47 1LX099
+Operated by SWISS INTERNATIONAL AIR LINES
+
+ZRH > YUL
+
+Zurich Montreal
+Scheduled Scheduled
+12:40PM 8h 20m 3:00PM
+Gate - Gate -`;
+    for (const text of [`${second}\n${first}`, `${first}\n${second}`]) {
+      const r = parseBookings({ text }, { ...ctx, year: 2027 });
+      expect(legs(r).sort()).toEqual(["YUL-DTW 2027-05-30T19:50 2027-05-30T21:45 AC 1234", "ZRH-YUL 2027-05-30T12:40 2027-05-30T15:00 LX 99"]);
+      expect(r.every((c) => c.confirmation === "QWERTZ")).toBe(true);
+    }
+  });
+
   it("Delta app trip header (OCR): 'Confirmation # | CODE', menu-bar junk isn't a flight number", () => {
     const text = `< BACK DTW - CDG ®)
 Confirmation # | ZXCVBN (§
