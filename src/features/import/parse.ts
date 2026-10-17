@@ -456,7 +456,9 @@ function squeeze(s: string) {
 }
 
 /** "DTW → LIS", "DTW - LIS", "DTW to LIS", "DTW  LIS", or the two codes on consecutive lines. */
-const PAIR_RE = () => /\b([A-Z]{3})\b(?:[ \t]*(?:→|->|–|—|-|to|›|>|\/)[ \t]*|[ \t]{2,3}|[ \t]*\n[ \t]*)\b([A-Z]{3})\b/g;
+// Also "DTW 8h 15m MUC" (airline apps print the flight time between the codes).
+const PAIR_RE = () =>
+  /\b([A-Z]{3})\b(?:[ \t]*(?:→|->|–|—|-|to|›|>|\/)[ \t]*|[ \t]{2,3}|[ \t]*\n[ \t]*|[ \t]+\d{1,2}[ \t]?h(?:[ \t]?\d{1,2}[ \t]?m)?[ \t]+)\b([A-Z]{3})\b/g;
 // Codes in parentheses after city names: "Zürich, CH (ZRH) Montreal, QC, CA (YUL)", "(ZRH - Kloten)\nto Detroit, MI, US (DTW)".
 const PAREN_PAIR_RE = () => /\(([A-Z]{3})(?:[ \t]*[-–][^)\n]{0,25})?\)([^()\n]{0,50}\n?[^()\n]{0,50}?)\(([A-Z]{3})(?:[ \t]*[-–][^)\n]{0,25})?\)/g;
 
@@ -537,12 +539,23 @@ function flightNumberIn(text: string): string | null {
   const icao = /\b(EZY|EJU|EZS|RYR|BAW|DLH|AFR|KLM|UAL|AAL|DAL|WZZ|VLG)\s?(\d{1,4})\b/.exec(text);
   if (icao) return `${ICAO_PREFIX[icao[1]]} ${Number(icao[2])}`;
   // A labeled number first ("Flight# DL0022", "Flight: UA 958"), then any airline-code-plus-digits.
-  const m =
-    /\bflight\s*(?:#|no\.?|number)?\s*:?\s*([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})\b/i.exec(text) ??
-    /\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})\b/.exec(text);
-  if (!m) return namedFlightIn(text);
-  const n = String(Number(m[2]));
-  return n === "0" ? namedFlightIn(text) : `${m[1].toUpperCase()} ${n}`;
+  // Screenshots read zeros as the letter O ("DLO022"), so O counts as a digit after a known airline code.
+  const candidates = [
+    ...text.matchAll(/\bflight\s*(?:#|no\.?|number)?\s*:?\s*([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/gi),
+    ...text.matchAll(/\b(?!AM\b|PM\b)([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?([\dO]{1,4})\b/g),
+  ];
+  for (const m of candidates) {
+    const code = m[1].toUpperCase();
+    const raw = m[2].toUpperCase();
+    if (raw.includes("O") && (!AIRLINES[code] || !/\d/.test(raw))) continue;
+    // Aircraft, not flights: "Airbus A330-200", "Boeing 787", "A321neo".
+    const before = text.slice(Math.max(0, m.index! - 12), m.index!);
+    const after = text.slice(m.index! + m[0].length, m.index! + m[0].length + 4);
+    if (/(airbus|boeing|embraer|bombardier|aircraft|airplane|plane)\s*$/i.test(before) || /^(-\d|neo|ceo|max)/i.test(after)) continue;
+    const n = String(Number(raw.replace(/O/g, "0")));
+    if (n !== "0") return `${code} ${n}`;
+  }
+  return namedFlightIn(text);
 }
 
 /** Airline name for a flight number, so imported legs read "Delta DL 22" (see carriers.ts). */
@@ -651,6 +664,18 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
   // belong to it (between the previous pair and the next one).
   const pairs = pairMatches(text).filter((p) => p.from !== p.to && !NOT_AIRPORTS.has(p.from) && !NOT_AIRPORTS.has(p.to) && airportByCode(p.from) && airportByCode(p.to));
   const seen = new Set<string>();
+  // Screenshots split one flight across images, so its number can be far from the route. When the
+  // whole text names exactly one flight number, it belongs to every leg missing one.
+  const numbers = new Set(text.split("\n").map((l) => flightNumberIn(l.replace(/\b[A-Z]{3}\b/g, ""))).filter(Boolean));
+  const onlyFlightNumber = numbers.size === 1 ? [...numbers][0] : null;
+  // Summary lines give the departure date with both times: "Sun, May 16 | 4:40pm - 6:55am".
+  const summary = new Map<string, Hit>();
+  for (const d of dates) {
+    const ls = text.lastIndexOf("\n", d.index) + 1;
+    const le = text.indexOf("\n", d.index) === -1 ? text.length : text.indexOf("\n", d.index);
+    const ts = times.filter((t) => t.index > d.index && t.index < le && t.index >= ls);
+    if (ts.length >= 2 && !summary.has(`${ts[0].value}-${ts[1].value}`)) summary.set(`${ts[0].value}-${ts[1].value}`, d);
+  }
   pairs.forEach((p, i) => {
     const lineStart = text.lastIndexOf("\n", p.index) + 1;
     const lineEndRaw = text.indexOf("\n", p.end);
@@ -675,7 +700,7 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
 
     // Flight number: on the same line first, then anywhere in the segment.
     const strip = (s: string) => s.replace(new RegExp(`\\b(${p.from}|${p.to})\\b`, "g"), "");
-    const fn = flightNumberIn(strip(text.slice(lineStart, lineEnd))) ?? flightNumberIn(strip(text.slice(segStart, segEnd)));
+    const fn = flightNumberIn(strip(text.slice(lineStart, lineEnd))) ?? flightNumberIn(strip(text.slice(segStart, segEnd))) ?? onlyFlightNumber;
 
     // Times: the ones after the pair first (depart, then arrive); else the ones before it.
     // Column layouts (United receipts) put a row of two times directly above the airports row.
@@ -686,12 +711,23 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
     const onLine = times.filter((t) => t.index >= lineStart && t.index < lineEnd);
     const near =
       rowAbove.length === 2 && !onLine.length ? rowAbove : after.length >= 2 ? after : [...before.slice(-(2 - after.length)), ...after];
-    const departTz = airportTz(p.from, date.value) ?? ctx.defaultTz;
-    const arriveTz = airportTz(p.to, date.value) ?? ctx.defaultTz;
     const departTime = near[0]?.value ?? null;
     const arriveTime = near[1]?.value ?? null;
-    const departLocal = `${date.value}T${departTime ?? "09:00"}`;
-    let arriveLocal = arriveTime ? `${date.value}T${arriveTime}` : addMinutes(departLocal, 120);
+    let day = date.value;
+    const fromSummary = departTime && arriveTime ? summary.get(`${departTime}-${arriveTime}`) : undefined;
+    if (fromSummary) day = fromSummary.value;
+    // App cards print the arrival date under the arrival time, between the times and the airports
+    // ("4:40pm  6:55am / Mon, May 17 / DTW 8h 15m MUC"): that date is the arrival, so overnight flights left the day before.
+    else if (near[1] && date.index > near[1].index && date.index < p.index && arriveTime && departTime && arriveTime < departTime) day = addMinutes(`${date.value}T00:00`, -24 * 60).slice(0, 10);
+    const dayKey = `${p.from}${p.to}${day}`;
+    if (day !== date.value) {
+      if (seen.has(dayKey)) return;
+      seen.add(dayKey);
+    }
+    const departTz = airportTz(p.from, day) ?? ctx.defaultTz;
+    const arriveTz = airportTz(p.to, day) ?? ctx.defaultTz;
+    const departLocal = `${day}T${departTime ?? "09:00"}`;
+    let arriveLocal = arriveTime ? `${day}T${arriveTime}` : addMinutes(departLocal, 120);
     // Overnight flights: "+1" after the arrival time, or arrival earlier than departure.
     if (arriveTime && (arriveTime < (departTime ?? "00:00") || /^\s*(?:[ap]\.?m\.?)?\s*\+\s?1\b/i.test(text.slice(near[1].index + 4, near[1].index + 16)))) {
       arriveLocal = addMinutes(arriveLocal, 24 * 60);
@@ -768,7 +804,16 @@ export function fromText(raw: string, ctx: Ctx): ImportCandidate[] {
   // Itineraries that list each stop on its own (or each leg on one line):
   //   5:05pm Detroit (DTW) - 7:20am Newark (EWR)   United 1022
   //   DTW 6:05 AM / ORD 6:58 AM, with connections and layovers between.
-  out.push(...fromStopEvents(text, ctx, dates, times, conf));
+  // Skip legs already read above at the same clock times within a day (an app card read twice,
+  // once with its arrival date).
+  const near1Day = (a: string, b: string) => Math.abs(Date.parse(`${a.slice(0, 10)}T00:00Z`) - Date.parse(`${b.slice(0, 10)}T00:00Z`)) <= 86_400_000;
+  out.push(
+    ...fromStopEvents(text, ctx, dates, times, conf).filter(
+      (s) =>
+        s.kind !== "transit" ||
+        !out.some((o) => o.kind === "transit" && o.from === s.from && o.to === s.to && o.departLocal.slice(11) === s.departLocal.slice(11) && near1Day(o.departLocal, s.departLocal)),
+    ),
+  );
 
   // Trains, buses and ferries written as text (when no flights were found).
   if (!out.some((c) => c.kind === "transit")) out.push(...fromGroundText(text, ctx, dates, times, conf));

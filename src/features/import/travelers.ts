@@ -13,6 +13,8 @@ const tidyName = (raw: string): string | null => {
   let s = raw
     .replace(/\s{2,}.*$/, "") // drop columns after a wide gap ("KONNER PETZ    Ticket 006...")
     .replace(/\s*[|(•·].*$/, "")
+    // App rows end in a link: "SHANEA ROMERO   View" (OCR: "VIE", "Vie w")
+    .replace(/\s+(?:view|vie\s?w?|edit|details|change|manage|>)\s*$/i, "")
     .replace(/[,;:]+$/, "")
     .trim();
   // Airline style "PETZ/KONNER MR" → "KONNER PETZ"
@@ -58,7 +60,7 @@ export function travelersInText(text: string): Travelers {
     const line = raw.replace(/^[^A-Za-zÀ-ÿ0-9]+/, "");
     // A heading followed by a list of names.
     if (
-      /^(passengers?|travell?ers?|guests?|guest names?|travell?er (?:details|info(?:rmation)?|names?)|passenger (?:details|info(?:rmation)?|names?\(?s?\)?)|who'?s (?:flying|going|travell?ing)|who is (?:booking|travell?ing|staying)\??|booked by|(?:lead|main) (?:guest|traveller|traveler)|names? of travell?ers?)\s*:?\s*$/i.test(
+      /^(?:(?:show|view|hide|all) )?(?:passengers?|travell?ers?|guests?|guest names?|travell?er (?:details|info(?:rmation)?|names?)|passenger (?:details|info(?:rmation)?|names?\(?s?\)?)|who'?s (?:flying|going|travell?ing)|who is (?:booking|travell?ing|staying)\??|booked by|(?:lead|main) (?:guest|traveller|traveler)|names? of travell?ers?)(?:\s*\(\d{1,2}\))?\s*[:>v⌄]?\s*$/i.test(
         line
       )
     ) {
@@ -102,6 +104,7 @@ export function travelersInText(text: string): Travelers {
   let count: number | null = null;
   const nums = [
     ...text.matchAll(/\b(\d{1,2})[ \t]+(?:adults?|passengers?|travell?ers?|guests?|people|persons|pax)\b/gi),
+    ...text.matchAll(/\b(?:passengers?|travell?ers?|guests?)[ \t]*\((\d{1,2})\)/gi),
     // Not "Total Per Passenger: 44,000 miles".
     ...text.matchAll(/(?<!per[ \t]{1,3})\b(?:party of|guests?[ \t]*:|passengers?[ \t]*:|travell?ers?[ \t]*:|adults?[ \t]*:)[ \t]*(\d{1,2})(?![\d,.])/gi),
   ].map((m) => Number(m[1]));
@@ -151,7 +154,9 @@ const samePerson = (a: string, b: string) => {
   if (!wa.length || !wb.length) return false;
   if (letters(a) === letters(b)) return true;
   const [short, long] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
-  return short.every((w) => long.includes(w));
+  // Apps run a middle initial into the first name ("KONNERJ PETZ" is Konner J. Petz).
+  const same = (x: string, y: string) => x === y || (Math.min(x.length, y.length) >= 4 && Math.abs(x.length - y.length) <= 2 && (x.startsWith(y) || y.startsWith(x)));
+  return short.every((w) => long.some((l) => same(w, l)));
 };
 
 /** Who on a booking isn't on the trip yet. */

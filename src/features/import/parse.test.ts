@@ -73,6 +73,40 @@ to Detroit, MI, US (DTW)`;
     expect(legs(r)).toEqual(["ZRH-YUL 2027-05-30T12:40 2027-05-30T15:00 LX 86", "YUL-DTW 2027-05-30T19:50 2027-05-30T21:45 AC 8583"]);
     expect(travelersIn({ text })).toEqual({ names: ["Maria Lopez", "Samuel Chen"], count: 2 });
   });
+  it("Delta app screenshots (OCR): number split from route, O for 0, arrival date on the card, passengers with View links", () => {
+    // Two screenshots of one flight in the Fly Delta app, read in the order picked (details made up).
+    const detail = `< BACK DTW - CDG QD)
+4:55pm N - 7:10am
+Fri, Jun 11
+DTW 7h 15m CDG
+Detroit, MI, US Paris, France, FR
+McNamara Terminal Terminal 2E
+Main Classic (N)
+Show Passengers (2) v
+MARIAJ LOPEZ VIE
+SAMUEL CHEN View
+Aircraft Details >
+Total Flight Time | 7H 15M`;
+    const summary = `< BACK DTW - CDG QD)
+Upcoming Flight
+To Paris, France ©
+Thu, Jun 10 | 4:55pm - 7:10am
+210 Days Until Check In
+DLOO98
+Operated by Delta Air Lines
+Airbus A330-900
+On Time On Time
+4:55pm N - 7:10am
+Fri, Jun 11
+DTW 7h 15m CDG`;
+    for (const text of [`${detail}\n\n${summary}`, `${summary}\n\n${detail}`, summary]) {
+      expect(legs(parseBookings({ text }, { ...ctx, year: 2027 }))).toEqual(["DTW-CDG 2027-06-10T16:55 2027-06-11T07:10 DL 98"]);
+    }
+    expect(travelersIn({ text: detail })).toEqual({ names: ["Mariaj Lopez", "Samuel Chen"], count: 2 });
+    // "MARIAJ" (middle initial run in) is the same person as trip member "Maria Lopez".
+    expect(partnersOnBooking({ names: ["Mariaj Lopez", "Samuel Chen"], count: 2 }, ["Maria Lopez"]).others).toEqual(["Samuel Chen"]);
+  });
+
   it("Delta: labeled Departs/Arrives lines with airline names", () => {
     const text = `Your Flight Receipt - KONNER PETZ 16MAY27
 Confirmation #: H7KQ2P
