@@ -123,6 +123,11 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
       });
     }
   }
+  // Counts only (no names, codes or places), so a failed screenshot import can be diagnosed from the logs.
+  const kinds = (k: string) => candidates.filter((c) => c.kind === k).length;
+  console.info(
+    `[import] files=${files.length} images=${images.length} reader=${fromImages ? "ai" : images.length ? "ocr" : "text"} chars=${inputs.reduce((n, i) => n + (i.text?.length ?? 0), 0)} flights=${kinds("transit")} stays=${kinds("stay")} other=${kinds("activity")}`,
+  );
   if (!candidates.length) {
     return { error: "No flights, stays or tickets found. Try pasting the whole confirmation email, including the dates and times." };
   }
