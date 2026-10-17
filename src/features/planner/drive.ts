@@ -16,7 +16,7 @@ import { type Style, STYLES } from "./costs";
  *   MPG        25: a little under the record 27.2 mpg EPA measured for new 2024 vehicles, since the cars
  *              people actually drive are older (EPA Automotive Trends Report).
  *   Road miles real driving routes from OpenRouteService when ORS_API_KEY is set (routes.ts); otherwise
- *              1.2 × the straight-line distance at 58 mph, which runs short around lakes and borders.
+ *              1.2 × the straight-line distance at 63 mph (highway driving with short stops), which runs short around lakes and borders.
  *   Hotel and daily rates are WRLD's estimates for a 3-star room and casual meals, set around the U.S.
  *   average room rate of $160.54 a night (CoStar, 2025) and about $67.50 a day per person for food
  *   (BLS 2024): pricier places (resort towns, big coastal cities) sit above it, small towns below.
@@ -26,7 +26,7 @@ export const GAS_PRICE = 4.31;
 export const GAS_PRICE_AS_OF = "October 17, 2026";
 export const MPG = 25;
 const ROAD_FACTOR = 1.2;
-const MPH = 58;
+const MPH = 63;
 const PEOPLE_PER_CAR = 4;
 const PEOPLE_PER_ROOM = 2;
 
@@ -37,32 +37,60 @@ const TIER = {
   3: { hotel: 225, day: 115 },
 } as const;
 
-export type Getaway = { key: string; name: string; state: string; latitude: number; longitude: number; tier: 1 | 2 | 3; why: string };
+export type Getaway = {
+  key: string;
+  name: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  tier: 1 | 2 | 3;
+  why: string;
+  /** Lesser-known places worth the drive */
+  gem?: boolean;
+  /** Free things to do there (only ones we're sure are free) */
+  free?: string[];
+};
 
 /** Popular U.S. drive-to getaways: cities, beach and lake towns, mountain towns, national parks. */
 export const GETAWAYS: Getaway[] = [
   // Midwest
-  { key: "traverse-city", name: "Traverse City", state: "MI", latitude: 44.763, longitude: -85.621, tier: 2, why: "Lake Michigan beaches and wineries" },
+  { key: "traverse-city", name: "Traverse City", state: "MI", latitude: 44.763, longitude: -85.621, tier: 2, why: "Lake Michigan beaches and wineries", free: ["Clinch Park beach and the TART lakeside trail"] },
   { key: "mackinac-island", name: "Mackinac Island", state: "MI", latitude: 45.849, longitude: -84.618, tier: 3, why: "Car-free island, bikes and fudge" },
-  { key: "saugatuck", name: "Saugatuck", state: "MI", latitude: 42.655, longitude: -86.203, tier: 2, why: "Beach town with galleries and dunes" },
+  { key: "saugatuck", name: "Saugatuck", state: "MI", latitude: 42.655, longitude: -86.203, tier: 2, why: "Beach town with galleries and dunes", free: ["The climb up Mount Baldhead for lake views"] },
   { key: "grand-rapids", name: "Grand Rapids", state: "MI", latitude: 42.963, longitude: -85.668, tier: 1, why: "Breweries and riverfront downtown" },
-  { key: "chicago", name: "Chicago", state: "IL", latitude: 41.878, longitude: -87.63, tier: 3, why: "Big-city food, architecture, lakefront" },
+  { key: "chicago", name: "Chicago", state: "IL", latitude: 41.878, longitude: -87.63, tier: 3, why: "Big-city food, architecture, lakefront", free: ["Millennium Park and the Bean", "Lincoln Park Zoo"] },
   { key: "galena", name: "Galena", state: "IL", latitude: 42.417, longitude: -90.429, tier: 1, why: "Historic small town in the hills" },
   { key: "door-county", name: "Door County", state: "WI", latitude: 45.128, longitude: -87.243, tier: 2, why: "Lakeshore villages and cherry orchards" },
   { key: "wisconsin-dells", name: "Wisconsin Dells", state: "WI", latitude: 43.627, longitude: -89.771, tier: 1, why: "Water parks and river canyons" },
   { key: "milwaukee", name: "Milwaukee", state: "WI", latitude: 43.039, longitude: -87.906, tier: 1, why: "Lakefront, breweries, festivals" },
-  { key: "hocking-hills", name: "Hocking Hills", state: "OH", latitude: 39.54, longitude: -82.407, tier: 1, why: "Waterfalls, caves and cabins" },
+  { key: "hocking-hills", name: "Hocking Hills", state: "OH", latitude: 39.54, longitude: -82.407, tier: 1, why: "Waterfalls, caves and cabins", free: ["Old Man's Cave and Ash Cave trails (Ohio state parks are free)"] },
   { key: "put-in-bay", name: "Put-in-Bay", state: "OH", latitude: 41.652, longitude: -82.818, tier: 2, why: "Lake Erie island by ferry" },
-  { key: "cleveland", name: "Cleveland", state: "OH", latitude: 41.499, longitude: -81.694, tier: 1, why: "Rock Hall and a lakefront downtown" },
+  { key: "cleveland", name: "Cleveland", state: "OH", latitude: 41.499, longitude: -81.694, tier: 1, why: "Rock Hall and a lakefront downtown", free: ["Cleveland Museum of Art"] },
   { key: "cincinnati", name: "Cincinnati", state: "OH", latitude: 39.103, longitude: -84.512, tier: 1, why: "Riverfront, ballparks, chili" },
   { key: "indianapolis", name: "Indianapolis", state: "IN", latitude: 39.768, longitude: -86.158, tier: 1, why: "Downtown sports and food" },
   { key: "indiana-dunes", name: "Indiana Dunes", state: "IN", latitude: 41.653, longitude: -87.052, tier: 1, why: "National park beaches and dunes" },
-  { key: "st-louis", name: "St. Louis", state: "MO", latitude: 38.627, longitude: -90.199, tier: 1, why: "The Arch, barbecue, free museums" },
+  { key: "st-louis", name: "St. Louis", state: "MO", latitude: 38.627, longitude: -90.199, tier: 1, why: "The Arch, barbecue, free museums", free: ["Saint Louis Zoo", "Saint Louis Art Museum"] },
   { key: "kansas-city", name: "Kansas City", state: "MO", latitude: 39.1, longitude: -94.578, tier: 1, why: "Barbecue and jazz" },
   { key: "branson", name: "Branson", state: "MO", latitude: 36.644, longitude: -93.218, tier: 1, why: "Shows and Ozark lakes" },
   { key: "minneapolis", name: "Minneapolis", state: "MN", latitude: 44.978, longitude: -93.265, tier: 2, why: "Lakes, trails and a big music scene" },
-  { key: "duluth", name: "Duluth", state: "MN", latitude: 46.787, longitude: -92.1, tier: 1, why: "Lake Superior harbor town" },
-  { key: "niagara-falls", name: "Niagara Falls", state: "NY", latitude: 43.096, longitude: -79.037, tier: 1, why: "The falls from the U.S. side" },
+  { key: "duluth", name: "Duluth", state: "MN", latitude: 46.787, longitude: -92.1, tier: 1, why: "Lake Superior harbor town", free: ["Canal Park and the Aerial Lift Bridge"] },
+  { key: "niagara-falls", name: "Niagara Falls", state: "NY", latitude: 43.096, longitude: -79.037, tier: 1, why: "The falls from the U.S. side", free: ["Niagara Falls State Park (free to walk in; parking is extra)"] },
+  // Hidden gems: smaller places worth the drive, many with free things to do
+  { key: "petoskey", name: "Petoskey", state: "MI", latitude: 45.373, longitude: -84.955, tier: 2, why: "Victorian downtown on Little Traverse Bay", gem: true, free: ["Hunting for Petoskey stones along the shore", "Little Traverse Wheelway bike trail"] },
+  { key: "mackinaw-city", name: "Mackinaw City", state: "MI", latitude: 45.778, longitude: -84.727, tier: 1, why: "Mackinac Bridge views and the ferry to the island", gem: true, free: ["Headlands International Dark Sky Park (free, open day and night)", "Mackinac Bridge views from the shoreline parks"] },
+  { key: "frankenmuth", name: "Frankenmuth", state: "MI", latitude: 43.332, longitude: -83.738, tier: 1, why: "Bavarian-style town and chicken dinners", gem: true, free: ["Bronner's CHRISTmas Wonderland (free admission)"] },
+  { key: "grand-haven", name: "Grand Haven", state: "MI", latitude: 43.063, longitude: -86.228, tier: 1, why: "Beach town with a lighthouse pier", gem: true, free: ["The pier and lighthouse walk", "Musical Fountain shows on summer nights"] },
+  { key: "marquette", name: "Marquette", state: "MI", latitude: 46.543, longitude: -87.395, tier: 1, why: "Lake Superior harbor town in the U.P.", gem: true, free: ["Presque Isle Park", "Sugarloaf Mountain hike"] },
+  { key: "cuyahoga-valley", name: "Cuyahoga Valley National Park", state: "OH", latitude: 41.28, longitude: -81.57, tier: 1, why: "Waterfalls and towpath trails between Cleveland and Akron", gem: true, free: ["No entrance fee", "Brandywine Falls"] },
+  { key: "starved-rock", name: "Starved Rock", state: "IL", latitude: 41.32, longitude: -88.99, tier: 1, why: "Sandstone canyons with seasonal waterfalls", gem: true, free: ["Starved Rock State Park trails (no entrance fee)"] },
+  { key: "apostle-islands", name: "Bayfield and the Apostle Islands", state: "WI", latitude: 46.811, longitude: -90.818, tier: 2, why: "Sea caves and island cruises on Lake Superior", gem: true, free: ["Apostle Islands National Lakeshore (no entrance fee)"] },
+  { key: "cherry-springs", name: "Cherry Springs", state: "PA", latitude: 41.663, longitude: -77.823, tier: 1, why: "One of the darkest skies in the East", gem: true, free: ["Cherry Springs State Park stargazing (Pennsylvania state parks are free)"] },
+  { key: "ithaca", name: "Ithaca", state: "NY", latitude: 42.444, longitude: -76.502, tier: 1, why: "Gorges and waterfalls in a college town", gem: true, free: ["Ithaca Falls", "Cascadilla Gorge trail"] },
+  { key: "new-river-gorge", name: "New River Gorge", state: "WV", latitude: 38.053, longitude: -81.104, tier: 1, why: "Rafting, climbing and the big bridge", gem: true, free: ["New River Gorge National Park (no entrance fee)"] },
+  { key: "mammoth-cave", name: "Mammoth Cave", state: "KY", latitude: 37.187, longitude: -86.1, tier: 1, why: "The world's longest known cave system", gem: true, free: ["No park entrance fee; surface trails are free (cave tours cost extra)"] },
+  { key: "congaree", name: "Congaree National Park", state: "SC", latitude: 33.83, longitude: -80.82, tier: 1, why: "Boardwalk through old-growth swamp forest", gem: true, free: ["No entrance fee", "The boardwalk loop"] },
+  { key: "bentonville", name: "Bentonville", state: "AR", latitude: 36.373, longitude: -94.209, tier: 1, why: "Art museum and mountain-bike trails", gem: true, free: ["Crystal Bridges Museum of American Art (free general admission)"] },
+  { key: "buffalo-river", name: "Buffalo National River", state: "AR", latitude: 36.02, longitude: -93.19, tier: 1, why: "Ozark bluffs, floating and hiking", gem: true, free: ["No entrance fee", "Lost Valley trail"] },
   // Northeast
   { key: "new-york", name: "New York City", state: "NY", latitude: 40.713, longitude: -74.006, tier: 3, why: "Shows, food, neighborhoods" },
   { key: "finger-lakes", name: "Finger Lakes", state: "NY", latitude: 42.869, longitude: -76.977, tier: 1, why: "Wineries, gorges and lakes" },
@@ -78,14 +106,14 @@ export const GETAWAYS: Getaway[] = [
   { key: "pittsburgh", name: "Pittsburgh", state: "PA", latitude: 40.441, longitude: -79.996, tier: 1, why: "Rivers, bridges and inclines" },
   { key: "poconos", name: "Poconos", state: "PA", latitude: 40.987, longitude: -75.195, tier: 1, why: "Cabins, lakes and waterfalls" },
   { key: "atlantic-city", name: "Atlantic City", state: "NJ", latitude: 39.364, longitude: -74.423, tier: 1, why: "Boardwalk and beach" },
-  { key: "washington-dc", name: "Washington", state: "DC", latitude: 38.907, longitude: -77.037, tier: 3, why: "Free museums and monuments" },
+  { key: "washington-dc", name: "Washington", state: "DC", latitude: 38.907, longitude: -77.037, tier: 3, why: "Free museums and monuments", free: ["Smithsonian museums", "The monuments on the National Mall"] },
   // South
   { key: "nashville", name: "Nashville", state: "TN", latitude: 36.163, longitude: -86.781, tier: 2, why: "Live music on Broadway" },
-  { key: "gatlinburg", name: "Gatlinburg", state: "TN", latitude: 35.714, longitude: -83.51, tier: 1, why: "Great Smoky Mountains" },
+  { key: "gatlinburg", name: "Gatlinburg", state: "TN", latitude: 35.714, longitude: -83.51, tier: 1, why: "Great Smoky Mountains", free: ["Great Smoky Mountains National Park (no entrance fee; parking tag needed)"] },
   { key: "chattanooga", name: "Chattanooga", state: "TN", latitude: 35.046, longitude: -85.309, tier: 1, why: "Outdoors town on the river" },
   { key: "memphis", name: "Memphis", state: "TN", latitude: 35.15, longitude: -90.049, tier: 1, why: "Blues, barbecue, Graceland" },
   { key: "louisville", name: "Louisville", state: "KY", latitude: 38.253, longitude: -85.759, tier: 1, why: "Bourbon trail and Churchill Downs" },
-  { key: "asheville", name: "Asheville", state: "NC", latitude: 35.595, longitude: -82.551, tier: 2, why: "Blue Ridge views and breweries" },
+  { key: "asheville", name: "Asheville", state: "NC", latitude: 35.595, longitude: -82.551, tier: 2, why: "Blue Ridge views and breweries", free: ["Blue Ridge Parkway overlooks"] },
   { key: "outer-banks", name: "Outer Banks", state: "NC", latitude: 36.031, longitude: -75.676, tier: 2, why: "Barrier-island beaches" },
   { key: "virginia-beach", name: "Virginia Beach", state: "VA", latitude: 36.853, longitude: -75.978, tier: 2, why: "Boardwalk beach" },
   { key: "williamsburg", name: "Williamsburg", state: "VA", latitude: 37.271, longitude: -76.707, tier: 1, why: "Colonial history and theme parks" },
@@ -101,7 +129,7 @@ export const GETAWAYS: Getaway[] = [
   { key: "orlando", name: "Orlando", state: "FL", latitude: 28.538, longitude: -81.379, tier: 2, why: "Theme parks" },
   { key: "miami", name: "Miami", state: "FL", latitude: 25.762, longitude: -80.192, tier: 3, why: "Beaches and nightlife" },
   { key: "key-west", name: "Key West", state: "FL", latitude: 24.555, longitude: -81.78, tier: 3, why: "Island town at the end of the road" },
-  { key: "hot-springs", name: "Hot Springs", state: "AR", latitude: 34.503, longitude: -93.055, tier: 1, why: "Bathhouses and a national park" },
+  { key: "hot-springs", name: "Hot Springs", state: "AR", latitude: 34.503, longitude: -93.055, tier: 1, why: "Bathhouses and a national park", free: ["Hot Springs National Park and Bathhouse Row (no entrance fee)"] },
   { key: "austin", name: "Austin", state: "TX", latitude: 30.267, longitude: -97.743, tier: 2, why: "Live music and swimming holes" },
   { key: "san-antonio", name: "San Antonio", state: "TX", latitude: 29.424, longitude: -98.494, tier: 1, why: "River Walk and the Alamo" },
   { key: "fredericksburg", name: "Fredericksburg", state: "TX", latitude: 30.275, longitude: -98.872, tier: 2, why: "Hill Country wineries" },

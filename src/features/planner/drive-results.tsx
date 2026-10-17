@@ -49,15 +49,19 @@ export function DriveResults({
   gasNote: string;
   signedIn: boolean;
 }) {
-  const fits = options.filter((o) => o.best).slice(0, 9);
-  const close = options.filter((o) => !o.best).slice(0, 3);
+  const allFits = options.filter((o) => o.best);
+  const popular = allFits.filter((o) => !o.getaway.gem).slice(0, 6);
+  const gems = allFits.filter((o) => o.getaway.gem).slice(0, 6);
+  // Just over: the weekend is within 15% of the budget.
+  const near = options.filter((o) => !o.best && o.lengths[0].total <= cash * 1.15).slice(0, 6);
+  const close = allFits.length ? near : options.filter((o) => !o.best).slice(0, 3);
   const who = travelers === 1 ? "" : ` for ${travelers}`;
   return (
     <section aria-labelledby="drive-h" className="grid gap-4">
       <div className="px-1">
         <h2 id="drive-h" className="flex items-center gap-2 text-lg font-semibold">
           <Car className="size-5 text-primary" aria-hidden="true" />
-          {fits.length ? `${fits.length} road trips fit ${money(cash)}${who}` : `No road trip fits ${money(cash)}${who} yet`}
+          {allFits.length ? `${allFits.length} road trips fit ${money(cash)}${who}` : `No road trip fits ${money(cash)}${who} yet`}
         </h2>
         <p className="text-sm text-muted-foreground">
           Weekend (2 nights) and long-weekend (3 nights) getaways within a few hours&rsquo; drive of {home}, with gas, hotel, food and fun
@@ -65,16 +69,27 @@ export function DriveResults({
         </p>
       </div>
 
-      {fits.length > 0 && (
+      {popular.length > 0 && (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {fits.map((t) => (
+          {popular.map((t) => (
             <DriveCard key={t.getaway.key} t={t} cash={cash} travelers={travelers} month={month} signedIn={signedIn} />
           ))}
         </ul>
       )}
-      {!fits.length && close.length > 0 && (
+      {gems.length > 0 && (
         <>
-          <p className="px-1 text-sm">Closest to your budget. Try the budget travel style, or fewer people per room.</p>
+          <h3 className="mt-2 px-1 font-semibold">Hidden gems, many with free things to do</h3>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {gems.map((t) => (
+              <DriveCard key={t.getaway.key} t={t} cash={cash} travelers={travelers} month={month} signedIn={signedIn} />
+            ))}
+          </ul>
+        </>
+      )}
+      {close.length > 0 && (
+        <>
+          <h3 className="mt-2 px-1 font-semibold">{allFits.length ? "Just over your budget" : "Closest to your budget"}</h3>
+          {!allFits.length && <p className="px-1 text-sm">Try the budget travel style, or fewer people per room.</p>}
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {close.map((t) => (
               <DriveCard key={t.getaway.key} t={t} cash={cash} travelers={travelers} month={month} signedIn={signedIn} />
@@ -86,7 +101,7 @@ export function DriveResults({
         {gasNote} {MPG} miles a gallon and one car for every four people.{" "}
         {options.some((o) => o.routed)
           ? "Drive times and miles are real road routes from OpenRouteService, with a short stop every couple of hours."
-          : "Drive times are estimates from distance (about 1.2 times the straight line at 58 mph), so routes around lakes or borders take longer."}{" "}
+          : "Drive times are estimates from distance (about 1.2 times the straight line at 63 mph), so routes around lakes or borders take longer."}{" "}
         Hotels are
         WRLD&rsquo;s estimates for a 3-star room near the U.S. average rate; tolls and parking aren&rsquo;t included.
       </p>
@@ -102,6 +117,7 @@ function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOption; ca
         <h3 className="text-lg font-semibold">
           {t.getaway.name}, {t.getaway.state}
         </h3>
+        {t.getaway.gem && <span className="mt-1 inline-block rounded-full bg-travel-soft px-2 py-0.5 text-xs font-medium text-travel-ink">Hidden gem</span>}
         <p className="text-sm text-muted-foreground">{t.getaway.why}</p>
         <p className="mt-1 text-sm">
           {t.routed ? "" : "About "}
@@ -109,6 +125,16 @@ function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOption; ca
           {t.roadMiles.toLocaleString("en-US")} miles
         </p>
       </div>
+      {t.getaway.free?.length ? (
+        <div className="text-sm">
+          <p className="font-medium">Free to do</p>
+          <ul className="mt-0.5 list-disc pl-5 text-muted-foreground">
+            {t.getaway.free.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <ul className="grid gap-1 text-sm">
         {t.lengths.map((l) => (
           <li key={l.nights} className="flex items-baseline justify-between gap-3">
