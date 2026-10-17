@@ -166,10 +166,14 @@ async function saveTransit(tripId: string, legId: string | null, formData: FormD
     depart_at,
     arrive_at,
   };
+  const before = legId
+    ? (await supabase.from("transit_segments").select("cost, currency, points_used").eq("id", legId).eq("trip_id", tripId).maybeSingle()).data
+    : null;
   const { data: saved, error } = legId
     ? await supabase.from("transit_segments").update(row).eq("id", legId).eq("trip_id", tripId).select("id").maybeSingle()
     : await supabase.from("transit_segments").insert({ ...row, trip_id: tripId, created_by: userId }).select("id").single();
   if (error) return { error: "Couldn't save this leg." };
+  if (legId && before) await syncLinkedPayment(supabase, tripId, { transit_segment_id: legId }, before, rest);
   refresh(tripId);
   return { ok: true, id: saved?.id };
 }
@@ -196,6 +200,15 @@ const lodgingSchema = z.object({
 });
 
 export async function addLodging(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  return saveLodging(tripId, null, formData);
+}
+
+/** Edit a stay, including one that came in from an imported confirmation. */
+export async function updateLodging(tripId: string, stayId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  return saveLodging(tripId, stayId, formData);
+}
+
+async function saveLodging(tripId: string, stayId: string | null, formData: FormData): Promise<ActionState> {
   const parsed = lodgingSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { check_in_local, check_out_local, ...rest } = parsed.data;
@@ -218,31 +231,68 @@ export async function addLodging(tripId: string, _: ActionState, formData: FormD
       : trip.latitude !== null && trip.longitude !== null
         ? { latitude: trip.latitude, longitude: trip.longitude }
         : null;
-  const place =
-    (await geocode(rest.address ?? `${rest.name}${stop ? `, ${stop.city}` : ""}`, { near })) ??
-    (rest.address ? await geocode(`${rest.name}${stop ? `, ${stop.city}` : ""}`, { near }) : null);
-
   const check_in_at = zonedTimeToUtc(check_in_local, timezone);
   const check_out_at = zonedTimeToUtc(check_out_local, timezone);
   if (check_out_at <= check_in_at) return { error: "Check-out has to be after check-in." };
 
-  const { data: saved, error } = await supabase
-    .from("lodging")
-    .insert({
-      ...rest,
-      trip_id: tripId,
-      check_in_at,
-      check_out_at,
-      created_by: userId,
-      latitude: place?.latitude ?? null,
-      longitude: place?.longitude ?? null,
-      address: rest.address ?? place?.address ?? null,
-    })
-    .select("id")
-    .single();
+  // Editing: only look the place up again if the name or address changed.
+  const before = stayId
+    ? (await supabase.from("lodging").select("name, address, latitude, longitude, cost, currency, points_used").eq("id", stayId).eq("trip_id", tripId).maybeSingle()).data
+    : null;
+  if (stayId && !before) return { error: "That stay isn't on this trip anymore." };
+  const moved = !before || before.name !== rest.name || (before.address ?? null) !== (rest.address ?? null);
+  const place = !moved
+    ? before && before.latitude != null && before.longitude != null
+      ? { latitude: before.latitude, longitude: before.longitude, address: before.address }
+      : null
+    : ((await geocode(rest.address ?? `${rest.name}${stop ? `, ${stop.city}` : ""}`, { near })) ??
+      (rest.address ? await geocode(`${rest.name}${stop ? `, ${stop.city}` : ""}`, { near }) : null));
+
+  const row = {
+    ...rest,
+    check_in_at,
+    check_out_at,
+    latitude: place?.latitude ?? null,
+    longitude: place?.longitude ?? null,
+    address: rest.address ?? place?.address ?? null,
+  };
+  const { data: saved, error } = stayId
+    ? await supabase.from("lodging").update(row).eq("id", stayId).eq("trip_id", tripId).select("id").maybeSingle()
+    : await supabase.from("lodging").insert({ ...row, trip_id: tripId, created_by: userId }).select("id").single();
   if (error) return { error: "Couldn't save this stay." };
+  if (stayId && before) await syncLinkedPayment(supabase, tripId, { lodging_id: stayId }, before, rest);
   refresh(tripId);
   return { ok: true, id: saved?.id };
+}
+
+/**
+ * When a booking's price or points change, keep the payment that was recorded for it in step: the
+ * "paid for" expense or points entry made when it was imported (one entry, matching the old price).
+ * Anything the group entered differently by hand is left alone.
+ */
+async function syncLinkedPayment(
+  supabase: Awaited<ReturnType<typeof requireUserId>>["supabase"],
+  tripId: string,
+  link: { lodging_id: string } | { transit_segment_id: string },
+  before: { cost: number | null; currency: string | null; points_used: number | null },
+  after: { cost: number | null; currency: string | null; points_used: number | null },
+) {
+  const [col, id] = "lodging_id" in link ? (["lodging_id", link.lodging_id] as const) : (["transit_segment_id", link.transit_segment_id] as const);
+  if (after.cost != null && (Number(before.cost) !== after.cost || before.currency !== after.currency)) {
+    const { data: paid } = await supabase.from("expenses").select("id, amount, currency").eq("trip_id", tripId).eq(col, id);
+    if (paid?.length === 1 && Number(paid[0].amount) === Number(before.cost)) {
+      await supabase
+        .from("expenses")
+        .update({ amount: after.cost, ...(after.currency ? { currency: after.currency } : {}) })
+        .eq("id", paid[0].id);
+    }
+  }
+  if (after.points_used != null && Number(before.points_used) !== after.points_used) {
+    const { data: pts } = await supabase.from("points_contributions").select("id, points").eq("trip_id", tripId).eq(col, id);
+    if (pts?.length === 1 && Number(pts[0].points) === Number(before.points_used)) {
+      await supabase.from("points_contributions").update({ points: after.points_used }).eq("id", pts[0].id);
+    }
+  }
 }
 
 export async function deleteLodging(tripId: string, id: string) {

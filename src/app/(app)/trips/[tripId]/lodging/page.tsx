@@ -6,6 +6,7 @@ import { BedDouble, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { deleteLodging } from "@/features/trips/actions";
+import { EditableStay } from "@/features/trips/editable-stay";
 import { LodgingForm } from "@/features/trips/lodging-form";
 import { getItinerary, getTrip } from "@/features/trips/queries";
 import { formatMoney, formatPoints } from "@/lib/format";
@@ -26,18 +27,25 @@ async function LodgingPageContent({
   params,
 }: PageProps<"/trips/[tripId]/lodging">) {
   const { tripId } = await params;
-  const [{ trip, canEdit }, { lodging }] = await Promise.all([
+  const [{ trip, canEdit, stops }, { lodging }] = await Promise.all([
     getTrip(tripId),
     getItinerary(tripId),
   ]);
-  const when = (iso: string) =>
+  // A stay keeps the clock of the city you're in on check-in day (same rule as saving it).
+  const zoneFor = (checkInIso: string) => {
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: trip.timezone }).format(new Date(checkInIso));
+    const stop =
+      stops.find((s) => date >= s.arrive_date && date < s.leave_date) ?? stops.find((s) => date >= s.arrive_date && date <= s.leave_date);
+    return stop?.timezone ?? trip.timezone;
+  };
+  const when = (iso: string, timeZone: string) =>
     new Intl.DateTimeFormat("en-US", {
       weekday: "short",
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
-      timeZone: trip.timezone,
+      timeZone,
     }).format(new Date(iso));
 
   return (
@@ -64,56 +72,40 @@ async function LodgingPageContent({
                   new Date(stay.check_in_at).getTime()) /
                   86_400_000
               );
+              const tz = zoneFor(stay.check_in_at);
               return (
-                <li
+                <EditableStay
                   key={stay.id}
-                  className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-[1fr_auto]"
+                  stay={stay}
+                  tripId={tripId}
+                  tripCurrency={trip.currency}
+                  startDate={trip.start_date}
+                  endDate={trip.end_date}
+                  timezone={tz}
+                  canEdit={canEdit}
+                  actions={
+                    <form action={deleteLodging.bind(null, tripId, stay.id)}>
+                      <Button type="submit" variant="ghost" size="sm" aria-label={`Remove ${stay.name}`}>
+                        <Trash2 aria-hidden="true" /> Remove
+                      </Button>
+                    </form>
+                  }
                 >
                   <div>
                     <p className="flex items-center gap-2 font-display text-lg font-semibold">
-                      <BedDouble className="size-4" aria-hidden="true" />{" "}
-                      {stay.name}
+                      <BedDouble className="size-4" aria-hidden="true" /> {stay.name}
                     </p>
-                    {stay.address && (
-                      <p className="text-sm text-muted-foreground">
-                        {stay.address}
-                      </p>
-                    )}
+                    {stay.address && <p className="text-sm text-muted-foreground">{stay.address}</p>}
                     <p className="mt-2 text-sm">
-                      {when(stay.check_in_at)} to {when(stay.check_out_at)},{" "}
-                      {nights} night{nights === 1 ? "" : "s"}
+                      {when(stay.check_in_at, tz)} to {when(stay.check_out_at, tz)}, {nights} night{nights === 1 ? "" : "s"}
                     </p>
+                    {stay.confirmation_code && <p className="mt-1 text-sm text-muted-foreground">Confirmation {stay.confirmation_code}</p>}
                   </div>
-                  <div className="flex items-start gap-3 sm:flex-col sm:items-end">
-                    <span className="text-sm">
-                      {stay.cost !== null && (
-                        <span className="block font-medium">
-                          {formatMoney(
-                            stay.cost,
-                            stay.currency ?? trip.currency
-                          )}
-                        </span>
-                      )}
-                      {stay.points_used !== null && (
-                        <span className="block text-muted-foreground">
-                          {formatPoints(stay.points_used)} points
-                        </span>
-                      )}
-                    </span>
-                    {canEdit && (
-                      <form action={deleteLodging.bind(null, tripId, stay.id)}>
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Remove ${stay.name}`}
-                        >
-                          <Trash2 aria-hidden="true" /> Remove
-                        </Button>
-                      </form>
-                    )}
+                  <div className="text-sm sm:text-right">
+                    {stay.cost !== null && <span className="block font-medium">{formatMoney(stay.cost, stay.currency ?? trip.currency)}</span>}
+                    {stay.points_used !== null && <span className="block text-muted-foreground">{formatPoints(stay.points_used)} points</span>}
                   </div>
-                </li>
+                </EditableStay>
               );
             })}
           </ul>

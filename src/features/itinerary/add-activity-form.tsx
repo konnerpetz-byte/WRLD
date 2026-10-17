@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { PlaceSearch } from "@/features/attractions/place-search";
 import type { PlaceSuggestion } from "@/features/attractions/types";
 import type { ActionState } from "@/features/trips/actions";
+import { FreeTimeButton } from "./free-time-form";
 import { addActivity } from "./place-actions";
 
 type Point = { latitude: number; longitude: number } | null;
@@ -51,15 +52,18 @@ export function AddActivityForm({
             {state.note}
           </p>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="-ml-2 text-muted-foreground"
-          onClick={() => setOpen(true)}
-        >
-          <Plus aria-hidden="true" /> Add
-        </Button>
+        <div className="-ml-2 flex flex-wrap items-start gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => setOpen(true)}
+          >
+            <Plus aria-hidden="true" /> Add
+          </Button>
+          <FreeTimeButton tripId={tripId} timeBlockId={timeBlockId} />
+        </div>
       </div>
     );
   }

@@ -252,6 +252,41 @@ export async function addActivity(tripId: string, _: ActionState, formData: Form
 }
 
 // ---------------------------------------------------------------------------
+// Free time: an open stretch in the day, on purpose (nap, pool, wander)
+// ---------------------------------------------------------------------------
+const clock = z.preprocess(blankToNull, z.string().regex(/^\d{2}:\d{2}$/, "Pick a time.").nullable());
+const freeTimeSchema = z.object({
+  time_block_id: z.uuid(),
+  title: z.preprocess(blankToNull, z.string().trim().max(120).nullable()),
+  start_time: clock,
+  end_time: clock,
+});
+
+export async function addFreeTime(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = freeTimeSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the times and try again." };
+  const { time_block_id, title, start_time, end_time } = parsed.data;
+  if (start_time && end_time && end_time <= start_time) return { error: "The end time has to be after the start." };
+
+  const { supabase, userId } = await requireUserId();
+  const { data: block } = await supabase.from("time_blocks").select("id").eq("id", time_block_id).eq("trip_id", tripId).maybeSingle();
+  if (!block) return { error: "That part of the day no longer exists. Refresh and try again." };
+  const { error } = await supabase.from("itinerary_items").insert({
+    trip_id: tripId,
+    time_block_id,
+    kind: "free_time",
+    title: title ?? "Free time",
+    start_time,
+    end_time,
+    booking_status: "booked",
+    created_by: userId,
+  });
+  if (error) return { error: "Only owners and editors can change this trip." };
+  refresh(tripId);
+  return { ok: true, note: "Free time added." };
+}
+
+// ---------------------------------------------------------------------------
 // "Add a place" at the top of the itinerary: picks the day and time for you
 // ---------------------------------------------------------------------------
 const placeAddSchema = pickSchema.extend({

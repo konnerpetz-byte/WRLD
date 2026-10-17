@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, ExternalLink, MapPin, ThumbsUp, Trash2 } from "lucide-react";
+import { BadgeCheck, ExternalLink, MapPin, Sun, ThumbsUp, Trash2 } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,28 @@ export function ItemRow({
   const ticketHost = hostOf(item.booking_url);
   const officialHost = hostOf(item.official_url);
   const gygTour = cancelled ? null : gygTourId(item.booking_url);
+
+  if (item.kind === "free_time") {
+    return (
+      <li className="flex items-start justify-between gap-2 rounded-md border border-dashed py-1.5 pr-1.5 pl-2.5">
+        <div className="min-w-0">
+          {time && <p className="text-xs font-semibold text-muted-foreground">{time}</p>}
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <Sun className="size-3.5 shrink-0 text-travel-ink" aria-hidden="true" />
+            {item.title}
+          </p>
+          {item.title !== "Free time" && <p className="text-xs text-muted-foreground">Free time</p>}
+        </div>
+        {canEdit && (
+          <form action={deleteItem.bind(null, tripId, item.id)}>
+            <Button type="submit" variant="ghost" size="icon-xs" aria-label={`Remove ${item.title}`}>
+              <Trash2 aria-hidden="true" />
+            </Button>
+          </form>
+        )}
+      </li>
+    );
+  }
 
   return (
     <li className={`rounded-md border-l-2 bg-open-soft py-1.5 pr-1.5 pl-2.5 ${cancelled ? "border-muted-foreground opacity-60" : "border-open"}`}>
@@ -181,8 +203,7 @@ export function ItemRow({
         )
       ) : (
         canEdit &&
-        item.kind !== "note" &&
-        item.kind !== "free_time" && (
+        item.kind !== "note" && (
           <div className="mt-1">
             {fixingPlace ? (
               <form action={locAction} className="flex gap-1.5">
