@@ -4,10 +4,10 @@
  */
 const MESSAGES: { who: string; text: string; me?: boolean }[] = [
   { who: "Jo", text: "ok are we actually doing Lisbon for Maya's 30th??" },
-  { who: "Sam", text: "I'm in if it's under $1,500" },
-  { who: "You", text: "I can cover everyone's flights with my United miles", me: true },
-  { who: "Ana", text: "wait how do we pay you back for points 😅" },
-  { who: "You", text: "putting it all in WRLD", me: true },
+  { who: "Sam", text: "I'm in if it's under $1,200" },
+  { who: "Ana", text: "same, rent just went up 😭" },
+  { who: "You", text: "WRLD found a plan for $1,140 each. Flights on my miles", me: true },
+  { who: "Jo", text: "wait HOW 👀" },
 ];
 
 const INITIAL_BG: Record<string, string> = { Jo: "#ffd5c2", Sam: "#cfe3ff", Ana: "#e3d6ff" };
@@ -16,8 +16,9 @@ export function GroupChatHero() {
   return (
     <figure className="relative mx-auto w-full max-w-md lg:mx-0 lg:ml-auto">
       <figcaption className="sr-only">
-        Example: a group chat planning a trip to Lisbon becomes a WRLD plan. You cover four flights with 120,000 United miles; at the
-        1.2 cents a point the group agreed, Jo, Sam and Ana each owe you $360.
+        Example: a group chat planning a trip to Lisbon becomes a WRLD plan that fits everyone&rsquo;s budget at $1,140 each. Going in
+        May instead of June saves $210 each, official ticket sites save $46 each, and your miles cover the flights, so each friend owes
+        you $360.
       </figcaption>
       <div aria-hidden="true" className="rounded-[2rem] border bg-card p-4 shadow-[0_40px_80px_-40px_rgb(15_61_51/0.45)] sm:p-5">
         <div className="mb-3 flex items-center gap-3 border-b pb-3">
@@ -56,21 +57,24 @@ export function GroupChatHero() {
               <p className="font-display text-lg font-semibold leading-tight">Lisbon for Maya&rsquo;s 30th</p>
               <p className="text-xs opacity-80">4 friends, May 14 to 18</p>
             </div>
-            <span className="shrink-0 rounded-full bg-travel px-2.5 py-1 text-xs font-semibold text-travel-foreground">Fits everyone&rsquo;s budget</span>
+            <span className="shrink-0 rounded-full bg-travel px-2.5 py-1 text-xs font-semibold text-travel-foreground">Under everyone&rsquo;s max</span>
           </div>
           <dl className="mt-3 grid gap-2 px-4 pb-4 text-sm">
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="opacity-80">Stay and plans, each</dt>
-              <dd className="font-display text-base font-semibold">$1,240</dd>
+              <dt className="opacity-80">Everything, each</dt>
+              <dd className="font-display text-base font-semibold">$1,140</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="opacity-80">Flights: 120,000 United miles, from you</dt>
-              <dd className="shrink-0 font-display text-base font-semibold">$1,440</dd>
+              <dt className="opacity-80">May instead of June</dt>
+              <dd className="font-display text-base font-semibold text-travel">saves $210 each</dd>
             </div>
-            <p className="-mt-1 text-xs opacity-70">At the 1.2¢ a point your group agreed</p>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="opacity-80">Tickets from official sites</dt>
+              <dd className="font-display text-base font-semibold text-travel">saves $46 each</dd>
+            </div>
           </dl>
           <div className="flex items-center justify-between gap-3 bg-travel px-4 py-3 text-travel-foreground">
-            <p className="text-sm font-semibold">Jo, Sam and Ana each owe you $360</p>
+            <p className="text-sm font-semibold">Your miles cover flights. Each friend owes you $360</p>
             <span className="shrink-0 whitespace-nowrap rounded-full bg-travel-foreground px-3 py-1 text-xs font-semibold text-travel">Settle up</span>
           </div>
         </div>

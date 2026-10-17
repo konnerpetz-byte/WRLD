@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "WRLD — trip planner",
     short_name: "WRLD",
-    description: "Turn the group chat into a trip: plan the days together and split it fairly, even when someone pays in miles.",
+    description: "The dream trip, on a budget the whole group can do: where your money goes furthest, official ticket sites, and a fair split.",
     start_url: "/trips",
     scope: "/",
     display: "standalone",

@@ -23,9 +23,9 @@ const wrldSans = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://wrldtrips.com"),
-  title: { default: "WRLD: group trips, planned together and split fairly", template: "%s · WRLD" },
+  title: { default: "WRLD: the dream trip, on a budget the whole group can do", template: "%s · WRLD" },
   description:
-    "Turn the group chat into a trip. Plan the days together, see what everyone's points cover, and split it fairly, even when someone pays in miles. Free for the group.",
+    "Plan the trip your whole group can afford. WRLD finds where your money goes furthest, picks plans for how each of you travels, links tickets to official sites instead of marked-up resellers, and splits it fairly, points included.",
   applicationName: "WRLD",
   appleWebApp: { capable: true, title: "WRLD", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },

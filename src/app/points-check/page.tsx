@@ -11,7 +11,7 @@ import { airportByCode } from "@/features/places/airports";
 import { BANK_FIELDS, type CoverOption, pickHighlights, pointsValue, whatPointsCover } from "@/features/points-check/cover";
 
 export const metadata: Metadata = {
-  title: "What do my points cover? | WRLD",
+  title: "What do my points cover?",
   description: "Enter your Chase, Amex, Capital One, Citi or Bilt points and home airport. See which round trips they could cover for your whole group.",
   alternates: { canonical: "/points-check" },
 };

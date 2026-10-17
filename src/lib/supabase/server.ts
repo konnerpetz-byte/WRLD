@@ -44,3 +44,10 @@ export async function requireUserId() {
   if (!userId) redirect("/login");
   return { supabase, userId };
 }
+
+/** For public pages: the client, plus the visitor's id when they happen to be signed in. */
+export async function optionalUserId() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return { supabase, userId: (data?.claims?.sub as string | undefined) ?? null };
+}

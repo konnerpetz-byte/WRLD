@@ -7,7 +7,7 @@ import { AIRPORT_CITY, REGIONS, type RegionKey, SOURCE_PROGRAM } from "@/feature
 import { BANKS } from "@/features/awards/transfers";
 import { tripAirport } from "@/features/onboarding/progress";
 import { toUsd } from "@/lib/currency";
-import { requireUserId } from "@/lib/supabase/server";
+import { optionalUserId, requireUserId } from "@/lib/supabase/server";
 
 import { type Style, STYLES } from "./costs";
 import { type PlanSort, parsePoints, planTrips, POINT_KEYS, type Points, sortOptions } from "./plan";
@@ -25,14 +25,26 @@ const int = (v: string | undefined, min: number, max: number, fallback: number) 
  *   - Explore (/points): budget first, "where can my cash and points take me?"
  *   - Inside a trip (/trips/[id]/points): that trip's airport, dates, travelers and budget.
  */
-export async function PlannerView({ sp, basePath, tripId: fixedTrip }: { sp: Record<string, string | undefined>; basePath: string; tripId?: string }) {
-  const { supabase, userId } = await requireUserId();
+export async function PlannerView({
+  sp,
+  basePath,
+  tripId: fixedTrip,
+  publicMode = false,
+}: {
+  sp: Record<string, string | undefined>;
+  basePath: string;
+  tripId?: string;
+  /** The public page (/plan): no account needed; a signed-in visitor still gets their home airport and points filled in. */
+  publicMode?: boolean;
+}) {
+  const { supabase, userId } = publicMode ? await optionalUserId() : await requireUserId();
+  const uid = userId ?? "00000000-0000-0000-0000-000000000000";
 
   const [{ data: profile }, { data: accounts }, { data: rates }, { data: isAdmin }] = await Promise.all([
-    supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
-    supabase.from("loyalty_accounts").select("balance, program:loyalty_programs(slug)").eq("user_id", userId),
+    supabase.from("profiles").select("home_airport").eq("id", uid).maybeSingle(),
+    supabase.from("loyalty_accounts").select("balance, program:loyalty_programs(slug)").eq("user_id", uid),
     supabase.from("exchange_rates").select("quote, rate, as_of").order("as_of", { ascending: false }).limit(400),
-    supabase.rpc("is_app_admin"),
+    userId ? supabase.rpc("is_app_admin") : Promise.resolve({ data: false }),
   ]);
 
   // Wallet balances, by the planner's keys (banks and airline programs).
@@ -53,7 +65,7 @@ export async function PlannerView({ sp, basePath, tripId: fixedTrip }: { sp: Rec
   const fx = fxFrom(rateMap);
 
   // Opened from a trip: price that trip (its airport, dates, travelers and budget) unless the form says otherwise.
-  const tripId = fixedTrip ?? (sp.trip && /^[0-9a-f-]{36}$/i.test(sp.trip) ? sp.trip : null);
+  const tripId = publicMode ? null : (fixedTrip ?? (sp.trip && /^[0-9a-f-]{36}$/i.test(sp.trip) ? sp.trip : null));
   const [{ data: forTrip }, { count: members }] = tripId
     ? await Promise.all([
         supabase.from("trips").select("id, title, start_date, end_date, budget, currency").eq("id", tripId).maybeSingle(),
@@ -117,7 +129,7 @@ export async function PlannerView({ sp, basePath, tripId: fixedTrip }: { sp: Rec
       )
     : null;
   const sorted = plan ? sortOptions(plan.options, sort) : [];
-  if (plan) {
+  if (plan && userId) {
     // Usage: does this traveler start from a budget ("where can I go") or from a trip they already have?
     const fitCount = plan.options.filter((t) => t.fit === "fits").length;
     await supabase
@@ -146,7 +158,7 @@ export async function PlannerView({ sp, basePath, tripId: fixedTrip }: { sp: Rec
 
   return (
     <div className="grid gap-8">
-      {!fixedTrip && (
+      {!fixedTrip && !publicMode && (
         <header>
           <h1 className="text-4xl font-semibold">Explore</h1>
           <p className="mt-1 max-w-prose text-muted-foreground">
@@ -165,8 +177,8 @@ export async function PlannerView({ sp, basePath, tripId: fixedTrip }: { sp: Rec
         </p>
       )}
 
-      <section aria-labelledby="plan-h" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6">
-        <div>
+      <section aria-label="Your budget" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6">
+        <div className={publicMode ? "sr-only" : undefined}>
           <h2 id="plan-h" className="text-xl font-semibold">
             {only ? `What will ${AIRPORT_CITY[only] ?? only} cost with your points?` : "Where can your cash and points take you?"}
           </h2>

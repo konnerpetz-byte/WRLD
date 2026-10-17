@@ -15,10 +15,16 @@ export function SiteHeader({ cta = { href: "/signup", label: "Start a trip" } }:
         </Link>
         <nav aria-label="Main" className="flex items-center gap-1 sm:gap-2">
           <Link
-            href="/points-check"
+            href="/plan"
             className="tap rounded-md px-3 py-2 text-sm font-medium max-md:hidden hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
           >
-            What do my points cover?
+            Where can we go?
+          </Link>
+          <Link
+            href="/tickets"
+            className="tap rounded-md px-3 py-2 text-sm font-medium max-lg:hidden hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            Official tickets
           </Link>
           <Button asChild variant="ghost">
             <Link href="/login">Sign in</Link>
