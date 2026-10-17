@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { importActivity } from "@/features/itinerary/place-actions";
 import { safeFetch } from "@/features/spots/unfurl";
-import { addLodging, addTransit } from "@/features/trips/actions";
+import { addExpense, addLodging, addTransit } from "@/features/trips/actions";
 import { requireUserId } from "@/lib/supabase/server";
 import { TRANSIT_MODES } from "@/types/database";
 
@@ -13,7 +13,29 @@ import { type ImportCandidate, parseBookings, travelersIn } from "./parse";
 import { isHeic } from "./ocr";
 import { mergeTravelers, type Travelers } from "./travelers";
 
-export type ReadState = { candidates?: ImportCandidate[]; error?: string; note?: string; inboxId?: string; people?: Travelers };
+export type ReadState = {
+  candidates?: ImportCandidate[];
+  error?: string;
+  note?: string;
+  inboxId?: string;
+  people?: Travelers;
+  /** Prices in the trip's currency at today's rate, by candidate id (preview only; the budget converts on its own). */
+  converted?: Record<string, number>;
+};
+
+/** What each found price is in the trip's currency, so the review shows "€291 ≈ $327". */
+async function convertPrices(supabase: Supabase, candidates: ImportCandidate[], tripCurrency: string) {
+  const out: Record<string, number> = {};
+  await Promise.all(
+    candidates
+      .filter((c) => c.cost != null && c.currency && c.currency !== tripCurrency)
+      .map(async (c) => {
+        const { data } = await supabase.rpc("convert_currency", { p_amount: c.cost!, p_from: c.currency!, p_to: tripCurrency });
+        if (data != null) out[c.id] = Number(data);
+      }),
+  );
+  return out;
+}
 
 /** Everyone named on the reservation(s), across every pasted email, file or page. */
 const peopleIn = (inputs: { text?: string; html?: string; ics?: string }[]): Travelers =>
@@ -30,9 +52,9 @@ const isImage = (name: string, type: string, bytes: Uint8Array) =>
 /** Step 1: read whatever was pasted, uploaded or linked, and return what was found (nothing is saved). */
 export async function readImport(tripId: string, _: ReadState, formData: FormData): Promise<ReadState> {
   const { supabase } = await requireUserId();
-  const { data: trip } = await supabase.from("trips").select("timezone, start_date").eq("id", tripId).maybeSingle();
+  const { data: trip } = await supabase.from("trips").select("timezone, start_date, currency").eq("id", tripId).maybeSingle();
   if (!trip) return { error: "Trip not found." };
-  const ctx = { defaultTz: trip.timezone ?? "UTC", year: Number(trip.start_date.slice(0, 4)) };
+  const ctx = { defaultTz: trip.timezone ?? "UTC", year: Number(trip.start_date.slice(0, 4)), currency: trip.currency };
 
   // A forwarded email from the traveler's import inbox.
   const inboxId = String(formData.get("inbox") ?? "");
@@ -132,13 +154,13 @@ export async function readImport(tripId: string, _: ReadState, formData: FormDat
     return { error: "No flights, stays or tickets found. Try pasting the whole confirmation email, including the dates and times." };
   }
   const people = fromImages ? mergeTravelers(peopleIn(inputs), fromImages.people) : peopleIn(inputs);
-  return { candidates, people, note: `Found ${candidates.length}. Check the details, then add them.` };
+  return { candidates, people, converted: await convertPrices(supabase, candidates, trip.currency), note: `Found ${candidates.length}. Check the details, then add them.` };
 }
 
 type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];
 
 /** A forwarded email: its HTML or text, plus any calendar file or PDF attached. */
-async function readInbox(supabase: Supabase, inboxId: string, ctx: { defaultTz: string; year: number }): Promise<ReadState> {
+async function readInbox(supabase: Supabase, inboxId: string, ctx: { defaultTz: string; year: number; currency: string }): Promise<ReadState> {
   const { data: item } = await supabase.from("import_inbox").select("*").eq("id", inboxId).maybeSingle();
   if (!item) return { error: "That email isn't in your inbox anymore." };
   const inputs: { text?: string; html?: string; ics?: string }[] = [];
@@ -167,7 +189,7 @@ async function readInbox(supabase: Supabase, inboxId: string, ctx: { defaultTz: 
   if (!candidates.length) {
     return { error: `No flights, stays or tickets found in "${item.subject ?? "that email"}". Open it and paste the details instead.`, inboxId };
   }
-  return { candidates, inboxId, people: peopleIn(inputs), note: `Found ${candidates.length} in "${item.subject ?? "your email"}". Check the details, then add them.` };
+  return { candidates, inboxId, people: peopleIn(inputs), converted: await convertPrices(supabase, candidates, ctx.currency), note: `Found ${candidates.length} in "${item.subject ?? "your email"}". Check the details, then add them.` };
 }
 
 /** Hide a forwarded email without importing it. */
@@ -268,6 +290,14 @@ const zone = z.string().min(1).max(64).refine((z) => {
   }
 });
 const nullableText = (max: number) => z.string().trim().max(max).nullable().transform((v) => (v ? v : null));
+// Price as the file shows it (any currency; the budget converts it to the trip's), and who paid.
+const priced = {
+  cost: z.number().min(0).max(1_000_000).nullable().optional(),
+  currency: z.string().regex(/^[A-Z]{3}$/).nullable().optional(),
+  points: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  paidBy: z.uuid().nullable().optional(),
+  split: z.array(z.uuid()).max(50).optional(),
+};
 
 const itemSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -282,6 +312,7 @@ const itemSchema = z.discriminatedUnion("kind", [
     arriveLocal: local,
     arriveTz: zone,
     confirmation: nullableText(40),
+    ...priced,
   }),
   z.object({
     kind: z.literal("stay"),
@@ -290,6 +321,7 @@ const itemSchema = z.discriminatedUnion("kind", [
     checkInLocal: local,
     checkOutLocal: local,
     confirmation: nullableText(40),
+    ...priced,
   }),
   z.object({
     kind: z.literal("activity"),
@@ -340,13 +372,18 @@ export async function saveImport(tripId: string, _: SaveState, formData: FormDat
         arrive_local: item.arriveLocal,
         destination_timezone: item.arriveTz,
         booking_status: "booked",
-        currency: trip.currency,
+        cost: item.cost != null ? String(item.cost) : "",
+        currency: item.cost != null ? (item.currency ?? trip.currency) : trip.currency,
+        points_used: item.points != null ? String(item.points) : "",
         confirmation_code: item.confirmation ?? "",
       };
       for (const [k, v] of Object.entries(entries)) fd.set(k, v);
       const r = await addTransit(tripId, {}, fd);
       if (r.error) failed.push(`${item.from} → ${item.to}: ${r.error}`);
-      else added.transit++;
+      else {
+        added.transit++;
+        await paidFor(tripId, item, { transit_segment_id: r.id }, `${item.number ?? "Flight"} ${item.from} → ${item.to}`, "transit", item.departLocal, trip.currency, failed);
+      }
     } else if (item.kind === "stay") {
       const fd = new FormData();
       const entries: Record<string, string> = {
@@ -356,12 +393,16 @@ export async function saveImport(tripId: string, _: SaveState, formData: FormDat
         check_out_local: item.checkOutLocal,
         booking_status: "booked",
         confirmation_code: item.confirmation ?? "",
-        currency: trip.currency,
+        cost: item.cost != null ? String(item.cost) : "",
+        currency: item.cost != null ? (item.currency ?? trip.currency) : trip.currency,
       };
       for (const [k, v] of Object.entries(entries)) fd.set(k, v);
       const r = await addLodging(tripId, {}, fd);
       if (r.error) failed.push(`${item.name}: ${r.error}`);
-      else added.stay++;
+      else {
+        added.stay++;
+        await paidFor(tripId, item, { lodging_id: r.id }, item.name, "lodging", item.checkInLocal, trip.currency, failed);
+      }
     } else {
       const r = await importActivity(tripId, item);
       if (r.error) failed.push(r.error.startsWith(item.title) ? r.error : `${item.title}: ${r.error}`);
@@ -384,6 +425,39 @@ export async function saveImport(tripId: string, _: SaveState, formData: FormDat
     note: `Added ${parts.join(", ")}.${moved ? ` ${moved} attached file${moved === 1 ? " is" : "s are"} now under Export, Tickets & files.` : ""} Your days have been updated.`,
     failed,
   };
+}
+
+/**
+ * "Paid by Konner, split with Shane": records the booking's price as an expense linked to it, so the
+ * group balances (who owes whom) include it. The budget counts the booking once, not twice.
+ */
+async function paidFor(
+  tripId: string,
+  item: { cost?: number | null; currency?: string | null; paidBy?: string | null; split?: string[] },
+  link: { lodging_id?: string; transit_segment_id?: string },
+  description: string,
+  category: "lodging" | "transit",
+  when: string,
+  tripCurrency: string,
+  failed: string[],
+) {
+  if (!item.paidBy || item.cost == null || item.cost <= 0) return;
+  const id = link.lodging_id ?? link.transit_segment_id;
+  if (!id) return;
+  const fd = new FormData();
+  fd.set("description", description.slice(0, 200));
+  fd.set("amount", String(item.cost));
+  fd.set("currency", item.currency ?? tripCurrency);
+  fd.set("category", category);
+  fd.set("incurred_on", when.slice(0, 10));
+  fd.set("paid_by", item.paidBy);
+  fd.set(link.lodging_id ? "lodging_id" : "transit_segment_id", id);
+  if (item.split?.length) {
+    fd.set("split_shown", "1");
+    for (const u of item.split) fd.append("split", u);
+  }
+  const r = await addExpense(tripId, {}, fd);
+  if (r.error) failed.push(`${description}: saved, but the split wasn't (${r.error})`);
 }
 
 /** "This reservation is for 3": match the trip's head count to the booking. */

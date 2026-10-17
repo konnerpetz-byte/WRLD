@@ -27,6 +27,9 @@ describe("AI screenshot reader", () => {
       "fetch",
       reply({
         confirmation: "qwertz",
+        total_price: 129.46,
+        price_currency: "USD",
+        points_used: 88000,
         passengers: ["LOPEZ/MARIA", "SAMUEL CHEN"],
         passenger_count: 2,
         flights: [
@@ -45,6 +48,29 @@ describe("AI screenshot reader", () => {
       ["Example Hotel", "2027-05-27T15:00", "2027-05-29T11:00"],
     ]);
     expect(r?.people).toEqual({ names: ["Maria Lopez", "Samuel Chen"], count: 2 });
+    // A total covering flights and a hotel together isn't guessed at: the traveler prices them.
+    expect(r?.candidates.every((c) => c.cost == null)).toBe(true);
+  });
+
+  it("puts a flights-only total on the first flight, so the budget counts it once", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      reply({
+        total_price: 129.46,
+        price_currency: "USD",
+        points_used: 88000,
+        flights: [
+          { airline_code: "LX", flight_number: "99", from: "ZRH", to: "YUL", depart_date: "2027-05-30", depart_time: "12:40", arrive_time: "15:00" },
+          { airline_code: "AC", flight_number: "1234", from: "YUL", to: "DTW", depart_date: "2027-05-30", depart_time: "19:50", arrive_time: "21:45" },
+        ],
+      }),
+    );
+    const r = await readImagesWithAI([png], ctx);
+    expect(r?.candidates.map((c) => [c.cost ?? null, c.currency ?? null, c.points ?? null])).toEqual([
+      [129.46, "USD", 88000],
+      [null, null, null],
+    ]);
   });
 
   it("falls back (returns null) on an error or an answer that doesn't fit", async () => {

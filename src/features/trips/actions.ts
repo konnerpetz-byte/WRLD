@@ -10,7 +10,7 @@ import { BOOKING_STATUSES, EXPENSE_CATEGORIES, TRANSIT_DIRECTIONS, TRANSIT_MODES
 import { airportByCode } from "@/features/places/airports";
 import { MODE } from "@/features/transit/modes";
 
-export type ActionState = { error?: string; ok?: boolean; note?: string; needsConfirm?: boolean };
+export type ActionState = { error?: string; ok?: boolean; note?: string; needsConfirm?: boolean; /** The saved row */ id?: string };
 
 const blankToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 const optionalMoney = z.preprocess(blankToNull, z.coerce.number().min(0, "Prices can't be negative.").nullable());
@@ -166,12 +166,12 @@ async function saveTransit(tripId: string, legId: string | null, formData: FormD
     depart_at,
     arrive_at,
   };
-  const { error } = legId
-    ? await supabase.from("transit_segments").update(row).eq("id", legId).eq("trip_id", tripId)
-    : await supabase.from("transit_segments").insert({ ...row, trip_id: tripId, created_by: userId });
+  const { data: saved, error } = legId
+    ? await supabase.from("transit_segments").update(row).eq("id", legId).eq("trip_id", tripId).select("id").maybeSingle()
+    : await supabase.from("transit_segments").insert({ ...row, trip_id: tripId, created_by: userId }).select("id").single();
   if (error) return { error: "Couldn't save this leg." };
   refresh(tripId);
-  return { ok: true };
+  return { ok: true, id: saved?.id };
 }
 
 export async function deleteTransit(tripId: string, id: string) {
@@ -226,7 +226,7 @@ export async function addLodging(tripId: string, _: ActionState, formData: FormD
   const check_out_at = zonedTimeToUtc(check_out_local, timezone);
   if (check_out_at <= check_in_at) return { error: "Check-out has to be after check-in." };
 
-  const { error } = await supabase
+  const { data: saved, error } = await supabase
     .from("lodging")
     .insert({
       ...rest,
@@ -237,10 +237,12 @@ export async function addLodging(tripId: string, _: ActionState, formData: FormD
       latitude: place?.latitude ?? null,
       longitude: place?.longitude ?? null,
       address: rest.address ?? place?.address ?? null,
-    });
+    })
+    .select("id")
+    .single();
   if (error) return { error: "Couldn't save this stay." };
   refresh(tripId);
-  return { ok: true };
+  return { ok: true, id: saved?.id };
 }
 
 export async function deleteLodging(tripId: string, id: string) {
@@ -272,9 +274,17 @@ export async function addExpense(tripId: string, _: ActionState, formData: FormD
   const split = formData.getAll("split").map(String).filter((id) => memberIds.has(id));
   if (formData.has("split_shown") && split.length === 0) return { error: "Pick at least one person to split it between." };
 
+  // Paying for a booking: the expense is linked to it, so the budget counts the booking once.
+  const link = async (table: "lodging" | "transit_segments", key: string) => {
+    const id = String(formData.get(key) ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    const { data } = await supabase.from(table).select("id").eq("id", id).eq("trip_id", tripId).maybeSingle();
+    return data?.id ?? null;
+  };
+  const [lodging_id, transit_segment_id] = await Promise.all([link("lodging", "lodging_id"), link("transit_segments", "transit_segment_id")]);
   const { data: expense, error } = await supabase
     .from("expenses")
-    .insert({ ...parsed.data, trip_id: tripId, paid_by })
+    .insert({ ...parsed.data, trip_id: tripId, paid_by, lodging_id, transit_segment_id })
     .select("id")
     .single();
   if (error || !expense) return { error: "Couldn't save the expense." };
@@ -286,7 +296,7 @@ export async function addExpense(tripId: string, _: ActionState, formData: FormD
       .insert(split.map((user_id) => ({ expense_id: expense.id, user_id, trip_id: tripId })));
   }
   refresh(tripId);
-  return { ok: true };
+  return { ok: true, id: expense.id };
 }
 
 export async function recordSettlement(tripId: string, formData: FormData) {

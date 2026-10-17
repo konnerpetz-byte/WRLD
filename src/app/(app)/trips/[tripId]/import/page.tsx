@@ -56,7 +56,9 @@ async function ImportContent({ params }: PageProps<"/trips/[tripId]/import">) {
           tripId={tripId}
           timezones={allTimezones()}
           address={address}
-          members={members.map((m) => m.name)}
+          members={members.map((m) => ({ id: m.user_id, name: m.name }))}
+          me={userId}
+          tripCurrency={trip.currency}
           partySize={trip.party_size}
           inbox={(inbox ?? []).map((m) => ({
             id: m.id,

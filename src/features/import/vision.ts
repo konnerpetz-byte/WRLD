@@ -5,7 +5,7 @@ import { z } from "zod";
 import { airportByCode } from "@/features/places/airports";
 import { env } from "@/lib/env";
 
-import { airportTz, type ImportCandidate } from "./parse";
+import { airportTz, type ImportCandidate, withPrice } from "./parse";
 import type { Travelers } from "./travelers";
 
 /**
@@ -24,6 +24,9 @@ const Result = z.object({
   confirmation: z.string().max(20).nullable().optional(),
   passengers: z.array(z.string().max(80)).max(20).optional(),
   passenger_count: z.number().int().min(1).max(50).nullable().optional(),
+  total_price: z.number().min(0).max(1_000_000).nullable().optional(),
+  price_currency: z.string().regex(/^[A-Z]{3}$/).nullable().optional(),
+  points_used: z.number().int().min(0).max(10_000_000).nullable().optional(),
   flights: z
     .array(
       z.object({
@@ -64,6 +67,9 @@ const TOOL = {
       confirmation: nullable("string", "Booking/confirmation code or record locator exactly as shown (e.g. HQRTPB). Not a ticket number or flight number."),
       passengers: { type: "array", items: { type: "string" }, description: "Traveler names as shown, e.g. 'KONNER PETZ'." },
       passenger_count: nullable("integer", "Number of travelers or guests on the booking, if shown."),
+      total_price: nullable("number", "Total paid for the whole booking as shown (cash part only for award tickets). Not a per-person, per-night or 'approx.' converted figure."),
+      price_currency: nullable("string", "ISO currency code of total_price, e.g. EUR, USD."),
+      points_used: nullable("integer", "Miles or points paid for an award booking, e.g. 88000."),
       flights: {
         type: "array",
         description: "One entry per flight leg (each takeoff and landing).",
@@ -195,7 +201,11 @@ export async function readImagesWithAI(
     const title = (x: string) => x.replace(/\s+/g, " ").trim().toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase());
     const names = [...new Set((r.passengers ?? []).map((p) => title(p.includes("/") ? p.split("/").reverse().join(" ") : p)).filter((p) => p.length > 2))];
     const count = Math.max(r.passenger_count ?? 0, names.length) || null;
-    return { candidates, people: { names, count } };
+    const priced =
+      r.total_price != null || r.points_used != null
+        ? withPrice(candidates, { amount: r.total_price ?? null, currency: r.price_currency ?? null, points: r.points_used ?? null })
+        : candidates;
+    return { candidates: priced, people: { names, count } };
   } catch {
     return null;
   }

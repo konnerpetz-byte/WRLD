@@ -1,4 +1,5 @@
-import { MapPin, Plane } from "lucide-react";
+import { BedDouble, MapPin, Plane } from "lucide-react";
+import Link from "next/link";
 
 import { MODE, placeLabel } from "@/features/transit/modes";
 
@@ -29,6 +30,7 @@ export function DayGrid({
   canEdit: boolean;
 }) {
   const live = transit.filter((t) => t.booking_status !== "cancelled");
+  const stays = lodging.filter((l) => l.booking_status !== "cancelled");
   const lastArrival = live.filter((t) => t.direction === "outbound").map((t) => t.arrive_at).sort().at(-1);
 
   return (
@@ -65,6 +67,7 @@ export function DayGrid({
                 {newCity && i > 0 ? `To ${day.stop.city}` : day.stop.city}
               </p>
             )}
+            <StayLines tripId={trip.id} date={day.date} tz={day.tz} stays={stays} />
           </div>
           {day.blocks.map((block) => (
             <BlockCell
@@ -175,6 +178,41 @@ function BlockCell({
       )}
       {canEdit && <AddActivityForm tripId={trip.id} timeBlockId={block.id} near={near} />}
     </div>
+  );
+}
+
+/** "YYYY-MM-DD" of an instant in a time zone. */
+const localDate = (iso: string, tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+
+/**
+ * Where you sleep, under each day's heading: check-out and check-in on the days they happen,
+ * and "Staying at …" on the nights in between.
+ */
+function StayLines({ tripId, date, tz, stays }: { tripId: string; date: string; tz: string; stays: Lodging[] }) {
+  const lines: { key: string; text: string; name: string }[] = [];
+  for (const l of stays) {
+    const tzOf = tz;
+    const inDay = localDate(l.check_in_at, tzOf);
+    const outDay = localDate(l.check_out_at, tzOf);
+    if (outDay === date) lines.push({ key: `${l.id}-out`, text: `Check out by ${formatTime(l.check_out_at, tzOf)}`, name: l.name });
+    if (inDay === date) lines.push({ key: `${l.id}-in`, text: `Check in from ${formatTime(l.check_in_at, tzOf)}`, name: l.name });
+    else if (inDay < date && date < outDay) lines.push({ key: `${l.id}-stay`, text: "Staying at", name: l.name });
+  }
+  if (!lines.length) return null;
+  return (
+    <ul className="mt-1 grid gap-1">
+      {lines.map((x) => (
+        <li key={x.key} className="flex items-start gap-1 text-xs text-muted-foreground">
+          <BedDouble className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {x.text}{" "}
+            <Link href={`/trips/${tripId}/lodging`} className="font-medium text-foreground underline-offset-2 hover:underline">
+              {x.name}
+            </Link>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

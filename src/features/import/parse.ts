@@ -5,6 +5,7 @@ import { timezoneFor } from "@/features/places/timezone";
 import type { TransitMode } from "@/types/database";
 
 import { AIRLINES, GROUND, namedFlightIn } from "./carriers";
+import { type Price, priceIn } from "./price";
 import { mergeTravelers, type Travelers, travelersInJsonLd, travelersInText } from "./travelers";
 
 /**
@@ -42,6 +43,10 @@ export type ImportCandidate = (ImportLeg | ImportStay | ImportActivity) & {
   found: string;
   /** Things to double-check before saving */
   warnings: string[];
+  /** Price the file shows for this booking (cash part; points for award tickets). */
+  cost?: number | null;
+  currency?: string | null;
+  points?: number | null;
 };
 
 type Ctx = { defaultTz: string; year: number };
@@ -55,11 +60,37 @@ export function parseBookings(input: { text?: string | null; html?: string | nul
   const html = input.html ?? (input.text && /<\/?[a-z][\s\S]*>/i.test(input.text) ? input.text : null);
   if (html) out.push(...fromJsonLd(html, ctx));
   // Plain text only when nothing structured was found (avoids double entries).
-  if (!out.length) {
-    const text = html ? htmlToText(html) : (input.text ?? "");
-    if (text.trim()) out.push(...fromText(text, ctx));
-  }
-  return dropSummaries(dedupe(out));
+  const text = html ? htmlToText(html) : (input.text ?? "");
+  if (!out.length && text.trim()) out.push(...fromText(text, ctx));
+  const list = dropSummaries(dedupe(out));
+  // The booking's total, from structured data or a labeled total in the text.
+  const ld = html ? jsonLdBlocks(html).find((b) => Number(b.totalPrice) > 0) : undefined;
+  const price = ld ? { amount: Number(ld.totalPrice), currency: typeof ld.priceCurrency === "string" ? ld.priceCurrency : null, points: null } : text.trim() ? priceIn(text.slice(0, 200_000)) : null;
+  return price ? withPrice(list, price) : list;
+}
+
+/**
+ * Puts the booking's total on the booking. A confirmation's total covers everything in it, so it
+ * goes on the first flight of an itinerary (the budget then counts it once) or on the one stay.
+ * Files that mix flights and stays are left for the traveler to price.
+ */
+export function withPrice(list: ImportCandidate[], price: Price): ImportCandidate[] {
+  if (price.amount == null && price.points == null) return list;
+  const legs = list.filter((c) => c.kind === "transit");
+  const stays = list.filter((c) => c.kind === "stay");
+  const target = legs.length && !stays.length ? legs[0] : stays.length === 1 && !legs.length ? stays[0] : null;
+  if (!target) return list;
+  return list.map((c) =>
+    c !== target
+      ? c
+      : {
+          ...c,
+          cost: price.amount,
+          currency: price.currency,
+          points: price.points,
+          warnings: legs.length > 1 ? [...c.warnings, "The price shown covers the whole booking (every flight and traveler)."] : c.warnings,
+        },
+  );
 }
 
 /** Who's on the reservation: names and a head count, from structured data and the text. */

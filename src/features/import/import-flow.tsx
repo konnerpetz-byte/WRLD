@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MODE } from "@/features/transit/modes";
+import { formatMoney } from "@/lib/format";
 import type { TransitMode } from "@/types/database";
 
 import { dismissInbox, type ReadState, readImport, type SaveState, saveImport } from "./actions";
@@ -17,7 +18,9 @@ import type { ImportCandidate } from "./parse";
 import { shrinkImage } from "./shrink-image";
 import { TravelPartners } from "./travel-partners";
 
-type Row = ImportCandidate & { include: boolean };
+/** `rate`: trip currency per unit of the found price's currency (today's rate), for the review preview. */
+type Row = ImportCandidate & { include: boolean; rate?: number; paidBy?: string | null; split?: string[] };
+export type Member = { id: string; name: string };
 
 export type InboxRow = {
   id: string;
@@ -35,12 +38,18 @@ export function ImportFlow({
   address = null,
   members = [],
   partySize = null,
+  me = null,
+  tripCurrency = "USD",
 }: {
   tripId: string;
   timezones: string[];
   inbox?: InboxRow[];
-  /** Names of people already on the trip, to tell who on a booking still needs an invite */
-  members?: string[];
+  /** People already on the trip: to tell who on a booking still needs an invite, and who paid */
+  members?: Member[];
+  /** The signed-in traveler's id */
+  me?: string | null;
+  /** The trip's currency: prices in other currencies are shown converted */
+  tripCurrency?: string;
   partySize?: number | null;
   /** The traveler's forward-to-import address, once inbound email is set up */
   address?: string | null;
@@ -73,7 +82,13 @@ export function ImportFlow({
   const [handled, setHandled] = useState(readState);
   if (readState !== handled) {
     setHandled(readState);
-    if (readState.candidates) setRows(readState.candidates.map((c) => ({ ...c, include: true })));
+    if (readState.candidates)
+      setRows(
+        readState.candidates.map((c) => {
+          const converted = readState.converted?.[c.id];
+          return { ...c, include: true, rate: converted && c.cost ? converted / c.cost : undefined };
+        }),
+      );
   }
 
   if (rows)
@@ -85,7 +100,10 @@ export function ImportFlow({
         timezones={timezones}
         note={readState.note}
         inboxId={readState.inboxId}
-        partners={<TravelPartners tripId={tripId} people={readState.people} members={members} partySize={partySize} />}
+        partners={<TravelPartners tripId={tripId} people={readState.people} members={members.map((m) => m.name)} partySize={partySize} />}
+        members={members}
+        me={me}
+        tripCurrency={tripCurrency}
       />
     );
 
@@ -205,7 +223,7 @@ export function ImportFlow({
   );
 }
 
-function Review({
+export function Review({
   tripId,
   rows,
   setRows,
@@ -213,9 +231,15 @@ function Review({
   note,
   inboxId,
   partners,
+  members,
+  me,
+  tripCurrency,
 }: {
   tripId: string;
   partners?: React.ReactNode;
+  members: Member[];
+  me: string | null;
+  tripCurrency: string;
   rows: Row[];
   setRows: (r: Row[] | null) => void;
   timezones: string[];
@@ -227,7 +251,7 @@ function Review({
   const update = (id: string, patch: Partial<Row>) => setRows(rows.map((r) => (r.id === id ? ({ ...r, ...patch } as Row) : r)));
   const chosen = rows.filter((r) => r.include);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip UI-only fields before sending
-  const payload = JSON.stringify(chosen.map(({ include, id, found, warnings, ...rest }) => rest));
+  const payload = JSON.stringify(chosen.map(({ include, id, found, warnings, rate, ...rest }) => rest));
 
   if (saveState.ok) {
     return (
@@ -245,6 +269,11 @@ function Review({
           <Button asChild variant="outline">
             <Link href={`/trips/${tripId}/lodging`}>Stays</Link>
           </Button>
+          {chosen.some((r) => r.cost != null) && (
+            <Button asChild variant="outline">
+              <Link href={`/trips/${tripId}/budget`}>Budget</Link>
+            </Button>
+          )}
           <Button type="button" variant="ghost" onClick={() => setRows(null)}>
             Import more
           </Button>
@@ -404,6 +433,9 @@ function Review({
                     </Field>
                   </>
                 )}
+                {r.kind !== "activity" && (
+                  <PriceFields row={r} update={(patch) => update(r.id, patch)} members={members} me={me} tripCurrency={tripCurrency} />
+                )}
                 <Field id={`${r.id}-conf`} label="Confirmation (optional)">
                   <Input
                     id={`${r.id}-conf`}
@@ -432,6 +464,118 @@ function Review({
           </Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/**
+ * What the booking cost, in the currency the file shows. The budget converts it to the trip's
+ * currency; with more than one traveler, who paid and who shares it feed the group balances.
+ */
+function PriceFields({
+  row,
+  update,
+  members,
+  me,
+  tripCurrency,
+}: {
+  row: Row;
+  update: (patch: Partial<Row>) => void;
+  members: Member[];
+  me: string | null;
+  tripCurrency: string;
+}) {
+  const currency = row.currency ?? tripCurrency;
+  const inTrip = row.cost != null && currency !== tripCurrency && row.rate ? row.cost * row.rate : null;
+  const everyone = members.map((m) => m.id);
+  const split = row.split?.length ? row.split : everyone;
+  return (
+    <div className="grid gap-3 sm:col-span-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2 sm:grid-cols-[minmax(0,12rem)_6rem_minmax(0,1fr)]">
+        <Field id={`${row.id}-cost`} label="Price paid (optional)">
+          <Input
+            id={`${row.id}-cost`}
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.01"
+            value={row.cost ?? ""}
+            onChange={(e) => update({ cost: e.target.value === "" ? null : Math.max(0, Number(e.target.value)) })}
+          />
+        </Field>
+        <Field id={`${row.id}-cur`} label="Currency">
+          <Input
+            id={`${row.id}-cur`}
+            value={currency}
+            maxLength={3}
+            autoCapitalize="characters"
+            onChange={(e) => {
+              const v = e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+              // A different currency than the one read: the preview rate no longer applies.
+              update({ currency: v || null, rate: v === row.currency ? row.rate : undefined });
+            }}
+          />
+        </Field>
+        {row.kind === "transit" && (
+          <Field id={`${row.id}-pts`} label="Miles or points (optional)">
+            <Input
+              id={`${row.id}-pts`}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step="1"
+              value={row.points ?? ""}
+              onChange={(e) => update({ points: e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))) })}
+            />
+          </Field>
+        )}
+      </div>
+      {row.cost != null && currency !== tripCurrency && (
+        <p className="text-xs text-muted-foreground">
+          {inTrip != null
+            ? `About ${formatMoney(inTrip, tripCurrency)} at today's rate. The budget shows it in ${tripCurrency}.`
+            : `The budget converts it to ${tripCurrency} at the latest rate.`}
+        </p>
+      )}
+      {row.cost != null && row.cost > 0 && members.length > 1 && (
+        <fieldset className="grid gap-2 rounded-lg border border-dashed p-3">
+          <legend className="px-1 text-xs font-medium">Splitting it?</legend>
+          <label className="grid gap-1 text-xs" htmlFor={`${row.id}-paid`}>
+            Who paid
+            <NativeSelect id={`${row.id}-paid`} value={row.paidBy ?? ""} onChange={(e) => update({ paidBy: e.target.value || null })}>
+              <option value="">Don&rsquo;t split this</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id === me ? `Me (${m.name})` : m.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          {row.paidBy && (
+            <div className="grid gap-1 text-xs">
+              <span>Split equally between</span>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {members.map((m) => (
+                  <label key={m.id} className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={split.includes(m.id)}
+                      onChange={(e) => {
+                        const next = e.target.checked ? [...new Set([...split, m.id])] : split.filter((x) => x !== m.id);
+                        if (!next.length) return; // someone has to share it
+                        update({ split: next.length === everyone.length ? [] : next });
+                      }}
+                    />
+                    {m.id === me ? "Me" : m.name}
+                  </label>
+                ))}
+              </div>
+              <p className="text-muted-foreground">It shows under Budget → who owes whom.</p>
+            </div>
+          )}
+        </fieldset>
+      )}
     </div>
   );
 }
