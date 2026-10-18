@@ -37,4 +37,9 @@ describe("named place search", () => {
     expect(out.map((s) => s.name)).toEqual(["Hofbräuhaus München"]);
     expect(out[0].detail).toContain("Beer garden");
   });
+
+  it("returns nothing rather than places on the other side of the world", () => {
+    const out = toSuggestions([f("White Water Rafting", "tourism", "attraction", 100.6, 13.7)], MUNICH);
+    expect(out).toEqual([]);
+  });
 });

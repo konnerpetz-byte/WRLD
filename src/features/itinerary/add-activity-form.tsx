@@ -18,10 +18,12 @@ export function AddActivityForm({
   tripId,
   timeBlockId,
   near,
+  city,
 }: {
   tripId: string;
   timeBlockId: string;
   near: Point;
+  city?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState<ActionState, FormData>(
@@ -83,6 +85,8 @@ export function AddActivityForm({
           picked={picked}
           onPick={setPicked}
           near={near}
+          city={city}
+          placeholder="A place, restaurant or activity"
           autoFocus
         />
 
@@ -121,7 +125,9 @@ export function AddActivityForm({
             step="0.01"
             placeholder={
               picked?.price != null
-                ? "Using the official price"
+                ? picked.source === "viator"
+                  ? "Using the Viator price"
+                  : "Using the official price"
                 : "Price each (optional)"
             }
             className="h-9"
@@ -132,7 +138,7 @@ export function AddActivityForm({
         </div>
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">
-            Pick a suggestion to fill in the time, place and official price.
+            Pick a suggestion to fill in the time, place and price.
           </p>
           <Button
             type="button"

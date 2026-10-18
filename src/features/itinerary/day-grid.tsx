@@ -12,7 +12,7 @@ import { ItemRow } from "./item-row";
 const SLOT_LABEL = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" } as const;
 const SLOT_HOURS = { morning: "6 AM – 12 PM", afternoon: "12 – 5 PM", evening: "5 PM – midnight" } as const;
 
-type Trip = { id: string; timezone: string; currency: string; party_size: number };
+type Trip = { id: string; timezone: string; currency: string; party_size: number; destination?: string | null };
 
 export function DayGrid({
   trip,
@@ -73,6 +73,7 @@ export function DayGrid({
             <BlockCell
               key={block.id}
               near={near}
+              city={day.stop?.city ?? trip.destination ?? null}
               votes={votes}
               trip={{ ...trip, timezone: day.tz }}
               block={block}
@@ -92,6 +93,7 @@ export function DayGrid({
 function BlockCell({
   votes,
   near,
+  city,
   trip,
   block,
   transit,
@@ -101,6 +103,7 @@ function BlockCell({
 }: {
   votes?: Map<string, { count: number; mine: boolean }>;
   near: { latitude: number; longitude: number } | null;
+  city: string | null;
   trip: Trip;
   block: DayPlan["blocks"][number];
   transit: TransitSegment[];
@@ -176,7 +179,7 @@ function BlockCell({
           ))}
         </ul>
       )}
-      {canEdit && <AddActivityForm tripId={trip.id} timeBlockId={block.id} near={near} />}
+      {canEdit && <AddActivityForm tripId={trip.id} timeBlockId={block.id} near={near} city={city} />}
     </div>
   );
 }

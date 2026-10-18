@@ -8,6 +8,7 @@ import { myInterests, suggestionsForBlock } from "@/features/experiences/for-tri
 import { suggestExperiences } from "@/features/experiences/suggest";
 import { SLOT_LABEL, type PlaceSuggestion } from "@/features/attractions/types";
 import { geocode } from "@/features/places/geocode";
+import { findTour } from "@/features/places/tour-search";
 import { lookupActivityPrice } from "@/features/pricing/lookup";
 import type { ActionState } from "@/features/trips/actions";
 import { distanceKm } from "@/lib/geo";
@@ -25,7 +26,7 @@ const SLOTS: TimeBlockSlot[] = ["morning", "afternoon", "evening"];
 const NEAR_KM = 120;
 
 const pickSchema = z.object({
-  source: z.preprocess(blankToNull, z.enum(["official", "wikidata", "nearby", "osm"]).nullable()),
+  source: z.preprocess(blankToNull, z.enum(["official", "wikidata", "nearby", "osm", "viator"]).nullable()),
   ref: z.preprocess(blankToNull, z.string().max(64).nullable()),
 });
 
@@ -65,6 +66,8 @@ type Loaded = NonNullable<Awaited<ReturnType<typeof loadTrip>>>;
 
 async function resolvePick(supabase: Supabase, source: string | null, ref: string | null, near: Point | null, name?: string) {
   if (!source || !ref) return null;
+  // Tours are bookable listings, not places; addActivity handles them.
+  if (source === "viator") return null;
   if (source === "osm") {
     // An OpenStreetMap place from the category search: the ref is its coordinates.
     const m = ref.match(/^(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/);
@@ -238,6 +241,23 @@ export async function addActivity(tripId: string, _: ActionState, formData: Form
   const block = loaded.days.flatMap((d) => d.blocks).find((b) => b.id === input.time_block_id);
   if (!block) return { error: "That part of the day no longer exists. Refresh and try again." };
   const day = loaded.days.find((d) => d.id === block.day_id)!;
+
+  if (input.source === "viator" && input.ref) {
+    // Look the tour up again on the server (cached), so its price can't be edited in the browser.
+    const searched = String(formData.get("search_q") ?? "").slice(0, 120);
+    const offer = day.city && searched ? await findTour(day.city, searched, input.ref) : null;
+    if (!offer) return { error: "That tour isn't available anymore. Search again." };
+    const added = await insertItem(supabase, userId, loaded, block, {
+      title: offer.title.slice(0, 200),
+      place: null,
+      address: input.address,
+      unitPrice: null,
+      startTime: null,
+      offer: { provider: offer.provider, ref: offer.id, url: offer.url, price: offer.price, currency: offer.currency, durationMinutes: offer.durationMinutes },
+    });
+    if (added.ok) refresh(tripId);
+    return { ...added, note: added.ok ? [added.note, "Book it on Viator to lock in your spot."].filter(Boolean).join(" ") : undefined };
+  }
 
   const place = await resolvePick(supabase, input.source, input.ref, day.point, input.title);
   const result = await insertItem(supabase, userId, loaded, block, {

@@ -107,8 +107,9 @@ export function toSuggestions(features: PhotonFeature[], near: { latitude: numbe
     });
   }
   // Near the day's city, keep it local (a "Hofbräuhaus" in Munich, not the one in Las Vegas).
+  // Nothing nearby means nothing: a rafting park 9,000 km away is no help on a Munich day.
   const local = near ? out.filter((s) => (s.km ?? 0) <= 150) : out;
-  return (local.length ? local : out).slice(0, limit);
+  return local.slice(0, limit);
 }
 
 async function photon(query: string, lat: number | null, lng: number | null) {

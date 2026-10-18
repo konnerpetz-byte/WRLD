@@ -3,8 +3,8 @@ import type { TimeBlockSlot } from "@/types/database";
 /** One suggestion in the "add a place" search and the Explore nearby list. */
 export type PlaceSuggestion = {
   /** "official": hand-checked WRLD listing. "wikidata": official website from Wikidata. "nearby": a notable place from Wikipedia. */
-  source: "official" | "wikidata" | "nearby" | "osm";
-  /** attractions.id for official, "lat,lng" for osm (OpenStreetMap places), a Wikidata Q-id otherwise */
+  source: "official" | "wikidata" | "nearby" | "osm" | "viator";
+  /** attractions.id for official, "lat,lng" for osm (OpenStreetMap places), the product code for viator, a Wikidata Q-id otherwise */
   ref: string;
   name: string;
   /** City for official listings, a short description otherwise */
