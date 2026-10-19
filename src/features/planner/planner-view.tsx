@@ -175,7 +175,9 @@ export async function PlannerView({
   // How they'll get there: flights, a road trip, or show both.
   const go: "any" | "drive" | "fly" = sp.go === "drive" || sp.go === "fly" ? sp.go : "any";
   const homeAirport = IATA.test(home) ? airportByCode(home) : null;
-  const canDrive = !only && budgetSet && cash > 0 && go !== "fly" && homeAirport?.country === "US";
+  // Road trips only when the region leaves room for them: picking Europe with "fly or drive" means fly.
+  const regionDrivable = go === "drive" || region === "anywhere" || region === "north_america";
+  const canDrive = !only && budgetSet && cash > 0 && go !== "fly" && regionDrivable && homeAirport?.country === "US";
   const driveToPlace = Boolean(dest.place && go !== "fly" && homeAirport?.country === "US");
   const [gas, routes] =
     canDrive && homeAirport
@@ -264,8 +266,16 @@ export async function PlannerView({
   // Hidden gems get their own list so the big cities don't crowd them out.
   const fits = matchedFlights.filter((t) => t.fit === "fits" && !flyGem(t.code));
   const gemFits = matchedFlights.filter((t) => t.fit === "fits" && flyGem(t.code));
-  const stretch = matchedFlights.filter((t) => t.fit === "stretch");
   const allFits = fits.length + gemFits.length;
+  // Over budget: the ones within 20%. When nothing fits at all, the closest ones anyway, cheapest first,
+  // so there's always something to look at and a sense of how far off the budget is.
+  const stretch = allFits
+    ? matchedFlights.filter((t) => t.fit === "stretch")
+    : matchedFlights
+        .filter((t) => t.fit !== "fits")
+        .sort((a, b) => a.cashNeeded - b.cashNeeded)
+        .slice(0, 12);
+  const shortBy = !allFits && stretch.length ? stretch[0].cashNeeded - cash : 0;
 
   // Over budget for the place you picked? Suggest similar places that fit: same vibes and kind of
   // place, and for road trips, nearby (Torch Lake → Leland, Charlevoix, Suttons Bay…).
@@ -491,11 +501,13 @@ export async function PlannerView({
               {gemFits.length > 0 && <Shelf title="Hidden gems and smaller cities">{gemFits.map((t) => flightCard(t))}</Shelf>}
               {!allFits && (
                 <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-                  Try fewer nights, the budget travel style, or another month.{stretch.length ? " The trips just over budget are below." : ""}
+                  {stretch.length
+                    ? `The closest trip is $${shortBy.toLocaleString("en-US")} over. Here are the nearest ones, cheapest first. Fewer nights, the budget travel style or another month brings them down.`
+                    : "Try fewer nights, the budget travel style, or another month."}
                 </p>
               )}
               {stretch.length > 0 && (
-                <Shelf tone="muted" title="A little over budget">
+                <Shelf tone="muted" title={allFits ? "A little over budget" : "Closest to your budget"}>
                   {stretch.map((t) => flightCard(t))}
                 </Shelf>
               )}
