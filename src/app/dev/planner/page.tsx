@@ -10,6 +10,7 @@ import { STYLES } from "@/features/planner/costs";
 import { POINT_KEYS, priceTrips, sortOptions } from "@/features/planner/plan";
 import { PlannerForm } from "@/features/planner/planner-form";
 import { TripCard } from "@/features/planner/planner-results";
+import { VIBES } from "@/features/planner/vibes";
 
 /**
  * Development-only: the trip planner with sample fares (DTW, $2,000, 60k Chase
@@ -40,7 +41,8 @@ async function Preview() {
       <h1 className="text-4xl font-semibold">Plan with points</h1>
       <section className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6">
         <PlannerForm
-          initial={{ home: "DTW", cash: "2000", points: [{ key: "chase", amount: "60,000" }, { key: "bilt", amount: "20,000" }], nights: "5", travelers: "1", style: "mid", month, region: "anywhere", sort: "most" }}
+          initial={{ home: "DTW", cash: "2000", points: [{ key: "chase", amount: "60,000" }, { key: "bilt", amount: "20,000" }], nights: "5", travelers: "1", style: "mid", month, region: "anywhere", sort: "most", vibes: ["water", "quiet"] }}
+          vibeOptions={VIBES.map((v) => ({ value: v.key, label: v.label }))}
           pointKeys={POINT_KEYS}
           months={months}
           regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
