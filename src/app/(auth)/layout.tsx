@@ -12,10 +12,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </Link>
         <div className="max-w-md">
           <p className="font-display text-4xl leading-tight text-white">
-            Plan around the flight you&rsquo;re actually on.
+            Trips the whole group can afford.
           </p>
           <p className="mt-4 text-sidebar-foreground/80">
-            Your days start when you land, your points live in one place, and every ticket you add shows up in the budget.
+            Everyone sets a private max. WRLD finds the trip that fits, plans it together and splits it fairly.
           </p>
         </div>
         <DepartureStrip />

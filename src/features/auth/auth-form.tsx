@@ -77,6 +77,13 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
       <Button type="submit" size="lg" disabled={pending}>
         {pending ? "One moment…" : mode === "login" ? "Sign in" : "Create account"}
       </Button>
+      {mode === "login" && (
+        <p className="text-sm">
+          <Link href={state.unconfirmed ? "/forgot-password?confirm=1" : "/forgot-password"} className="font-medium text-primary underline underline-offset-4">
+            {state.unconfirmed ? "Send a new confirmation email" : "Forgot your password?"}
+          </Link>
+        </p>
+      )}
 
       <p className="text-sm text-muted-foreground">
         {mode === "login" ? (
