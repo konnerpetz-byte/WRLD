@@ -83,7 +83,9 @@ export async function placePhoto(title: string, search: string): Promise<Photo |
   const meta = info?.query?.pages?.[0]?.imageinfo?.[0]?.extmetadata ?? {};
   const license = text(meta.LicenseShortName?.value ?? "");
   if (!FREE.test(license)) return null;
-  const credit = text(meta.Artist?.value ?? "") || text(meta.Credit?.value ?? "") || "Unknown author";
+  // Wiki user links come through as "Name ( talk ) ( Uploads )": keep just the name.
+  const clean = (v: string) => text(v).replace(/\(\s*(talk|uploads|contribs|contributions)\s*\)/gi, "").replace(/\s+/g, " ").trim();
+  const credit = clean(meta.Artist?.value ?? "") || clean(meta.Credit?.value ?? "") || "Unknown author";
   return {
     src: page.thumbnail.source,
     width: page.thumbnail.width,
