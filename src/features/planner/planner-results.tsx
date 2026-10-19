@@ -11,6 +11,7 @@ import { BANKS } from "@/features/awards/transfers";
 import { flyGem } from "./gems";
 import { flyTitle } from "./photo-titles";
 import { fridayIn } from "./stay-links";
+import { placeLabel } from "./place-label";
 import { EstMark } from "./est-mark";
 import { StayRow } from "./stay-row";
 import type { FlightPay, TripOption } from "./plan";
@@ -90,19 +91,18 @@ export function TripCard({
           : t.costBasis === "default"
             ? "Hotel and daily costs are a general estimate."
             : "Hotel and daily costs are WRLD's estimate for the city.";
+  const label = placeLabel(t.code, t.city, airportByCode(t.code)?.country);
   const external = "inline-flex items-center gap-1 font-medium text-primary hover:underline";
   return (
     <li className="relative flex flex-col overflow-hidden rounded-2xl border bg-card">
       <Suspense fallback={<PhotoSkeleton>{badge}</PhotoSkeleton>}>
-        <PlacePhoto title={photo.title} search={photo.search} alt={t.city}>
+        <PlacePhoto title={photo.title} search={photo.search} alt={label}>
           {badge}
         </PlacePhoto>
       </Suspense>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div>
-          <h3 className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
-            {t.city}
-          </h3>
+          <h3 className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">{label}</h3>
           <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
             {gem ? gem.why : `${nights} nights${travelers === 1 ? "" : ` for ${travelers}`}, flights included`}
           </p>
@@ -123,7 +123,7 @@ export function TripCard({
           )}
         </div>
         {gem && <p className="line-clamp-2 text-sm">Free: {gem.free[0]}</p>}
-        <StayRow place={t.city} checkIn={t.departDate ?? fridayIn(month)} nights={nights} people={travelers} />
+        <StayRow place={label} checkIn={t.departDate ?? fridayIn(month)} nights={nights} people={travelers} />
 
         <details className="group text-sm" open={Boolean(tripId) || undefined}>
           <summary className="tap w-fit cursor-pointer list-none text-primary [&::-webkit-details-marker]:hidden">
