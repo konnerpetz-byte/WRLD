@@ -332,7 +332,7 @@ export async function PlannerView({
           <h1 className="text-4xl font-semibold tracking-[-0.02em]">Explore</h1>
           {!summary && (
             <p className="mt-1 max-w-prose text-muted-foreground">
-              Have a budget but no destination yet? See where your cash and points can take you, then start the trip in one click.
+              Have a budget but no destination yet? See where it can take you, then start the trip in one click.
             </p>
           )}
         </header>
@@ -352,10 +352,11 @@ export async function PlannerView({
         {!publicMode && !summary && (
           <div className="mb-6">
             <h2 id="plan-h" className="text-xl font-semibold tracking-[-0.01em]">
-              Where can your cash and points take you?
+              Where can your budget take you?
             </h2>
             <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-              WRLD prices the whole trip, getting there, hotel and days there, and shows the places you can afford.
+              WRLD prices the whole trip, getting there, hotel and days there, and shows the places you can afford. Have credit card
+              points? Add them under points? Add them under More options and watch the list grow.ldquo;Points, travel style and region.points? Add them under More options and watch the list grow.rdquo;
               {Object.keys(wallet).length > 0 && sp.pts === undefined ? " Your points are filled in from My points." : ""}
             </p>
           </div>

@@ -10,6 +10,8 @@ import { BANKS } from "@/features/awards/transfers";
 
 import { flyGem } from "./gems";
 import { flyTitle } from "./photo-titles";
+import { fridayIn } from "./stay-links";
+import { StayRow } from "./stay-row";
 import type { FlightPay, TripOption } from "./plan";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
@@ -117,6 +119,7 @@ export function TripCard({
           )}
         </div>
         {gem && <p className="line-clamp-2 text-sm">Free: {gem.free[0]}</p>}
+        <StayRow place={t.city} checkIn={t.departDate ?? fridayIn(month)} nights={nights} people={travelers} />
 
         <details className="group text-sm" open={Boolean(tripId) || undefined}>
           <summary className="tap w-fit cursor-pointer list-none text-primary [&::-webkit-details-marker]:hidden">

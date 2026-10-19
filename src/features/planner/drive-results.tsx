@@ -9,19 +9,10 @@ import { PhotoSkeleton, PlacePhoto } from "@/features/places/place-photo";
 import { type DriveOption, formatDrive, MPG } from "./drive";
 import { driveTitle } from "./photo-titles";
 import { seasonWord } from "./seasons";
+import { fridayIn } from "./stay-links";
+import { StayRow } from "./stay-row";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
-
-/** The next Friday at least a week out, inside the chosen month when possible: when a weekend trip would start. */
-function fridayIn(month: string) {
-  const today = new Date();
-  const soonest = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 7));
-  const [y, m] = month.split("-").map(Number);
-  const d = new Date(Date.UTC(y, m - 1, 1));
-  if (d < soonest) d.setTime(soonest.getTime());
-  while (d.getUTCDay() !== 5) d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
 
 function startUrl(t: DriveOption, nights: number, travelers: number, cash: number, month: string, signedIn: boolean) {
   const p = new URLSearchParams({
@@ -155,6 +146,7 @@ export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOpt
         </div>
         {over > 0 && <p className="text-sm font-medium text-muted-foreground">{money(over)} over your budget</p>}
         {t.getaway.free?.length ? <p className="line-clamp-2 text-sm">Free: {t.getaway.free[0]}</p> : null}
+        <StayRow place={`${t.getaway.name.replace(/\s*\(.*?\)/g, "")}, ${t.getaway.state}`} checkIn={fridayIn(month)} nights={show.nights} people={travelers} />
 
         <details className="group text-sm">
           <summary className="tap w-fit cursor-pointer list-none text-primary [&::-webkit-details-marker]:hidden">

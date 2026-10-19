@@ -76,7 +76,7 @@ export function PlannerForm({
         .filter((r) => num(r.amount) > 0)
         .map((r) => `${num(r.amount).toLocaleString("en-US")} ${pointKeys.find((k) => k.value === r.key)?.label ?? r.key}`)
         .join(", ")
-    : "None added";
+    : "No points";
   const label = "text-sm font-medium";
   const hint = "text-xs font-normal text-muted-foreground";
 
@@ -196,7 +196,9 @@ export function PlannerForm({
       <details className="group min-w-0 rounded-xl border" open={pointsSet || undefined}>
         <summary className="tap flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
           <span className="min-w-0">
-            <span className={`block ${label}`}>Points, travel style and region</span>
+            <span className={`block ${label}`}>
+              Points, travel style and region <span className="font-normal text-muted-foreground">(optional)</span>
+            </span>
             <span className={`block truncate ${hint}`}>
               {pointsLabel} · {styles.find((x) => x.value === initial.style)?.label ?? "Mid-range"} ·{" "}
               {initial.region === "anywhere" ? "Anywhere" : (regions.find((r) => r.value === initial.region)?.label ?? "Anywhere")}
@@ -206,7 +208,9 @@ export function PlannerForm({
         </summary>
         <div className="grid gap-5 border-t px-4 py-4">
           <fieldset className="grid min-w-0 gap-2">
-            <legend className={`mb-1.5 ${label}`}>Credit card points and miles</legend>
+            <legend className={`mb-1.5 ${label}`}>
+              Credit card points and miles <span className="font-normal text-muted-foreground">(skip if you don&rsquo;t have any)</span>
+            </legend>
             {rows.map((r, i) => (
               <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto]">
                 <select
