@@ -186,6 +186,7 @@ export function ItemRow({
           <summary className="cursor-pointer select-none">Dates and prices</summary>
           <div className="mt-2">
             <GygAvailability tourId={gygTour} currency={currency} title={item.title} />
+            <p className="mt-1 text-[11px]">From GetYourGuide. WRLD may earn a commission.</p>
           </div>
         </details>
       )}

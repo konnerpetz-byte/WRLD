@@ -15,6 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ["/privacy", 0.2, "yearly"],
     ["/terms", 0.2, "yearly"],
     ["/accessibility", 0.2, "yearly"],
+    ["/how-wrld-works", 0.4, "monthly"],
   ];
   const tickets = (await allTicketPlaces()).map((p) => ({
     url: `${site}/tickets/${p.slug}`,

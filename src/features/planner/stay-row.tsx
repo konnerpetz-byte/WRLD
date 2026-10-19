@@ -1,4 +1,8 @@
+"use client";
+
 import { BedDouble } from "lucide-react";
+
+import { providerOf, track } from "@/lib/track";
 
 import { stayLinks } from "./stay-links";
 
@@ -16,7 +20,13 @@ export function StayRow({ place, checkIn, nights, people }: { place: string; che
               ·
             </span>
           )}
-          <a href={l.url} target="_blank" rel="noopener noreferrer" className="tap font-medium text-primary hover:underline">
+          <a
+            href={l.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => track({ kind: "stay_click", provider: providerOf(l.url) })}
+            className="tap font-medium text-primary hover:underline"
+          >
             {l.label}
             <span className="sr-only"> (opens in a new tab)</span>
           </a>

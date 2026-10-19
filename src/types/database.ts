@@ -964,7 +964,7 @@ export type WalletAccountView = LoyaltyAccount & {
 export type AppEvent = {
   id: number;
   user_id: UUID;
-  kind: "booking_click" | "suggestions_shown" | "planner_run";
+  kind: "booking_click" | "suggestions_shown" | "planner_run" | "stay_click";
   trip_id: UUID | null;
   provider: string | null;
   count: number;

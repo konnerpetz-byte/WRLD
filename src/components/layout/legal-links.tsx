@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/cookies", label: "Cookies" },
   { href: "/refunds", label: "Refunds" },
   { href: "/accessibility", label: "Accessibility" },
+  { href: "/how-wrld-works", label: "How WRLD earns" },
 ];
 
 /** Links to the legal pages; the page you're on is marked. */

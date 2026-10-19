@@ -4,7 +4,7 @@
  * the click and never shows an error.
  */
 export type TrackEvent = {
-  kind: "booking_click" | "suggestions_shown";
+  kind: "booking_click" | "suggestions_shown" | "stay_click";
   tripId?: string | null;
   provider?: string | null;
   count?: number;
@@ -28,6 +28,8 @@ export function providerOf(url: string | null | undefined): string {
     if (host.endsWith("getyourguide.com")) return "getyourguide";
     if (host.endsWith("tripadvisor.com")) return "tripadvisor";
     if (host.endsWith("airbnb.com")) return "airbnb";
+    if (host.endsWith("booking.com")) return "booking";
+    if (host.endsWith("google.com")) return "google";
     return "official";
   } catch {
     return "other";

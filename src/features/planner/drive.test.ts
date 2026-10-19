@@ -58,3 +58,15 @@ describe("road trip to a place you name", () => {
     expect(o.hours).toBeLessThan(5);
   });
 });
+
+describe("groups rent a house", () => {
+  const DETROIT = { latitude: 42.33, longitude: -83.05 };
+  it("prices a vacation house for 8 when it's cheaper than 4 hotel rooms, and hotel rooms for 2", () => {
+    const g = matchGetaways("torch lake")[0];
+    const eight = driveTo(DETROIT, g, { cash: Infinity, travelers: 8, style: "mid" })!.lengths[0];
+    const two = driveTo(DETROIT, g, { cash: Infinity, travelers: 2, style: "mid" })!.lengths[0];
+    expect(eight.stay).toBe("rental");
+    expect(eight.hotel).toBeLessThan(4 * 165 * 2);
+    expect(two.stay).toBe("hotel");
+  });
+});

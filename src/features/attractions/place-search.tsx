@@ -89,7 +89,7 @@ export function PlaceSearch({
               </a>
             </span>
           ))}
-          . Or press Add to save it as your own plan.
+          . Or press Add to save it as your own plan. WRLD may earn a commission on tour links.
         </p>
       )}
     </div>
@@ -139,6 +139,7 @@ function PickedCard({ place }: { place: PlaceSuggestion }) {
         </p>
         <p className="text-muted-foreground">
           A reseller, not the tour company&rsquo;s own site. Prices are often the same; check the operator&rsquo;s site before you book.
+          WRLD may earn a commission.
         </p>
         {place.ticketsUrl && (
           <a

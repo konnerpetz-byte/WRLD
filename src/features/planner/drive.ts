@@ -37,6 +37,20 @@ const TIER = {
   3: { hotel: 225, day: 115 },
 } as const;
 
+/**
+ * Whole-house vacation rentals, for groups of five or more: WRLD's estimate of a typical 3-4 bedroom
+ * house that sleeps about 8, per night on a yearly average (then moved by the season like hotels),
+ * plus a cleaning fee per stay and the booking site's service fee (about 14% on Airbnb and Vrbo).
+ * Groups usually rent a house at a lake or beach; pricing only hotel rooms overstated those trips.
+ */
+const RENTAL = { 1: 240, 2: 330, 3: 470 } as const;
+const RENTAL_SLEEPS = 8;
+const RENTAL_CLEANING = 150;
+const RENTAL_FEE = 0.14;
+/** Travel style moves house prices less than hotel prices (a cheap house still sleeps everyone). */
+const RENTAL_STYLE = { budget: 0.8, mid: 1, comfort: 1.5 } as const;
+export const RENTAL_MIN_GROUP = 5;
+
 export type Getaway = {
   key: string;
   name: string;
@@ -177,7 +191,17 @@ export const GETAWAYS: Getaway[] = [
   { key: "west-yellowstone", name: "West Yellowstone", state: "MT", latitude: 44.662, longitude: -111.104, tier: 2, why: "Gateway to Yellowstone" },
 ];
 
-export type DriveLength = { nights: number; label: string; gas: number; hotel: number; days: number; total: number; fits: boolean };
+export type DriveLength = {
+  nights: number;
+  label: string;
+  gas: number;
+  /** Where the group sleeps: hotel rooms for two, or whole vacation houses (groups of five or more, when cheaper) */
+  hotel: number;
+  stay: "hotel" | "rental";
+  days: number;
+  total: number;
+  fits: boolean;
+};
 /** Gas prices to use: at home, and by destination state. Defaults to the national average in GAS_PRICE. */
 export type GasInput = { home: number; at: (state: string) => number };
 export type DriveOption = {
@@ -215,7 +239,7 @@ export function nearestState(home: LatLng) {
   return best && km < 500 ? best.state : null;
 }
 
-type PriceCtx = { cash: number; travelers: number; f: number; cars: number; rooms: number; nightsList: number[]; season: SeasonFn };
+type PriceCtx = { cash: number; travelers: number; f: number; rentalF: number; cars: number; rooms: number; nightsList: number[]; season: SeasonFn };
 
 function priceDrive(home: LatLng, g: Getaway, c: PriceCtx, gasPrices: GasInput, route: { miles: number; hours: number } | undefined, limitHours: boolean): DriveOption | null {
   const roadMiles = Math.round(route?.miles ?? distanceKm(home, g) * 0.621371 * ROAD_FACTOR);
@@ -228,10 +252,17 @@ function priceDrive(home: LatLng, g: Getaway, c: PriceCtx, gasPrices: GasInput, 
   const lengths = c.nightsList
     .filter((n) => !limitHours || hours <= maxHoursFor(n))
     .map((n) => {
-      const hotel = Math.round(t.hotel * season.factor * c.f * c.rooms * n);
+      const rooms = Math.round(t.hotel * season.factor * c.f * c.rooms * n);
+      const houses = Math.ceil(c.travelers / RENTAL_SLEEPS);
+      const rental =
+        c.travelers >= RENTAL_MIN_GROUP
+          ? Math.round((RENTAL[g.tier] * season.factor * c.rentalF * n * (1 + RENTAL_FEE) + RENTAL_CLEANING) * houses)
+          : Infinity;
+      const stay: DriveLength["stay"] = rental < rooms ? "rental" : "hotel";
+      const hotel = Math.min(rooms, rental);
       const days = Math.round(t.day * c.f * c.travelers * (n + 1));
       const total = gas + hotel + days;
-      return { nights: n, label: lengthLabel(n), gas, hotel, days, total, fits: total <= c.cash };
+      return { nights: n, label: lengthLabel(n), gas, hotel, stay, days, total, fits: total <= c.cash };
     });
   if (!lengths.length) return null;
   const fitting = lengths.filter((l) => l.fits);
@@ -258,7 +289,7 @@ export function driveTo(
   const o = priceDrive(
     home,
     g,
-    { cash: input.cash, travelers, f: STYLES[input.style].factor, cars: Math.ceil(travelers / PEOPLE_PER_CAR), rooms: Math.ceil(travelers / PEOPLE_PER_ROOM), nightsList, season: input.season ?? FLAT },
+    { cash: input.cash, travelers, f: STYLES[input.style].factor, cars: Math.ceil(travelers / PEOPLE_PER_CAR), rooms: Math.ceil(travelers / PEOPLE_PER_ROOM), rentalF: RENTAL_STYLE[input.style], nightsList, season: input.season ?? FLAT },
     gasPrices,
     route,
     false,
@@ -319,7 +350,7 @@ export function driveTrips(
   const nightsList = [...new Set([2, 3, ...(input.nights && input.nights >= 4 && input.nights <= 7 ? [input.nights] : [])])];
   const out: DriveOption[] = [];
   for (const g of GETAWAYS) {
-    const o = priceDrive(home, g, { ...input, travelers, f, cars, rooms, nightsList, season: input.season ?? FLAT }, gasPrices, routes?.get(g.key), true);
+    const o = priceDrive(home, g, { ...input, travelers, f, rentalF: RENTAL_STYLE[input.style], cars, rooms, nightsList, season: input.season ?? FLAT }, gasPrices, routes?.get(g.key), true);
     if (o) out.push(o);
   }
   return out.sort(

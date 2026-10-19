@@ -11,6 +11,7 @@ import { BANKS } from "@/features/awards/transfers";
 import { flyGem } from "./gems";
 import { flyTitle } from "./photo-titles";
 import { fridayIn } from "./stay-links";
+import { EstMark } from "./est-mark";
 import { StayRow } from "./stay-row";
 import type { FlightPay, TripOption } from "./plan";
 
@@ -108,7 +109,10 @@ export function TripCard({
         </div>
 
         <div>
-          <p className="text-2xl font-semibold leading-none tabular-nums tracking-[-0.02em]">{money(t.cashNeeded)}</p>
+          <p className="text-2xl font-semibold leading-none tabular-nums tracking-[-0.02em]">
+            {money(t.cashNeeded)}
+            <EstMark />
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {[cash == null ? "cash needed" : "cash", each, t.pointsUsed > 0 ? `plus ${pts(t.pointsUsed)} points` : null].filter(Boolean).join(" · ")}
           </p>
@@ -177,7 +181,11 @@ export function TripCard({
               </p>
             )}
             <p>
-              {basis} Without points: {money(t.fullPrice)}
+              {basis}{" "}
+              <Link href="/how-wrld-works#prices" className="text-primary hover:underline">
+                How WRLD estimates
+              </Link>
+              . Without points: {money(t.fullPrice)}
               {t.fareIs === "estimate" ? " (flights estimated for the month)" : t.fareIs === "half" ? " (return flight estimated)" : ""}.
             </p>
             {gem && gem.free.length > 1 && <p>Also free: {gem.free.slice(1).join("; ")}.</p>}

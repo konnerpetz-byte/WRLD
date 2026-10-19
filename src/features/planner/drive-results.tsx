@@ -10,6 +10,7 @@ import { type DriveOption, formatDrive, MPG } from "./drive";
 import { driveTitle } from "./photo-titles";
 import { seasonWord } from "./seasons";
 import { fridayIn } from "./stay-links";
+import { EstMark } from "./est-mark";
 import { StayRow } from "./stay-row";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
@@ -127,7 +128,10 @@ export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOpt
 
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-2xl font-semibold leading-none tabular-nums tracking-[-0.02em]">{money(show.total)}</p>
+            <p className="text-2xl font-semibold leading-none tabular-nums tracking-[-0.02em]">
+              {money(show.total)}
+              <EstMark />
+            </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {show.label}
               {who}
@@ -155,9 +159,14 @@ export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOpt
           </summary>
           <div className="mt-2 grid gap-1.5 text-muted-foreground">
             <p>
-              {show.label}: gas {money(show.gas)} (${t.gasPrice.toFixed(2)} a gallon, {t.roadMiles.toLocaleString("en-US")} miles each way), hotel{" "}
+              {show.label}: gas {money(show.gas)} (${t.gasPrice.toFixed(2)} a gallon, {t.roadMiles.toLocaleString("en-US")} miles each way),{" "}
+              {show.stay === "rental" ? "a vacation house with cleaning and service fees" : travelers > 1 ? "hotel rooms for two" : "a hotel room"}{" "}
               {money(show.hotel)}
-              {busy ? ` (${busy} in ${monthName(month)})` : ""}, food and fun {money(show.days)}.
+              {busy ? ` (${busy} in ${monthName(month)})` : ""}, food and fun {money(show.days)}. All estimates;{" "}
+              <Link href="/how-wrld-works#prices" className="text-primary hover:underline">
+                how WRLD estimates
+              </Link>
+              .
             </p>
             {t.getaway.free && t.getaway.free.length > 1 && <p>Also free: {t.getaway.free.slice(1).join("; ")}.</p>}
           </div>
