@@ -30,6 +30,12 @@ export type Candidate = {
   listedAs: string | null;
 };
 
+const foldName = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+
 const TIERS = { 1: "$ hotels around $130", 2: "$$ around $165", 3: "$$$ around $225" } as const;
 
 /** A short "why" to start from: the guide's first sentence, without the place's own name. */
@@ -174,6 +180,9 @@ function ReviewCard({
             {c.name}, {c.region}
           </h2>
           <p className="text-sm text-muted-foreground">{meta}</p>
+          {c.intro && !foldName(c.intro).includes(foldName(c.name.replace(/\s*(township|\(.*?\))\s*$/i, "")).split(" ")[0]) && (
+            <p className="text-sm font-medium text-amber-700">This guide may be about a different place (Wikidata links it to a nearby town&apos;s guide). Check before approving.</p>
+          )}
           {c.listedAs && <p className="text-sm font-medium text-amber-700">Already listed nearby as {c.listedAs}. Reject unless it&apos;s a different trip.</p>}
           <p className="text-sm leading-relaxed">{c.intro ?? c.description ?? "No guide text."}</p>
           <p className="flex flex-wrap gap-3 text-sm">
