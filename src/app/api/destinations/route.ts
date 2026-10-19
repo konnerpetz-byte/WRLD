@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
     drives.length || q.length < 3 ? Promise.resolve([]) : searchCities(q, 3).catch(() => []),
   ]);
   const places: DestinationOption[] = towns.map((t) => ({ value: t.label, label: t.label, detail: "Town or city", kind: "place" }));
-  const flights: DestinationOption[] = airports.map((a) => ({
+  // With a road-trip match, show only airports whose own name or city matched, not the
+  // look-alike place the airport search falls back to (there's a second Torch Lake up north).
+  const flights: DestinationOption[] = airports.filter((a) => !drives.length || a.km == null).map((a) => ({
     value: a.code,
     label: `${a.city} (${a.code})`,
     detail: `Fly · ${a.name}${a.km != null ? `, ${a.km} km away` : ""}`,

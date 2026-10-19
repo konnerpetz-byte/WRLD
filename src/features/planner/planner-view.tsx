@@ -112,7 +112,7 @@ export async function PlannerView({
     const state = inUS ? nearestState(found) : null;
     return {
       airport: nearestAirports(found, 1, 250)[0]?.code ?? null,
-      place: inUS ? { key: `place-${found.latitude.toFixed(2)},${found.longitude.toFixed(2)}`, name, state: state ?? "", latitude: found.latitude, longitude: found.longitude, tier: 2, why: found.label } : null,
+      place: inUS ? { key: `place-${found.latitude.toFixed(2)},${found.longitude.toFixed(2)}`, name, state: state ?? "", latitude: found.latitude, longitude: found.longitude, tier: 2, why: found.label.split(",").slice(1).join(",").trim() } : null,
     };
   };
   const [dest, typedFrom] = await Promise.all([goingTo(), toAirport(sp.from)]);
