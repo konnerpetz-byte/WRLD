@@ -11,6 +11,7 @@ import {
   disconnectWallet,
 } from "@/features/wallet/actions";
 import { AWARDWALLET_DISCLOSURE } from "@/features/wallet/copy";
+import { PAUSED } from "@/lib/paused";
 import { ManualAccountForm } from "@/features/wallet/manual-account-form";
 import { formatPoints } from "@/lib/format";
 import { requireUserId } from "@/lib/supabase/server";
@@ -100,6 +101,7 @@ async function WalletPageContent() {
         </Link>
       )}
 
+      {!PAUSED.awardWallet && (
       <section
         aria-labelledby="connect"
         className="grid gap-6 rounded-2xl border bg-card p-6 md:grid-cols-[1fr_auto] md:items-start"
@@ -169,6 +171,7 @@ async function WalletPageContent() {
           )}
         </div>
       </section>
+      )}
 
       <section aria-labelledby="balances">
         <h2 id="balances" className="mb-4 text-xl font-semibold">

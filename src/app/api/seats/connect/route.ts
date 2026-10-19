@@ -1,3 +1,4 @@
+import { PAUSED } from "@/lib/paused";
 import { randomBytes } from "node:crypto";
 
 import { NextResponse } from "next/server";
@@ -7,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 
 /** Starts "Login with Seats.aero": a random state in an httpOnly cookie, then Seats.aero's consent page. */
 export async function GET(request: Request) {
+  if (PAUSED.seatsAero) return new NextResponse(null, { status: 404 });
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const site = new URL(request.url).origin;

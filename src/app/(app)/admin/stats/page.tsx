@@ -9,6 +9,7 @@ import type { AdminStats } from "@/types/database";
 import { cashFares, cashFaresEnabled } from "@/features/awards/cash-fares";
 import { env } from "@/lib/env";
 import { affiliateStatus } from "@/lib/affiliate";
+import { PAUSED } from "@/lib/paused";
 
 export const metadata = { title: "Stats" };
 
@@ -372,8 +373,12 @@ async function Connections() {
     },
     {
       name: "AwardWallet (balances)",
-      ok: Boolean(process.env.AWARDWALLET_CLIENT_ID),
-      note: process.env.AWARDWALLET_CLIENT_ID ? "Connect button is live." : "Waiting for AwardWallet API access.",
+      ok: !PAUSED.awardWallet && Boolean(process.env.AWARDWALLET_CLIENT_ID),
+      note: PAUSED.awardWallet
+        ? "Paused and hidden (src/lib/paused.ts). Seats.aero is paused too."
+        : process.env.AWARDWALLET_CLIENT_ID
+          ? "Connect button is live."
+          : "Waiting for AwardWallet API access.",
     },
   ];
   return (

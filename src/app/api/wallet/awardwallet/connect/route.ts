@@ -1,3 +1,4 @@
+import { PAUSED } from "@/lib/paused";
 import { NextResponse } from "next/server";
 
 /**
@@ -14,6 +15,7 @@ import { NextResponse } from "next/server";
  * and checked in the callback) so the sign-in can't be forged.
  */
 export async function GET() {
+  if (PAUSED.awardWallet) return new NextResponse(null, { status: 404 });
   if (!process.env.AWARDWALLET_CLIENT_ID || !process.env.AWARDWALLET_AUTHORIZE_URL) {
     return NextResponse.json(
       { error: "AwardWallet isn't set up for this app yet. Add AWARDWALLET_CLIENT_ID and AWARDWALLET_AUTHORIZE_URL." },

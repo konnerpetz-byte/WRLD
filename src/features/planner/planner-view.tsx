@@ -548,8 +548,8 @@ export async function PlannerView({
                 estimate, adjusted for the season.
               </p>
               <p>
-                <strong className="text-foreground">Seats:</strong> award seats are limited. Find an open seat on Seats.aero before moving
-                points; transfers can&rsquo;t be undone.
+                <strong className="text-foreground">Seats:</strong> award seats are limited. Check the airline has an open seat on your
+                dates before moving points; transfers can&rsquo;t be undone.
               </p>
             </div>
           </details>

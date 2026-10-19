@@ -1,3 +1,4 @@
+import { PAUSED } from "@/lib/paused";
 import { timingSafeEqual } from "node:crypto";
 
 import { cookies } from "next/headers";
@@ -10,6 +11,7 @@ const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(
 
 /** Finishes "Login with Seats.aero": checks state, swaps the code for tokens on the server, stores them encrypted. */
 export async function GET(request: Request) {
+  if (PAUSED.seatsAero) return new NextResponse(null, { status: 404 });
   const url = new URL(request.url);
   const back = (status: string) => {
     const res = NextResponse.redirect(new URL(`/points?seats=${status}`, url.origin));

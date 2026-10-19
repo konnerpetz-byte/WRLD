@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cacheLife } from "next/cache";
+import { PAUSED } from "@/lib/paused";
 
 import { env } from "@/lib/env";
 
@@ -50,7 +51,7 @@ export type AwardSearch = {
 export type AwardMode = "live" | "off";
 
 export function awardMode(): AwardMode {
-  return env("SEATS_AERO_API_KEY") ? "live" : "off";
+  return env("SEATS_AERO_API_KEY") && !PAUSED.seatsAero ? "live" : "off";
 }
 
 export async function searchAwards(q: AwardSearch): Promise<{ mode: AwardMode; results: AwardResult[]; error?: string }> {

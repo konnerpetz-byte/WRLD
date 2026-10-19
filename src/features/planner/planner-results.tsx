@@ -191,11 +191,7 @@ export function TripCard({
             {gem && gem.free.length > 1 && <p>Also free: {gem.free.slice(1).join("; ")}.</p>}
             <p>
               {t.pay.kind === "award" ? (
-                <a href={seatsAeroUrl(home, t.code, month, travelers)} target="_blank" rel="noopener noreferrer" className={external}>
-                  Find the seat on Seats.aero before moving points
-                  <ArrowUpRight className="size-3.5" aria-hidden="true" />
-                  <span className="sr-only">(opens in a new tab)</span>
-                </a>
+                <span>Check the airline has an award seat on your dates before moving points. Transfers can&rsquo;t be undone.</span>
               ) : (
                 <a href={googleFlightsUrl(home, t.code, monthLabel)} target="_blank" rel="noopener noreferrer" className={external}>
                   See fares on Google Flights
