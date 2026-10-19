@@ -13,7 +13,7 @@ import { type Style, STYLES } from "./costs";
 import { type PlanSort, parsePoints, planTrips, POINT_KEYS, type Points, sortOptions } from "./plan";
 import { PlannerForm } from "./planner-form";
 import { TripCard } from "./planner-results";
-import { airportByCode } from "@/features/places/airports";
+import { airportByCode, searchAirports } from "@/features/places/airports";
 import { driveTrips, nearestState } from "./drive";
 import { DriveResults } from "./drive-results";
 import { gasPriceFor, gasSourceNote, loadGasPrices } from "./gas-prices";
@@ -89,9 +89,17 @@ export async function PlannerView({
         .limit(1)
         .maybeSingle()
     : { data: null };
+  // A typed city ("Traverse City", "Porto") instead of a picked airport: use its nearest airport.
+  const toAirport = async (v: string | undefined) => {
+    const t = (v ?? "").trim();
+    if (!t) return null;
+    if (IATA.test(t.toUpperCase()) && airportByCode(t.toUpperCase())) return t.toUpperCase();
+    return (await searchAirports(t.slice(0, 80), 1))[0]?.code ?? null;
+  };
+  const [typedTo, typedFrom] = await Promise.all([toAirport(sp.to), toAirport(sp.from)]);
   const only =
-    sp.to && IATA.test(sp.to.toUpperCase())
-      ? sp.to.toUpperCase()
+    typedTo
+      ? typedTo
       : firstStop?.latitude != null && firstStop.longitude != null
         ? tripAirport([{ latitude: firstStop.latitude, longitude: firstStop.longitude }])
         : null;
@@ -100,7 +108,7 @@ export async function PlannerView({
   const tripBudget = forTrip?.budget != null ? Math.round(toUsd(Number(forTrip.budget), forTrip.currency) ?? Number(forTrip.budget)) : null;
 
   const months = monthOptions();
-  const home = (sp.from ?? profile?.home_airport ?? "").toUpperCase().trim();
+  const home = (typedFrom ?? profile?.home_airport ?? "").toUpperCase().trim();
   const cashRaw = sp.cash ?? (tripBudget != null ? String(tripBudget) : undefined);
   const budgetSet = cashRaw !== undefined && cashRaw.trim() !== "";
   const points = sp.pts !== undefined ? parsePoints(sp.pts) : wallet;

@@ -69,18 +69,28 @@ export function PlannerForm({
       <input type="hidden" name="pts" value={pts} />
       {keep?.trip && <input type="hidden" name="trip" value={keep.trip} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="grid gap-1.5 text-sm font-medium">
-          <label htmlFor={`${id}-home`}>Flying from</label>
-          <AirportField id={`${id}-home`} name="from" value={home} onValueChange={setHome} placeholder="DTW or Detroit" />
+        <div className="grid content-start gap-1.5 text-sm font-medium">
+          <label htmlFor={`${id}-home`}>Starting from</label>
+          <AirportField
+            id={`${id}-home`}
+            name="from"
+            value={home}
+            onValueChange={setHome}
+            placeholder="Your city or airport"
+            describedBy={`${id}-home-hint`}
+          />
+          <span id={`${id}-home-hint`} className="text-xs font-normal text-muted-foreground">
+            Any town works. Flights and road trips start from its nearest airport.
+          </span>
         </div>
-        <div className="grid gap-1.5 text-sm font-medium">
+        <div className="grid content-start gap-1.5 text-sm font-medium">
           <label htmlFor={`${id}-to`}>Going to</label>
           <AirportField
             id={`${id}-to`}
             name="to"
             value={to}
             onValueChange={setTo}
-            placeholder="Anywhere"
+            placeholder="Anywhere, or a city"
             describedBy={`${id}-to-hint`}
           />
           <span id={`${id}-to-hint`} className="text-xs font-normal text-muted-foreground">
