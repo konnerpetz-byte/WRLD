@@ -11,6 +11,7 @@ import { distanceKm } from "@/lib/geo";
 import type { requireUserId } from "@/lib/supabase/server";
 
 import { type CostBasis, groundCost, type Style, STYLES } from "./costs";
+import { FLY_GEMS } from "./gems";
 import { type Factors, loadPerDiem, type PerDiem, type Place, placeForAirport } from "./per-diem";
 
 type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];
@@ -136,12 +137,17 @@ export const pointsParam = (p: Points) =>
 /** Destinations the planner considers: every region airport, one per city. */
 function destinations(region: PlanInput["region"], home: string, only?: string | null) {
   if (only) {
-    const r = (Object.keys(REGIONS) as RegionKey[]).find((k) => (REGIONS[k].airports as readonly string[]).includes(only)) ?? null;
+    const r =
+      (Object.keys(REGIONS) as RegionKey[]).find((k) => (REGIONS[k].airports as readonly string[]).includes(only)) ??
+      FLY_GEMS.find((g) => g.code === only)?.region ??
+      null;
     return only === home ? [] : [{ code: only, region: r }];
   }
   const keys = region === "anywhere" ? (Object.keys(REGIONS) as RegionKey[]) : [region];
   const out: { code: string; region: RegionKey | null }[] = [];
   for (const r of keys) for (const code of REGIONS[r].airports) if (code !== "NRT" && code !== home) out.push({ code, region: r });
+  // Hidden gems: smaller and cheaper places in the same regions.
+  for (const g of FLY_GEMS) if (keys.includes(g.region) && g.code !== home && !out.some((o) => o.code === g.code)) out.push({ code: g.code, region: g.region });
   return out;
 }
 

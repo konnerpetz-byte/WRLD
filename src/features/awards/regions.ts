@@ -1,3 +1,5 @@
+import { FLY_GEMS } from "@/features/planner/gems";
+
 /** Where the explorer searches when you pick a region instead of airports. */
 export const REGIONS = {
   europe: {
@@ -82,3 +84,6 @@ export const SOURCE_PROGRAM: Record<string, { name: string; slug?: string; url: 
   frontier: { name: "Frontier Miles", url: "https://www.flyfrontier.com" },
   spirit: { name: "Spirit Free Spirit", url: "https://www.spirit.com" },
 };
+
+// Hidden-gem destinations (planner) get their city names too.
+for (const g of FLY_GEMS) AIRPORT_CITY[g.code] ??= g.city;

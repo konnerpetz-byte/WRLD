@@ -91,6 +91,18 @@ export const DEST_COSTS: Record<string, { hotel: number; day: number }> = {
   DFW: { hotel: 160, day: 85 },
   IAD: { hotel: 230, day: 100 },
   DTW: { hotel: 150, day: 80 },
+  // Hidden gems (see gems.ts)
+  SAV: { hotel: 170, day: 85 },
+  CHS: { hotel: 210, day: 95 },
+  SAT: { hotel: 140, day: 75 },
+  ABQ: { hotel: 130, day: 70 },
+  SLC: { hotel: 150, day: 80 },
+  BOI: { hotel: 140, day: 75 },
+  TUS: { hotel: 140, day: 75 },
+  CHA: { hotel: 140, day: 75 },
+  AVL: { hotel: 170, day: 85 },
+  BTV: { hotel: 170, day: 85 },
+  PWM: { hotel: 210, day: 95 },
 };
 
 /** How the traveler likes to travel: scales hotel and daily costs. */

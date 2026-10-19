@@ -5,6 +5,7 @@ import { SOURCE_PROGRAM } from "@/features/awards/regions";
 import { airportByCode } from "@/features/places/airports";
 import { BANKS } from "@/features/awards/transfers";
 
+import { flyGem } from "./gems";
 import type { FlightPay, TripOption } from "./plan";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
@@ -67,6 +68,7 @@ export function TripCard({
 }) {
   const left = cash == null ? 0 : cash - t.cashNeeded;
   const who = travelers === 1 ? "" : ` for ${travelers}`;
+  const gem = flyGem(t.code);
   return (
     <li className="grid gap-4 rounded-2xl border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
@@ -74,6 +76,12 @@ export function TripCard({
           <h3 className="text-lg font-semibold">
             {t.city} <span className="font-mono text-sm font-normal text-muted-foreground">{t.code}</span>
           </h3>
+          {gem && (
+            <p className="mt-1 text-sm">
+              <span className="mr-2 inline-block rounded-full bg-travel-soft px-2 py-0.5 text-xs font-medium text-travel-ink">Hidden gem</span>
+              {gem.why}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             {nights} nights{who}. Without points: {money(t.fullPrice)}
             {t.fareIs === "estimate" ? " (flights estimated)" : t.fareIs === "half" ? " (return flight estimated)" : ""}.
@@ -90,11 +98,23 @@ export function TripCard({
         </div>
         <div className="text-right">
           <p className="text-2xl font-semibold tabular-nums">{money(t.cashNeeded)}</p>
+          {travelers > 1 && <p className="text-sm tabular-nums">{money(t.cashNeeded / travelers)} each</p>}
           <p className={`text-sm font-medium ${t.fit === "fits" ? "text-primary" : "text-muted-foreground"}`}>
             {cash == null ? "cash needed" : left >= 0 ? `cash, ${money(left)} to spare` : `cash, ${money(-left)} over your budget`}
           </p>
         </div>
       </div>
+
+      {gem && (
+        <div className="text-sm">
+          <p className="font-medium">Free to do</p>
+          <ul className="mt-0.5 list-disc pl-5 text-muted-foreground">
+            {gem.free.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <dl className="grid gap-2 text-sm sm:grid-cols-3">
         <div className="rounded-xl bg-muted/50 px-3 py-2.5">

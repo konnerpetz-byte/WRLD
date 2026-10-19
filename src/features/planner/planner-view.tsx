@@ -17,6 +17,7 @@ import { airportByCode } from "@/features/places/airports";
 import { driveTrips, nearestState } from "./drive";
 import { DriveResults } from "./drive-results";
 import { gasPriceFor, gasSourceNote, loadGasPrices } from "./gas-prices";
+import { flyGem } from "./gems";
 import { loadRoutes } from "./routes";
 
 const IATA = /^[A-Z]{3}$/;
@@ -102,10 +103,17 @@ export async function PlannerView({
   const home = (sp.from ?? profile?.home_airport ?? "").toUpperCase().trim();
   const cashRaw = sp.cash ?? (tripBudget != null ? String(tripBudget) : undefined);
   const budgetSet = cashRaw !== undefined && cashRaw.trim() !== "";
-  const cash = budgetSet ? Math.round(Number(cashRaw!.replace(/[^0-9.]/g, ""))) || 0 : 0;
   const points = sp.pts !== undefined ? parsePoints(sp.pts) : wallet;
   const nights = int(sp.nights, 1, 30, tripNights && tripNights >= 1 ? Math.min(tripNights, 30) : 5);
   const travelers = int(sp.travelers, 1, 8, members ? Math.min(members, 8) : 1);
+  // The budget box is for everyone unless they say it's per person; WRLD works with the group total.
+  const per: "group" | "person" = sp.per === "person" ? "person" : "group";
+  const typed = budgetSet ? Math.round(Number(cashRaw!.replace(/[^0-9.]/g, ""))) || 0 : 0;
+  const cash = per === "person" ? typed * travelers : typed;
+  const budgetText =
+    travelers === 1
+      ? `$${cash.toLocaleString("en-US")}`
+      : `$${cash.toLocaleString("en-US")} for ${travelers} ($${Math.round(cash / travelers).toLocaleString("en-US")} each)`;
   const style: Style = sp.style && sp.style in STYLES ? (sp.style as Style) : "mid";
   const tripMonth = (sp.month ?? sp.start ?? forTrip?.start_date ?? "").slice(0, 7);
   const month = months.some((m) => m.value === tripMonth) ? tripMonth : months[1].value;
@@ -166,8 +174,11 @@ export async function PlannerView({
         () => undefined
       );
   }
-  const fits = sorted.filter((t) => t.fit === "fits").slice(0, 12);
+  // Hidden gems get their own list so the big cities don't crowd them out.
+  const fits = sorted.filter((t) => t.fit === "fits" && !flyGem(t.code)).slice(0, 12);
+  const gemFits = sorted.filter((t) => t.fit === "fits" && flyGem(t.code)).slice(0, 6);
   const stretch = sorted.filter((t) => t.fit === "stretch").slice(0, 6);
+  const allFits = fits.length + gemFits.length;
 
   const totalPoints = Object.values(points).reduce((s, n) => s + n, 0);
   const sortHref = (s: PlanSort) => {
@@ -220,8 +231,10 @@ export async function PlannerView({
             region,
             sort,
             go,
+            to: only ?? "",
+            per,
           }}
-          keep={{ to: only ?? undefined, trip: fixedTrip ? undefined : forTrip?.id }}
+          keep={{ trip: fixedTrip ? undefined : forTrip?.id }}
           action={basePath}
           pointKeys={POINT_KEYS}
           months={months}
@@ -230,7 +243,7 @@ export async function PlannerView({
         />
       </section>
 
-      {canDrive && gas && (go === "drive" || !fits.length) && (
+      {canDrive && gas && (go === "drive" || !allFits) && (
         <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} />
       )}
 
@@ -241,11 +254,11 @@ export async function PlannerView({
               <h2 id="results-h" className="text-lg font-semibold">
                 {only
                   ? `Your trip to ${AIRPORT_CITY[only] ?? only}`
-                  : fits.length
-                  ? `${fits.length}${
-                      sorted.filter((t) => t.fit === "fits").length > fits.length ? "+" : ""
-                    } trips fit $${cash.toLocaleString("en-US")}${totalPoints ? ` and ${totalPoints.toLocaleString("en-US")} points` : ""}`
-                  : "Nothing fits this budget yet"}
+                  : allFits
+                  ? `${allFits}${
+                      sorted.filter((t) => t.fit === "fits").length > allFits ? "+" : ""
+                    } trips fit ${budgetText}${totalPoints ? ` and ${totalPoints.toLocaleString("en-US")} points` : ""}`
+                  : `Nothing fits ${budgetText} yet`}
               </h2>
               <p className="text-sm text-muted-foreground">
                 From {home}, {monthLabel}, {nights} nights, {travelers} traveler{travelers === 1 ? "" : "s"},{" "}
@@ -310,7 +323,7 @@ export async function PlannerView({
                 WRLD can&rsquo;t price a flight from {home} to {only}. Check both airport codes.
               </p>
             )
-          ) : fits.length ? (
+          ) : allFits ? (
             <ul className="grid gap-3">
               {fits.map((t) => (
                 <TripCard
@@ -329,6 +342,26 @@ export async function PlannerView({
             <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
               Try fewer nights, the budget travel style, or another month. The trips just over budget are below.
             </p>
+          )}
+
+          {!only && gemFits.length > 0 && (
+            <>
+              <h3 className="mt-2 px-1 font-semibold">Hidden gems, many with free things to do</h3>
+              <ul className="grid gap-3">
+                {gemFits.map((t) => (
+                  <TripCard
+                    key={t.code}
+                    t={t}
+                    home={home}
+                    month={month}
+                    monthLabel={monthLabel}
+                    cash={cash}
+                    travelers={travelers}
+                    nights={nights}
+                  />
+                ))}
+              </ul>
+            </>
           )}
 
           {!only && stretch.length > 0 && (
@@ -385,7 +418,7 @@ export async function PlannerView({
         </section>
       )}
 
-      {canDrive && gas && go !== "drive" && fits.length > 0 && (
+      {canDrive && gas && go !== "drive" && allFits > 0 && (
         <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} />
       )}
 

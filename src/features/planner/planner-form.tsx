@@ -21,6 +21,10 @@ export type PlannerInitial = {
   sort: string;
   /** "any", "drive" or "fly" */
   go?: string;
+  /** Destination airport for "what will this trip cost?", or "" for anywhere */
+  to?: string;
+  /** "group": the budget is for everyone; "person": it's per traveler */
+  per?: string;
 };
 
 const field = "h-11 w-full rounded-lg border bg-background px-3 text-base tabular-nums focus-visible:outline-2 focus-visible:outline-ring";
@@ -51,6 +55,7 @@ export function PlannerForm({
 }) {
   const id = useId();
   const [home, setHome] = useState(initial.home);
+  const [to, setTo] = useState(initial.to ?? "");
   const [rows, setRows] = useState(initial.points.length ? initial.points : [{ key: "chase", amount: "" }]);
   const pts = rows
     .map((r) => ({ key: r.key, n: num(r.amount) }))
@@ -62,18 +67,45 @@ export function PlannerForm({
   return (
     <form method="get" action={action ?? "/points"} className="grid gap-5">
       <input type="hidden" name="pts" value={pts} />
-      {keep?.to && <input type="hidden" name="to" value={keep.to} />}
       {keep?.trip && <input type="hidden" name="trip" value={keep.trip} />}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-1.5 text-sm font-medium">
           <label htmlFor={`${id}-home`}>Flying from</label>
           <AirportField id={`${id}-home`} name="from" value={home} onValueChange={setHome} placeholder="DTW or Detroit" />
         </div>
-        <label className="grid gap-1.5 text-sm font-medium">
-          Cash to spend (USD)
-          <input name="cash" inputMode="decimal" placeholder="$2,000" defaultValue={initial.cash} className={field} required />
-        </label>
-        <label className="grid gap-1.5 text-sm font-medium">
+        <div className="grid gap-1.5 text-sm font-medium">
+          <label htmlFor={`${id}-to`}>Going to</label>
+          <AirportField
+            id={`${id}-to`}
+            name="to"
+            value={to}
+            onValueChange={setTo}
+            placeholder="Anywhere"
+            describedBy={`${id}-to-hint`}
+          />
+          <span id={`${id}-to-hint`} className="text-xs font-normal text-muted-foreground">
+            Leave blank to see where you can go. Pick a city to see what it costs.
+          </span>
+        </div>
+        <fieldset className="grid content-start gap-1.5 text-sm font-medium">
+          <legend className="mb-1.5">Budget (USD)</legend>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <input
+              name="cash"
+              inputMode="decimal"
+              placeholder={to ? "Optional" : "$2,000"}
+              aria-label="Budget in U.S. dollars"
+              defaultValue={initial.cash}
+              className={field}
+              required={!to}
+            />
+            <select name="per" aria-label="Budget is" defaultValue={initial.per ?? "group"} className={`${field} w-auto`}>
+              <option value="group">for everyone</option>
+              <option value="person">per person</option>
+            </select>
+          </div>
+        </fieldset>
+        <label className="grid content-start gap-1.5 text-sm font-medium">
           When
           <select name="month" defaultValue={initial.month} className={field}>
             {months.map((m) => (
@@ -170,7 +202,7 @@ export function PlannerForm({
           </select>
         </label>
         <label className="grid gap-1.5 text-sm font-medium">
-          Where
+          Region
           <select name="region" defaultValue={initial.region} className={field}>
             <option value="anywhere">Anywhere</option>
             {regions.map((r) => (
@@ -184,7 +216,7 @@ export function PlannerForm({
       <input type="hidden" name="sort" value={initial.sort} />
       <div>
         <Button type="submit" size="lg">
-          Show me where I can go
+          {to ? "What will this trip cost?" : "Show me where I can go"}
         </Button>
       </div>
     </form>

@@ -133,7 +133,7 @@ export async function loadPerDiem(
   date: string
 ): Promise<{ rates: Map<string, PerDiem>; factors: Factors }> {
   const rates = new Map<string, PerDiem>();
-  const [rowsRes, calRes] = await Promise.all([
+  const query = (on: string) =>
     places.length
       ? (() => {
           const names = [
@@ -147,16 +147,21 @@ export async function loadPerDiem(
             .from("cost_per_diem")
             .select("source, country, location, state, lodging, mie")
             .in("country", names)
-            .lte("season_start", date)
-            .gte("season_end", date)
+            .lte("season_start", on)
+            .gte("season_end", on)
             .limit(5000);
         })()
       : Promise.resolve({
           data: [] as { source: string; country: string; location: string; state: string | null; lodging: number; mie: number }[],
-        }),
-    supabase.from("cost_calibration").select("kind, factor, samples"),
-  ]);
-  const rows = rowsRes.data ?? [];
+        });
+  const [rowsRes, calRes] = await Promise.all([query(date), supabase.from("cost_calibration").select("kind, factor, samples")]);
+  let rows = rowsRes.data ?? [];
+  // Rates are published for the current year only. For a trip next year, use the same season a
+  // year (or two) earlier: the government's rate for that time of year is the best guess we have.
+  for (let back = 1; !rows.length && places.length && back <= 2; back++) {
+    const earlier = `${Number(date.slice(0, 4)) - back}${date.slice(4).replace("-02-29", "-02-28")}`;
+    rows = (await query(earlier)).data ?? [];
+  }
   for (const p of places) {
     const name = p.country === "US" ? "united states" : fold(countryName(p.country));
     const inCountry = rows.filter((r) => fold(r.country) === name);

@@ -39,8 +39,15 @@ const IATA = /^[A-Z]{3}$/;
 const list = (v: string | undefined) => (v ?? "").split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
+/**
+ * Months to plan in, worked out on every visit so the list rolls forward on its own: from this
+ * month through December of next year once we're in the second half of the year (October 2026 →
+ * December 2027), and never less than a year ahead.
+ */
 export function monthOptions(now = new Date()) {
-  return Array.from({ length: 12 }, (_, i) => {
+  const m = now.getUTCMonth();
+  const toDecember = (m >= 6 ? 24 : 12) - m;
+  return Array.from({ length: Math.max(13, toDecember) }, (_, i) => {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
     return { value: iso(d).slice(0, 7), label: d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }) };
   });
