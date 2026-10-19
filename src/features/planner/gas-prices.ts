@@ -2,6 +2,8 @@ import "server-only";
 
 import { cacheLife } from "next/cache";
 
+import { publicClient } from "@/lib/supabase/public";
+
 import { GAS_PRICE, GAS_PRICE_AS_OF } from "./drive";
 
 /**
@@ -9,7 +11,8 @@ import { GAS_PRICE, GAS_PRICE_AS_OF } from "./drive";
  * government's weekly survey of regular gasoline at the pump, published every Monday, for the
  * U.S., seven regions and nine large states. It's free and official (an API key from
  * eia.gov/opendata, set as EIA_API_KEY), so no scraping of AAA or GasBuddy, whose terms don't allow it.
- * Without a key, or if EIA can't be reached, the AAA national average in drive.ts is used.
+ * Without a key, WRLD reads the same prices from EIA's public weekly spreadsheet, stored by the
+ * gas-refresh worker every Monday night. If neither works, the AAA national average in drive.ts is used.
  */
 export type GasPrices = {
   /** "SOH", "R20", "NUS"… → $ a gallon */
@@ -43,12 +46,23 @@ export const REGION_NAME: Record<string, string> = {
   NUS: "U.S.",
 };
 
+/** EIA's prices from the public weekly spreadsheet (gas-refresh worker), when they're under two weeks old. */
+async function storedGasPrices(): Promise<GasPrices | null> {
+  const { data } = await publicClient().from("gas_prices").select("area, week, price");
+  const rows = data ?? [];
+  const us = rows.find((r) => r.area === "NUS");
+  if (!us || Date.now() - new Date(`${us.week}T12:00:00Z`).getTime() > 14 * 86400000) return null;
+  const byArea: Record<string, number> = {};
+  for (const r of rows) byArea[r.area] = Number(r.price);
+  return { byArea, week: us.week, source: "eia" };
+}
+
 export async function loadGasPrices(): Promise<GasPrices> {
   "use cache";
   cacheLife("hours");
   const key = process.env.EIA_API_KEY;
   const fallback: GasPrices = { byArea: { NUS: GAS_PRICE }, week: null, source: "fallback" };
-  if (!key) return fallback;
+  if (!key) return (await storedGasPrices()) ?? fallback;
   try {
     const u = new URL("https://api.eia.gov/v2/petroleum/pri/gnd/data/");
     u.searchParams.set("api_key", key);

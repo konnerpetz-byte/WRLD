@@ -65,9 +65,10 @@ export function Shelf({
         id={`${id}-list`}
         className={
           all
-            ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            ? "relative grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
             : // Phone: a sideways row that snaps card to card, edge to edge. Wider: the first six in a grid.
-              "-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:w-[82%] [&>li]:shrink-0 [&>li]:snap-start sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 sm:[&>li]:w-auto lg:grid-cols-3 sm:[&>li:nth-child(n+7)]:hidden"
+              // `relative` keeps hidden screen-reader text inside the row, so off-screen cards can't widen the page.
+              "relative -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:w-[82%] [&>li]:shrink-0 [&>li]:snap-start sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 sm:[&>li]:w-auto lg:grid-cols-3 sm:[&>li:nth-child(n+7)]:hidden"
         }
       >
         {children}

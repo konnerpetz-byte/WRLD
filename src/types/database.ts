@@ -813,6 +813,19 @@ export type GetawayCandidate = {
   reviewed_by: string | null;
   harvested_at: string;
 };
+export type PlacePhotoRow = {
+  title: string;
+  search: string | null;
+  status: "pending" | "found" | "none";
+  src: string | null;
+  width: number | null;
+  height: number | null;
+  credit: string | null;
+  license: string | null;
+  page: string | null;
+  requested_at: string;
+  checked_at: string | null;
+};
 export type GetawayReview = Partial<Pick<GetawayCandidate, "status" | "vibes" | "tier" | "gem" | "why" | "reviewed_at" | "reviewed_by">>;
 
 export type Database = {
@@ -826,6 +839,8 @@ export type Database = {
       cost_calibration: ReadOnly<CostCalibration>;
       cost_refresh_runs: ReadOnly<CostRefreshRun>;
       getaway_candidates: TableDef<GetawayCandidate, never, GetawayReview>;
+      place_photos: ReadOnly<PlacePhotoRow>;
+      gas_prices: ReadOnly<{ area: string; week: string; price: number; fetched_at: string }>;
       profiles: TableDef<Profile, ProfileInsert, ProfileUpdate>;
       trips: TableDef<Trip, TripInsert, TripUpdate>;
       trip_members: TableDef<TripMember, TripMemberInsert, TripMemberUpdate>;
@@ -881,6 +896,10 @@ export type Database = {
       my_booking_history: { Row: BookingHistoryEntry; Relationships: [] };
     };
     Functions: {
+      request_place_photos: {
+        Args: { p_places: { title: string; search: string }[] };
+        Returns: number;
+      };
       add_recommendation_to_trip: {
         Args: { p_recommendation_id: UUID; p_time_block_id?: UUID };
         Returns: UUID;

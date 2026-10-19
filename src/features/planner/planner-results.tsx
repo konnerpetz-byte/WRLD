@@ -92,7 +92,7 @@ export function TripCard({
             : "Hotel and daily costs are WRLD's estimate for the city.";
   const external = "inline-flex items-center gap-1 font-medium text-primary hover:underline";
   return (
-    <li className="flex flex-col overflow-hidden rounded-2xl border bg-card">
+    <li className="relative flex flex-col overflow-hidden rounded-2xl border bg-card">
       <Suspense fallback={<PhotoSkeleton>{badge}</PhotoSkeleton>}>
         <PlacePhoto title={photo.title} search={photo.search} alt={t.city}>
           {badge}

@@ -126,7 +126,7 @@ export function DriveCard({
     <span className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-1 text-xs font-medium backdrop-blur-md">Hidden gem</span>
   ) : null;
   return (
-    <li className="flex flex-col overflow-hidden rounded-2xl border bg-card">
+    <li className="relative flex flex-col overflow-hidden rounded-2xl border bg-card">
       <Suspense fallback={<PhotoSkeleton>{badge}</PhotoSkeleton>}>
         <PlacePhoto title={photo.title} search={photo.search} alt={`${t.getaway.name}, ${t.getaway.state}`}>
           {badge}

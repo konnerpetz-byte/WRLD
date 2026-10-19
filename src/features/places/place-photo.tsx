@@ -1,12 +1,14 @@
 import "server-only";
 
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
+
+import { publicClient } from "@/lib/supabase/public";
 
 /**
  * A representative photo of a place: the lead photo of its Wikipedia article, the one editors
  * chose to show the place. Only freely licensed files (Wikimedia Commons: public domain, CC0,
  * CC BY, CC BY-SA), always credited with the photographer and license as those licenses require.
- * Looked up on the server and cached for weeks; maps, flags, seals and logos are skipped.
+ * Found by the photos-refresh worker and stored in place_photos; maps, flags, seals and logos are skipped.
  */
 export type Photo = {
   src: string;
@@ -19,81 +21,58 @@ export type Photo = {
   page: string;
 };
 
-const API = "https://en.wikipedia.org/w/api.php";
-const UA = { "User-Agent": "WRLD trip planner (https://wrldtrips.com; privacy@wrldtrips.com)", "Api-User-Agent": "WRLD trip planner (https://wrldtrips.com)" };
-const NOT_A_PHOTO = /(map|flag|seal|coat[_ ]of[_ ]arms|logo|locator|location|diagram|emblem|signature|\.svg$|\.gif$)/i;
-const FREE = /^(cc0|cc[ -]by|public domain|pd\b|pd-)/i;
-
-type Page = { title: string; index?: number; pageimage?: string; thumbnail?: { source: string; width: number; height: number } };
-
-async function getJson<T>(params: Record<string, string>): Promise<T | null> {
-  const u = new URL(API);
-  u.search = new URLSearchParams({ format: "json", formatversion: "2", origin: "*", ...params }).toString();
-  try {
-    const res = await fetch(u, { headers: UA, signal: AbortSignal.timeout(5000) });
-    return res.ok ? ((await res.json()) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-const imageProps = { prop: "pageimages", piprop: "thumbnail|name", pithumbsize: "800", pilicense: "free" };
-
-/** The best page with a usable lead photo: the exact title first, then a search. */
-async function leadImage(title: string, search: string): Promise<Page | null> {
-  const exact = await getJson<{ query?: { pages?: Page[] } }>({ action: "query", titles: title, redirects: "1", ...imageProps });
-  const ok = (p: Page | undefined) => Boolean(p?.pageimage && p.thumbnail && !NOT_A_PHOTO.test(p.pageimage));
-  const hit = exact?.query?.pages?.find(ok);
-  if (hit) return hit;
-  const found = await getJson<{ query?: { pages?: Page[] } }>({
-    action: "query",
-    generator: "search",
-    gsrsearch: search,
-    gsrlimit: "4",
-    gsrnamespace: "0",
-    ...imageProps,
-  });
-  return (found?.query?.pages ?? []).sort((a, b) => (a.index ?? 99) - (b.index ?? 99)).find(ok) ?? null;
-}
-
-const text = (html: string) =>
-  html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-
-/** A photo for a place, or null when there's no free photo to show. */
-export async function placePhoto(title: string, search: string): Promise<Photo | null> {
+/** Every photo found so far, by article title. One query, cached; new photos show up within the hour. */
+async function storedPhotos(): Promise<Map<string, Photo | null>> {
   "use cache";
-  cacheLife("weeks");
-  const page = await leadImage(title, search);
-  if (!page?.pageimage || !page.thumbnail) return null;
-  const file = `File:${page.pageimage}`;
-  type Info = { query?: { pages?: { imageinfo?: { extmetadata?: Record<string, { value?: string }> }[] }[] } };
-  const info = await getJson<Info>({
-    action: "query",
-    titles: file,
-    prop: "imageinfo",
-    iiprop: "extmetadata",
-    iiextmetadatafilter: "Artist|LicenseShortName|Credit",
-  });
-  const meta = info?.query?.pages?.[0]?.imageinfo?.[0]?.extmetadata ?? {};
-  const license = text(meta.LicenseShortName?.value ?? "");
-  if (!FREE.test(license)) return null;
-  // Wiki user links come through as "Name ( talk ) ( Uploads )": keep just the name.
-  const clean = (v: string) => text(v).replace(/\(\s*(talk|uploads|contribs|contributions)\s*\)/gi, "").replace(/\s+/g, " ").trim();
-  const credit = clean(meta.Artist?.value ?? "") || clean(meta.Credit?.value ?? "") || "Unknown author";
-  return {
-    src: page.thumbnail.source,
-    width: page.thumbnail.width,
-    height: page.thumbnail.height,
-    credit: credit.slice(0, 80),
-    license,
-    page: `https://commons.wikimedia.org/wiki/${encodeURIComponent(file.replace(/ /g, "_"))}`,
-  };
+  cacheLife("hours");
+  cacheTag("place-photos");
+  const out = new Map<string, Photo | null>();
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data, error } = await publicClient()
+      .from("place_photos")
+      .select("title, status, src, width, height, credit, license, page")
+      .neq("status", "pending")
+      .order("title")
+      .range(from, from + 999);
+    if (error || !data?.length) break;
+    for (const r of data) {
+      out.set(
+        r.title,
+        r.status === "found" && r.src && r.page
+          ? { src: r.src, width: r.width ?? 800, height: r.height ?? 500, credit: r.credit ?? "Unknown author", license: r.license ?? "", page: r.page }
+          : null,
+      );
+    }
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+
+// Titles asked for in this server process, so each is requested once, in small batches.
+const asked = new Set<string>();
+let queue: { title: string; search: string }[] = [];
+let timer: ReturnType<typeof setTimeout> | null = null;
+function request(title: string, search: string) {
+  if (asked.has(title) || asked.size > 5000) return;
+  asked.add(title);
+  queue.push({ title, search });
+  timer ??= setTimeout(() => {
+    const batch = queue.splice(0, 100);
+    queue = [];
+    timer = null;
+    void publicClient().rpc("request_place_photos", { p_places: batch }).then(() => undefined, () => undefined);
+  }, 50);
+}
+
+/**
+ * A photo for a place, or null when there's none (yet). Photos are looked up in the background by
+ * the photos-refresh worker; a place shown for the first time gets its photo within about 10 minutes.
+ */
+export async function placePhoto(title: string, search: string): Promise<Photo | null> {
+  const stored = await storedPhotos();
+  if (stored.has(title)) return stored.get(title) ?? null;
+  request(title, search);
+  return null;
 }
 
 /** The photo at the top of a destination card, credit on the image. Renders a plain tile when there's no free photo. */

@@ -171,6 +171,17 @@
     padding-right: env(safe-area-inset-right, 0px);
     -webkit-tap-highlight-color: transparent;
   }
+  /* Sideways-scrolling rows hold their own absolutely positioned bits (screen-reader text,
+     badges). Without this, cards scrolled off to the right widen the whole page and phones
+     zoom out to fit it. Base layer, so an explicit absolute/sticky class still wins. */
+  [class*="overflow-x-auto"] {
+    position: relative;
+  }
+  /* Safety net: nothing can make the page scroll sideways. `clip` (not `hidden`) keeps sticky headers working. */
+  html,
+  body {
+    overflow-x: clip;
+  }
   html {
     font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
