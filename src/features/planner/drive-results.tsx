@@ -15,13 +15,13 @@ import { StayRow } from "./stay-row";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
-function startUrl(t: DriveOption, nights: number, travelers: number, cash: number, month: string, signedIn: boolean) {
+function startUrl(t: DriveOption, nights: number, travelers: number, cash: number, start: string, signedIn: boolean) {
   const p = new URLSearchParams({
     city: t.getaway.name,
     country: "US",
     lat: String(t.getaway.latitude),
     lng: String(t.getaway.longitude),
-    start: fridayIn(month),
+    start,
     nights: String(nights),
     party: String(travelers),
   });
@@ -97,7 +97,23 @@ export function DriveResults({
   );
 }
 
-export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOption; cash: number; travelers: number; month: string; signedIn: boolean }) {
+export function DriveCard({
+  t,
+  cash,
+  travelers,
+  month,
+  signedIn,
+  checkIn,
+}: {
+  t: DriveOption;
+  cash: number;
+  travelers: number;
+  month: string;
+  signedIn: boolean;
+  /** The Friday the weekend starts; worked out from today when not given (pre-built pages pass it in). */
+  checkIn?: string;
+}) {
+  const start = checkIn ?? fridayIn(month);
   const show = t.best ?? t.lengths[0];
   const others = t.lengths.filter((l) => l !== show);
   const photo = driveTitle(t.getaway);
@@ -150,7 +166,7 @@ export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOpt
         </div>
         {over > 0 && <p className="text-sm font-medium text-muted-foreground">{money(over)} over your budget</p>}
         {t.getaway.free?.length ? <p className="line-clamp-2 text-sm">Free: {t.getaway.free[0]}</p> : null}
-        <StayRow place={`${t.getaway.name.replace(/\s*\(.*?\)/g, "")}, ${t.getaway.state}`} checkIn={fridayIn(month)} nights={show.nights} people={travelers} />
+        <StayRow place={`${t.getaway.name.replace(/\s*\(.*?\)/g, "")}, ${t.getaway.state}`} checkIn={start} nights={show.nights} people={travelers} />
 
         <details className="group text-sm">
           <summary className="tap w-fit cursor-pointer list-none text-primary [&::-webkit-details-marker]:hidden">
@@ -173,7 +189,7 @@ export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOpt
         </details>
 
         <Link
-          href={startUrl(t, show.nights, travelers, cash, month, signedIn)}
+          href={startUrl(t, show.nights, travelers, cash, start, signedIn)}
           className="tap mt-auto inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           Start this trip

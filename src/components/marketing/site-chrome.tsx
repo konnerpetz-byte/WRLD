@@ -48,6 +48,17 @@ export function SiteFooter() {
         </a>
         .
       </p>
+      <nav aria-label="Explore" className="flex flex-wrap gap-x-4 gap-y-2">
+        <Link href="/plan" className="hover:text-foreground hover:underline">
+          Budget planner
+        </Link>
+        <Link href="/getaways" className="hover:text-foreground hover:underline">
+          Road trips
+        </Link>
+        <Link href="/tickets" className="hover:text-foreground hover:underline">
+          Official tickets
+        </Link>
+      </nav>
       <LegalLinks />
     </footer>
   );
