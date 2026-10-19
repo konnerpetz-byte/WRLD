@@ -923,6 +923,14 @@ export type Database = {
         Args: { p_trip_id: UUID };
         Returns: { responses: number; members: number; comfortable: number | null; mine: number | null }[];
       };
+      trip_budget_comfort_answered: {
+        Args: { p_trip_id: UUID };
+        Returns: { user_id: UUID; name: string; answered: boolean; is_me: boolean }[];
+      };
+      release_comfort_budget: {
+        Args: { p_trip_id: UUID };
+        Returns: boolean;
+      };
       request_award_routes: {
         Args: { p_origin: string; p_destinations: string[]; p_cabin: string };
         Returns: { destination: string; checked_at: string | null }[];

@@ -40,3 +40,13 @@ export async function applyComfortBudget(tripId: string, _: ActionState, formDat
   revalidatePath(`/trips/${tripId}`, "layout");
   return { ok: true, note: "Trip budget updated." };
 }
+
+/** Organizer: show the group number now with the answers so far, without waiting for everyone. */
+export async function releaseComfortBudget(tripId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  void formData;
+  const { supabase } = await requireUserId();
+  const { error } = await supabase.rpc("release_comfort_budget", { p_trip_id: tripId });
+  if (error) return { error: "Only the trip's organizers can do that." };
+  revalidatePath(`/trips/${tripId}`, "layout");
+  return { ok: true };
+}

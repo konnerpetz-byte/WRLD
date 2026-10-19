@@ -35,6 +35,21 @@ export async function revokeInvite(tripId: string, inviteId: string) {
   refresh(tripId);
 }
 
+/** Join from the invite with a private max: the trip's first page then shows where the group stands. */
+export async function acceptInviteWithMax(token: string, formData: FormData) {
+  const amount = Number(String(formData.get("amount") ?? "").replace(/[^0-9.]/g, ""));
+  const { supabase, userId } = await requireUserId();
+  const { data, error } = await supabase.rpc("accept_trip_invite", { p_token: token });
+  if (error || !data) redirect(`/invite/${token}?error=1`);
+  if (amount > 0 && amount < 10_000_000) {
+    await supabase
+      .from("trip_budget_comfort")
+      .upsert({ trip_id: data, user_id: userId, amount: Math.round(amount), updated_at: new Date().toISOString() });
+  }
+  revalidatePath("/trips");
+  redirect(`/trips/${data}#group-budget`);
+}
+
 export async function acceptInvite(token: string) {
   const { supabase } = await requireUserId();
   const { data, error } = await supabase.rpc("accept_trip_invite", { p_token: token });

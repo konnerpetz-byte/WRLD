@@ -57,6 +57,7 @@ async function BudgetPageContent({
     participants,
     settlements,
     comfort,
+    answered,
     pointsPaid,
   ] = await Promise.all([
     getTrip(tripId),
@@ -84,6 +85,7 @@ async function BudgetPageContent({
       .eq("trip_id", tripId)
       .order("settled_on", { ascending: false }),
     supabase.rpc("trip_budget_comfort_summary", { p_trip_id: tripId }),
+    supabase.rpc("trip_budget_comfort_answered", { p_trip_id: tripId }),
     supabase.from("points_contributions").select("*").eq("trip_id", tripId).order("created_at", { ascending: false }),
   ]);
   const comfortRow = comfort.data?.[0];
@@ -237,6 +239,7 @@ async function BudgetPageContent({
         summary={comfortSummary}
         canEdit={canEdit}
         currentBudget={limit}
+        answered={answered.data ?? []}
       />
 
       <div className="grid gap-10 lg:grid-cols-[1fr_24rem] lg:items-start">

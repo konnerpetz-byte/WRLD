@@ -25,7 +25,7 @@ export default function TripPlanPage(props: PageProps<"/trips/[tripId]">) {
 async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
   const { tripId } = await params;
   const { supabase, userId } = await requireUserId();
-  const [{ trip, stops, canEdit }, { data: profile }, flights, stays, members, invites, items, comfort] = await Promise.all([
+  const [{ trip, stops, canEdit }, { data: profile }, flights, stays, members, invites, items, comfort, answered] = await Promise.all([
     getTrip(tripId),
     supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
     supabase.from("transit_segments").select("direction, origin_code, destination_code").eq("trip_id", tripId).eq("mode", "flight"),
@@ -34,6 +34,7 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
     supabase.from("trip_invites").select("id", { count: "exact", head: true }).eq("trip_id", tripId).is("revoked_at", null),
     supabase.from("itinerary_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId).neq("kind", "note"),
     supabase.rpc("trip_budget_comfort_summary", { p_trip_id: tripId }),
+    supabase.rpc("trip_budget_comfort_answered", { p_trip_id: tripId }),
   ]);
   const c = comfort.data?.[0];
   const comfortSummary = {
@@ -117,6 +118,7 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
           summary={comfortSummary}
           canEdit={canEdit}
           currentBudget={trip.budget == null ? null : Number(trip.budget)}
+          answered={answered.data ?? []}
         />
       </div>
     </div>

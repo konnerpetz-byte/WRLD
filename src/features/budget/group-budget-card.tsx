@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ActionState } from "@/features/trips/actions";
 import { formatMoney } from "@/lib/format";
-import { applyComfortBudget, setComfortBudget } from "./group-budget-actions";
+import { applyComfortBudget, releaseComfortBudget, setComfortBudget } from "./group-budget-actions";
 
 export type ComfortSummary = { responses: number; members: number; comfortable: number | null; mine: number | null };
+export type ComfortAnswered = { user_id: string; name: string; answered: boolean; is_me: boolean }[];
 
 /**
  * "What can everyone afford?" Each traveler answers privately; the group sees
@@ -24,7 +25,9 @@ export function GroupBudgetCard({
   summary,
   canEdit,
   currentBudget,
+  answered = [],
 }: {
+  answered?: ComfortAnswered;
   tripId: string;
   currency: string;
   partySize: number;
@@ -34,6 +37,7 @@ export function GroupBudgetCard({
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(setComfortBudget.bind(null, tripId), {});
   const [applyState, apply, applying] = useActionState<ActionState, FormData>(applyComfortBudget.bind(null, tripId), {});
+  const [releaseState, release, releasing] = useActionState<ActionState, FormData>(releaseComfortBudget.bind(null, tripId), {});
   const solo = summary.members <= 1;
   const suggested = summary.comfortable !== null ? summary.comfortable * partySize : null;
   const alreadyApplied = suggested !== null && currentBudget !== null && Math.abs(currentBudget - suggested) < 1;
@@ -90,10 +94,27 @@ export function GroupBudgetCard({
 
       <div className="grid content-start gap-3 rounded-xl bg-muted/60 p-4">
         {!solo && (
-          <p className="flex items-center gap-2 text-sm">
-            <Users className="size-4 text-muted-foreground" aria-hidden="true" />
-            {summary.responses} of {summary.members} have answered
-          </p>
+          <div className="grid gap-2">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Users className="size-4 text-muted-foreground" aria-hidden="true" />
+              {summary.responses} of {summary.members} have answered
+            </p>
+            <div className="flex gap-1" aria-hidden="true">
+              {Array.from({ length: summary.members }, (_, i) => (
+                <span key={i} className={`h-1.5 flex-1 rounded-full ${i < summary.responses ? "bg-primary" : "bg-border"}`} />
+              ))}
+            </div>
+            {answered.length > 0 && (
+              <ul className="grid gap-1 text-sm">
+                {answered.map((a) => (
+                  <li key={a.user_id} className="flex justify-between gap-3">
+                    <span>{a.is_me ? `${a.name} (you)` : a.name}</span>
+                    <span className={a.answered ? "text-primary" : "text-muted-foreground"}>{a.answered ? "Answered" : "Waiting"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
         {summary.comfortable !== null ? (
           <>
@@ -126,11 +147,24 @@ export function GroupBudgetCard({
             )}
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {summary.responses < 2
-              ? "The group number appears once at least two people have answered. Share the trip so everyone can add theirs."
-              : "Add yours to see the group number."}
-          </p>
+          <div className="grid gap-2">
+            <p className="text-sm text-muted-foreground">
+              The group number appears once everyone has answered, so nobody can work out anyone else&rsquo;s. You see who has answered,
+              never what they said.
+            </p>
+            {canEdit && summary.responses >= 2 && summary.responses < summary.members && (
+              <form action={release}>
+                <Button type="submit" variant="outline" size="sm" disabled={releasing}>
+                  {releasing ? "One moment…" : `Go ahead with ${summary.responses} answers`}
+                </Button>
+              </form>
+            )}
+            {releaseState.error && (
+              <p role="alert" className="text-sm text-destructive">
+                {releaseState.error}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </section>

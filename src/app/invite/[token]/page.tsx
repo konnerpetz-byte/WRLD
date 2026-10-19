@@ -3,7 +3,8 @@ import { Suspense } from "react";
 
 import { WrldMark } from "@/components/brand/wrld-mark";
 import { Button } from "@/components/ui/button";
-import { acceptInvite } from "@/features/group/actions";
+import { acceptInvite, acceptInviteWithMax } from "@/features/group/actions";
+import { MaxPicker } from "@/features/group/max-picker";
 import { formatDateRange } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,7 +13,7 @@ export const metadata = { title: "You're invited" };
 export default function InvitePage(props: PageProps<"/invite/[token]">) {
   return (
     <main className="grid min-h-dvh place-items-center bg-background p-6">
-      <div className="w-full max-w-md rounded-2xl border bg-card p-8 text-center">
+      <div className="w-full max-w-md rounded-2xl border bg-card p-6 text-center sm:p-8">
         <WrldMark className="mx-auto size-14" variant="tile" detail="full" />
         <Suspense
           fallback={
@@ -88,13 +89,31 @@ async function InviteCard({
             </p>
           )}
           {signedIn ? (
-            <form action={acceptInvite.bind(null, token)} className="mt-6">
-              <Button type="submit" size="lg" className="w-full">
-                Join the trip
-              </Button>
-            </form>
+            <div className="mt-8 grid gap-4">
+              <div className="text-left">
+                <h2 className="text-xl font-semibold">What can you spend on this trip?</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Everything: flights, your share of the stay, food and plans. WRLD plans the trip to the group&rsquo;s lowest answer, so
+                  nobody has to say a number out loud.
+                </p>
+              </div>
+              <form action={acceptInviteWithMax.bind(null, token)} className="grid gap-3">
+                <MaxPicker />
+                <Button type="submit" size="lg" className="w-full">
+                  Save privately and join
+                </Button>
+              </form>
+              <form action={acceptInvite.bind(null, token)}>
+                <Button type="submit" variant="ghost" className="w-full">
+                  Not sure yet? Join and answer later
+                </Button>
+              </form>
+            </div>
           ) : (
             <div className="mt-6 grid gap-2">
+              <p className="mb-2 text-sm">
+                Next you&rsquo;ll set your <strong>private max</strong>. Only the group&rsquo;s lowest answer is ever shared.
+              </p>
               <Button asChild size="lg">
                 <Link href={`/signup?next=${encodeURIComponent(here)}`}>
                   Create a free account to join
