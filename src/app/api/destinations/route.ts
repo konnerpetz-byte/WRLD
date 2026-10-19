@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { searchAirports } from "@/features/places/airports";
 import { searchCities } from "@/features/places/geocode";
+import { withApprovedPlaces } from "@/features/planner/approved-places";
 import { matchGetaways } from "@/features/planner/drive";
 
 export type DestinationOption = {
@@ -16,6 +17,7 @@ export type DestinationOption = {
 export async function GET(request: NextRequest) {
   const q = (request.nextUrl.searchParams.get("q") ?? "").trim().slice(0, 80);
   if (q.length < 2) return NextResponse.json([]);
+  await withApprovedPlaces();
   const drives: DestinationOption[] = matchGetaways(q, 4).map((g) => ({
     value: `${g.name}, ${g.state}`,
     label: `${g.name}, ${g.state}`,

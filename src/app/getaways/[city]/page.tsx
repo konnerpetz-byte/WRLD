@@ -7,6 +7,7 @@ import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site-chrome";
 import { Shelf } from "@/components/shelf";
 import { DriveCard } from "@/features/planner/drive-results";
+import { withApprovedPlaces } from "@/features/planner/approved-places";
 import type { DriveOption } from "@/features/planner/drive";
 import { GETAWAY_CITIES, getawayCity, getawaysFrom } from "@/features/planner/getaway-cities";
 import { driveMeta } from "@/features/planner/vibes";
@@ -55,7 +56,7 @@ export default function GetawaysPage({ params }: PageProps<"/getaways/[city]">) 
 async function Getaways({ params }: { params: PageProps<"/getaways/[city]">["params"] }) {
   const city = getawayCity((await params).city);
   if (!city) notFound();
-  const data = await getawaysFrom(city.slug);
+  const [data] = await Promise.all([getawaysFrom(city.slug), withApprovedPlaces()]);
   if (!data) notFound();
   const { month, checkIn, options } = data;
   const placed = new Set<string>();

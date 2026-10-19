@@ -784,6 +784,37 @@ export type CostRefreshRun = { id: number; source: string; source_file: string |
 
 type TableDef<Row, Insert, Update> = { Row: Row; Insert: Insert; Update: Update; Relationships: [] };
 
+/** A road-trip place harvested from Wikidata + Wikivoyage, waiting for review at /admin/places. */
+export type GetawayCandidate = {
+  qid: string;
+  name: string;
+  region: string;
+  country: "US" | "CA";
+  latitude: number;
+  longitude: number;
+  county: string | null;
+  description: string | null;
+  kind: "city" | "park" | "region";
+  quality: "outline" | "usable" | "guide" | "star" | null;
+  population: number | null;
+  wikivoyage: string;
+  wikipedia: string | null;
+  intro: string | null;
+  suggested_vibes: string[];
+  suggested_tier: 1 | 2 | 3 | null;
+  suggested_gem: boolean;
+  gsa_lodging: number | null;
+  status: "pending" | "approved" | "rejected";
+  vibes: string[] | null;
+  tier: 1 | 2 | 3 | null;
+  gem: boolean | null;
+  why: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  harvested_at: string;
+};
+export type GetawayReview = Partial<Pick<GetawayCandidate, "status" | "vibes" | "tier" | "gem" | "why" | "reviewed_at" | "reviewed_by">>;
+
 export type Database = {
   public: {
     Tables: {
@@ -794,6 +825,7 @@ export type Database = {
       trip_files: TableDef<TripFile, Omit<TripFile, "id" | "created_at" | "uploaded_by" | "booking_type" | "booking_id"> & Partial<Pick<TripFile, "booking_type" | "booking_id">>, Partial<Pick<TripFile, "booking_type" | "booking_id">>>;
       cost_calibration: ReadOnly<CostCalibration>;
       cost_refresh_runs: ReadOnly<CostRefreshRun>;
+      getaway_candidates: TableDef<GetawayCandidate, never, GetawayReview>;
       profiles: TableDef<Profile, ProfileInsert, ProfileUpdate>;
       trips: TableDef<Trip, TripInsert, TripUpdate>;
       trip_members: TableDef<TripMember, TripMemberInsert, TripMemberUpdate>;

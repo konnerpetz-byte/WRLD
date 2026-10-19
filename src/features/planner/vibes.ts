@@ -1,3 +1,4 @@
+import { extraMeta } from "./registry";
 import type { Season } from "./seasons";
 
 /**
@@ -254,7 +255,7 @@ export const FLY_META: Record<string, Meta> = {
   CNX: m("city", "culture", "outdoors", "quiet"),
 };
 
-export const driveMeta = (key: string): Meta => DRIVE_META[key] ?? { season: "city", vibes: [] };
+export const driveMeta = (key: string): Meta => DRIVE_META[key] ?? (extraMeta(key) as Meta | undefined) ?? { season: "city", vibes: [] };
 export const flyMeta = (code: string): Meta => FLY_META[code] ?? { season: "city", vibes: [] };
 
 /** How many of the wanted vibes a place has (0 when none were asked for). */

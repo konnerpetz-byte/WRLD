@@ -61,10 +61,10 @@ const DRIVE_TITLE: Record<string, string> = {
 };
 
 /** Article title and a fallback search for a road-trip place. */
-export function driveTitle(g: Pick<Getaway, "key" | "name" | "state">) {
+export function driveTitle(g: Pick<Getaway, "key" | "name" | "state" | "photo">) {
   const name = g.name.replace(/\s*\(.*?\)/g, "");
   const state = STATE[g.state] ?? g.state;
-  return { title: DRIVE_TITLE[g.key] ?? `${name}, ${state}`, search: `${name} ${state}` };
+  return { title: DRIVE_TITLE[g.key] ?? g.photo ?? `${name}, ${state}`, search: `${name} ${state}` };
 }
 
 const FLY_TITLE: Record<string, string> = {

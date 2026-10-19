@@ -2,6 +2,7 @@ import "server-only";
 
 import { cacheLife } from "next/cache";
 
+import { withApprovedPlaces } from "./approved-places";
 import { driveTrips, type DriveOption, nearestState } from "./drive";
 import { gasPriceFor, loadGasPrices } from "./gas-prices";
 import { loadGsaSeason, seasonFn } from "./season-data";
@@ -44,7 +45,7 @@ export async function getawaysFrom(slug: string): Promise<{ month: string; check
   const city = getawayCity(slug);
   if (!city) return null;
   const month = nextMonthIso();
-  const [gas, shapes] = await Promise.all([loadGasPrices(), loadGsaSeason(month)]);
+  const [gas, shapes] = await Promise.all([loadGasPrices(), loadGsaSeason(month), withApprovedPlaces()]);
   const options = driveTrips(
     city,
     { cash: Infinity, travelers: 2, style: "mid", season: seasonFn(month, shapes) },

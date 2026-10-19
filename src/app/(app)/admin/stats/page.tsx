@@ -48,6 +48,11 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/admin/
           <p className="text-sm text-muted-foreground">
             Only you can see this page. Numbers cover the last {days} days unless they say otherwise.
           </p>
+          <p className="text-sm">
+            <Link href="/admin/places" className="underline">
+              Review new road-trip places
+            </Link>
+          </p>
         </div>
         <nav aria-label="Time range" className="flex gap-1 rounded-lg border p-1 text-sm">
           {RANGES.map((d) => (

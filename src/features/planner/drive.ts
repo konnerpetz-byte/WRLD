@@ -1,6 +1,7 @@
 import { distanceKm, type LatLng } from "@/lib/geo";
 
 import { type Style, STYLES } from "./costs";
+import { extraPlaces } from "./registry";
 
 /**
  * Road trips: weekend and long-weekend getaways you can drive to, priced for the whole group.
@@ -63,6 +64,14 @@ export type Getaway = {
   gem?: boolean;
   /** Free things to do there (only ones we're sure are free) */
   free?: string[];
+  /** Wikipedia article for the photo, when it isn't "Name, State" */
+  photo?: string;
+};
+
+/** The hand-picked places plus the ones approved from the harvest. */
+export const allGetaways = (): Getaway[] => {
+  const more = extraPlaces();
+  return more.length ? [...GETAWAYS, ...more] : GETAWAYS;
 };
 
 /** Popular U.S. drive-to getaways: cities, beach and lake towns, mountain towns, national parks. */
@@ -225,7 +234,7 @@ const FLAT: SeasonFn = () => ({ factor: 1, source: "pattern" });
 
 /** Getaways close enough that a road trip could make sense (straight line), for asking a router about. */
 export function getawaysNear(home: LatLng, maxMiles = 520) {
-  return GETAWAYS.filter((g) => distanceKm(home, g) * 0.621371 <= maxMiles);
+  return allGetaways().filter((g) => distanceKm(home, g) * 0.621371 <= maxMiles);
 }
 
 /** The traveler's state, roughly: the state of the nearest listed getaway (good enough to pick an EIA region). */
@@ -312,7 +321,7 @@ export function matchGetaways(text: string, limit = 5): Getaway[] {
   const q = raw.replace(/ (?:[a-z]{2}|michigan|wisconsin|ohio|indiana|illinois)$/, "");
   if (q.length < 3) return [];
   const scored: { g: Getaway; score: number }[] = [];
-  for (const g of GETAWAYS) {
+  for (const g of allGetaways()) {
     const name = foldName(g.name);
     const full = `${name} ${g.state.toLowerCase()}`;
     const score = name === q || full === raw ? 100 : name.startsWith(q) ? 60 : name.includes(q) ? 30 : 0;
@@ -349,7 +358,7 @@ export function driveTrips(
   const rooms = Math.ceil(travelers / PEOPLE_PER_ROOM);
   const nightsList = [...new Set([2, 3, ...(input.nights && input.nights >= 4 && input.nights <= 7 ? [input.nights] : [])])];
   const out: DriveOption[] = [];
-  for (const g of GETAWAYS) {
+  for (const g of allGetaways()) {
     const o = priceDrive(home, g, { ...input, travelers, f, rentalF: RENTAL_STYLE[input.style], cars, rooms, nightsList, season: input.season ?? FLAT }, gasPrices, routes?.get(g.key), true);
     if (o) out.push(o);
   }

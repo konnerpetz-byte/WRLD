@@ -15,6 +15,7 @@ import { PlannerForm } from "./planner-form";
 import { TripCard } from "./planner-results";
 import { airportByCode, nearestAirports, searchAirports } from "@/features/places/airports";
 import { geocode } from "@/features/places/geocode";
+import { withApprovedPlaces } from "./approved-places";
 import { driveTo, driveTrips, type Getaway, matchGetaways, MAX_DRIVE_HOURS, nearestState } from "./drive";
 import { DriveCard, DriveResults } from "./drive-results";
 import { SearchPanel } from "./search-panel";
@@ -65,7 +66,8 @@ export async function PlannerView({
   const { supabase, userId } = publicMode ? await optionalUserId() : await requireUserId();
   const uid = userId ?? "00000000-0000-0000-0000-000000000000";
 
-  const [{ data: profile }, { data: accounts }, { data: rates }, { data: isAdmin }] = await Promise.all([
+  const [, { data: profile }, { data: accounts }, { data: rates }, { data: isAdmin }] = await Promise.all([
+    withApprovedPlaces().then(() => ({ data: null })),
     supabase.from("profiles").select("home_airport").eq("id", uid).maybeSingle(),
     supabase.from("loyalty_accounts").select("balance, program:loyalty_programs(slug)").eq("user_id", uid),
     supabase.from("exchange_rates").select("quote, rate, as_of").order("as_of", { ascending: false }).limit(400),
