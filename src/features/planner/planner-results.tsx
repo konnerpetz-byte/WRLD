@@ -1,11 +1,16 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
+
+import { PlacePhoto } from "@/features/places/place-photo";
 
 import { SOURCE_PROGRAM } from "@/features/awards/regions";
 import { airportByCode } from "@/features/places/airports";
 import { BANKS } from "@/features/awards/transfers";
 
 import { flyGem } from "./gems";
+import { flyTitle } from "./photo-titles";
+import { flyMeta, VIBES } from "./vibes";
 import type { FlightPay, TripOption } from "./plan";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
@@ -69,13 +74,21 @@ export function TripCard({
   const left = cash == null ? 0 : cash - t.cashNeeded;
   const who = travelers === 1 ? "" : ` for ${travelers}`;
   const gem = flyGem(t.code);
+  const photo = flyTitle(t.code);
+  const vibes = flyMeta(t.code).vibes;
   return (
-    <li className="grid gap-4 rounded-2xl border bg-card p-5">
+    <li className="grid gap-4 overflow-hidden rounded-2xl border bg-card p-5">
+      <Suspense fallback={<div className="-mx-5 -mt-5 h-44 bg-muted sm:h-56" aria-hidden="true" />}>
+        <PlacePhoto title={photo.title} search={photo.search} alt={t.city} wide />
+      </Suspense>
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div>
           <h3 className="text-lg font-semibold">
             {t.city} <span className="font-mono text-sm font-normal text-muted-foreground">{t.code}</span>
           </h3>
+          {vibes.length > 0 && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{vibes.map((v) => VIBES.find((x) => x.key === v)?.label).join(" · ")}</p>
+          )}
           {gem && (
             <p className="mt-1 text-sm">
               <span className="mr-2 inline-block rounded-full bg-travel-soft px-2 py-0.5 text-xs font-medium text-travel-ink">Hidden gem</span>

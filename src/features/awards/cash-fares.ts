@@ -69,10 +69,17 @@ async function monthFares(origin: string, month: string, direct: boolean): Promi
     }).toString();
     try {
       const res = await fetch(u, { headers: { "X-Access-Token": token, "Accept-Encoding": "gzip, deflate" }, signal: AbortSignal.timeout(12000) });
-      if (!res.ok) return [];
-      const body = (await res.json()) as { success?: boolean; data?: Row[] };
+      if (!res.ok) {
+        // Shows in Vercel's runtime logs: a 401 means the token is wrong or not active.
+        console.error(`[fares] Travelpayouts ${res.status} for ${origin} ${month}: ${(await res.text()).slice(0, 200)}`);
+        return [];
+      }
+      const body = (await res.json()) as { success?: boolean; data?: Row[]; error?: string };
+      if (!body.success) console.error(`[fares] Travelpayouts said no for ${origin} ${month}: ${String(body.error ?? "").slice(0, 200)}`);
+      else if (!body.data?.length) console.warn(`[fares] No cached fares for ${origin} ${month} (unique=${unique})`);
       return body.success && Array.isArray(body.data) ? body.data : [];
-    } catch {
+    } catch (e) {
+      console.error(`[fares] Travelpayouts request failed for ${origin} ${month}: ${String(e).slice(0, 200)}`);
       return [];
     }
   };

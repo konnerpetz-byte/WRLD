@@ -133,53 +133,52 @@ export async function loadPerDiem(
   date: string
 ): Promise<{ rates: Map<string, PerDiem>; factors: Factors }> {
   const rates = new Map<string, PerDiem>();
-  const query = (on: string) =>
-    places.length
-      ? (() => {
-          const names = [
-            ...new Set(
-              places.flatMap((p) =>
-                p.country === "US" ? ["United States"] : [countryName(p.country), countryName(p.country).toUpperCase()]
-              )
-            ),
-          ];
-          return supabase
-            .from("cost_per_diem")
-            .select("source, country, location, state, lodging, mie")
-            .in("country", names)
-            .lte("season_start", on)
-            .gte("season_end", on)
-            .limit(5000);
-        })()
-      : Promise.resolve({
-          data: [] as { source: string; country: string; location: string; state: string | null; lodging: number; mie: number }[],
-        });
+  type DiemRow = { source: string; country: string; location: string; state: string | null; lodging: number; mie: number };
+  const names = [
+    ...new Set(places.flatMap((p) => (p.country === "US" ? ["United States"] : [countryName(p.country), countryName(p.country).toUpperCase()]))),
+  ];
+  // A few countries per request: the API returns at most 1,000 rows, and one date has ~1,300 rates worldwide.
+  const chunks: string[][] = [];
+  for (let i = 0; i < names.length; i += 12) chunks.push(names.slice(i, i + 12));
+  const query = async (on: string): Promise<{ data: DiemRow[] }> => {
+    const parts = await Promise.all(
+      chunks.map((c) =>
+        supabase.from("cost_per_diem").select("source, country, location, state, lodging, mie").in("country", c).lte("season_start", on).gte("season_end", on).limit(1000)
+      )
+    );
+    return { data: parts.flatMap((r) => (r.data ?? []) as DiemRow[]) };
+  };
   const [rowsRes, calRes] = await Promise.all([query(date), supabase.from("cost_calibration").select("kind, factor, samples")]);
-  let rows = rowsRes.data ?? [];
-  // Rates are published for the current year only. For a trip next year, use the same season a
-  // year (or two) earlier: the government's rate for that time of year is the best guess we have.
-  for (let back = 1; !rows.length && places.length && back <= 2; back++) {
-    const earlier = `${Number(date.slice(0, 4)) - back}${date.slice(4).replace("-02-29", "-02-28")}`;
-    rows = (await query(earlier)).data ?? [];
-  }
-  for (const p of places) {
-    const name = p.country === "US" ? "united states" : fold(countryName(p.country));
-    const inCountry = rows.filter((r) => fold(r.country) === name);
-    if (!inCountry.length) continue;
-    const cands = cityCandidates(p.city);
-    const named = inCountry.filter((r) => r.location !== "[Other]");
-    const city = named.find((r) => matches(r.location, cands.exact)) ?? named.find((r) => matches(r.location, cands.loose));
-    const other = inCountry.find((r) => r.location === "[Other]");
-    const hit = city ?? (p.country === "US" ? null : other) ?? (inCountry.length === 1 ? inCountry[0] : null);
-    if (hit) {
-      rates.set(p.key, {
-        lodging: Number(hit.lodging),
-        mie: Number(hit.mie),
-        location: hit.location === "[Other]" ? `${countryName(p.country)} (country rate)` : hit.location,
-        basis: hit.location === "[Other]" ? "country" : "city",
-        source: hit.source as "state" | "gsa",
-      });
+  const assign = (rows: DiemRow[], todo: Place[]) => {
+    for (const p of todo) {
+      const name = p.country === "US" ? "united states" : fold(countryName(p.country));
+      const inCountry = rows.filter((r) => fold(r.country) === name);
+      if (!inCountry.length) continue;
+      const cands = cityCandidates(p.city);
+      const named = inCountry.filter((r) => r.location !== "[Other]");
+      const city = named.find((r) => matches(r.location, cands.exact)) ?? named.find((r) => matches(r.location, cands.loose));
+      const other = inCountry.find((r) => r.location === "[Other]");
+      const hit = city ?? (p.country === "US" ? null : other) ?? (inCountry.length === 1 ? inCountry[0] : null);
+      if (hit) {
+        rates.set(p.key, {
+          lodging: Number(hit.lodging),
+          mie: Number(hit.mie),
+          location: hit.location === "[Other]" ? `${countryName(p.country)} (country rate)` : hit.location,
+          basis: hit.location === "[Other]" ? "country" : "city",
+          source: hit.source as "state" | "gsa",
+        });
+      }
     }
+  };
+  assign((rowsRes.data ?? []) as DiemRow[], places);
+  // Rates are published for the current year (State Department) or fiscal year (GSA). For a trip
+  // past what's published, use the same season a year (or two) earlier, place by place: the
+  // government's rate for that time of year is the best guess we have.
+  for (let back = 1; back <= 2; back++) {
+    const todo = places.filter((p) => !rates.has(p.key));
+    if (!todo.length) break;
+    const earlier = `${Number(date.slice(0, 4)) - back}${date.slice(4).replace("-02-29", "-02-28")}`;
+    assign(((await query(earlier)).data ?? []) as DiemRow[], todo);
   }
   const factors = { ...DEFAULT_FACTORS };
   for (const c of calRes.data ?? []) {

@@ -3,8 +3,9 @@
 // 1. State Department foreign per diem rates (lodging and meals & incidentals,
 //    by city and season, ~1,000 locations). Public U.S. government data,
 //    posted monthly as an Excel file at allowances.state.gov/ExcelVersion.asp.
-// 2. GSA per diem rates for U.S. cities, when GSA_API_KEY is set (a free
-//    api.data.gov key). Public U.S. government data via GSA's documented API.
+// 2. GSA per diem rates for U.S. cities, by month (GSA_API_KEY, a free
+//    api.data.gov key; falls back to api.data.gov's public DEMO_KEY). Public
+//    U.S. government data via GSA's documented API.
 //
 // Upserts public.cost_per_diem and logs each run in public.cost_refresh_runs.
 // Skips a State Department file it already loaded unless called with {"force": true}.
@@ -118,19 +119,26 @@ async function gsaRows(key: string): Promise<{ rows: Row[]; file: string }> {
   const out: Row[] = [];
   const fetched = new Date().toISOString();
   const short = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const seen = new Set<string>();
   for (const r of body) {
     const city = String(r.City ?? "").trim();
     const st = String(r.State ?? "").trim();
     const did = String(r.DID ?? "").trim();
+    const county = String(r.County ?? "").trim();
     const mie = money(r.Meals);
     if (!city || !st || !did || mie == null) continue;
+    // One rate area (DID) can be listed once per county: keep each county, skip exact repeats.
+    const code = `${did}:${county || city}`.slice(0, 120);
     short.forEach((m, i) => {
       const lodging = money(r[m]);
       if (lodging == null) return;
       const year = i >= 9 ? fy - 1 : fy;
       const start = new Date(Date.UTC(year, i, 1)).toISOString().slice(0, 10);
       const end = new Date(Date.UTC(year, i + 1, 0)).toISOString().slice(0, 10);
-      out.push({ source: "gsa", location_code: did, country: "United States", location: city, state: st, season_start: start, season_end: end, lodging, mie, effective: null, source_file: `GSA FY${fy}`, fetched_at: fetched });
+      const key = `${code}|${start}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ source: "gsa", location_code: code, country: "United States", location: county ? `${city} (${county} County)` : city, state: st, season_start: start, season_end: end, lodging, mie, effective: null, source_file: `GSA FY${fy}`, fetched_at: fetched });
     });
   }
   return { rows: out, file: `GSA FY${fy}` };
@@ -183,8 +191,9 @@ Deno.serve(async (req) => {
     result.state = { error: String(e) };
   }
 
-  // GSA (U.S. cities), only with a key
-  const gsaKey = Deno.env.get("GSA_API_KEY");
+  // GSA (U.S. cities). A free api.data.gov key (GSA_API_KEY) is best; without one, api.data.gov's
+  // public DEMO_KEY, which allows a few calls an hour: enough for this once-a-day job.
+  const gsaKey = Deno.env.get("GSA_API_KEY") || "DEMO_KEY";
   if (gsaKey) {
     try {
       const { rows, file } = await gsaRows(gsaKey);

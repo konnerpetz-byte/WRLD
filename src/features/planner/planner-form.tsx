@@ -26,6 +26,8 @@ export type PlannerInitial = {
   to?: string;
   /** "group": the budget is for everyone; "person": it's per traveler */
   per?: string;
+  /** Trip vibes picked ("water", "outdoors"…) */
+  vibes?: string[];
 };
 
 const field = "h-11 w-full rounded-lg border bg-background px-3 text-base tabular-nums focus-visible:outline-2 focus-visible:outline-ring";
@@ -43,7 +45,9 @@ export function PlannerForm({
   styles,
   keep,
   action,
+  vibeOptions = [],
 }: {
+  vibeOptions?: Option[];
   initial: PlannerInitial;
   pointKeys: PointKey[];
   months: Option[];
@@ -57,6 +61,7 @@ export function PlannerForm({
   const id = useId();
   const [home, setHome] = useState(initial.home);
   const [to, setTo] = useState(initial.to ?? "");
+  const [vibes, setVibes] = useState<string[]>(initial.vibes ?? []);
   const [rows, setRows] = useState(initial.points.length ? initial.points : [{ key: "chase", amount: "" }]);
   const pts = rows
     .map((r) => ({ key: r.key, n: num(r.amount) }))
@@ -68,6 +73,7 @@ export function PlannerForm({
   return (
     <form method="get" action={action ?? "/points"} className="grid gap-5">
       <input type="hidden" name="pts" value={pts} />
+      <input type="hidden" name="vibe" value={vibes.join(",")} />
       {keep?.trip && <input type="hidden" name="trip" value={keep.trip} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="grid content-start gap-1.5 text-sm font-medium">
@@ -224,6 +230,31 @@ export function PlannerForm({
           </select>
         </label>
       </div>
+      {vibeOptions.length > 0 && (
+        <fieldset className="grid gap-2">
+          <legend className="mb-1.5 text-sm font-medium">
+            Trip vibe <span className="font-normal text-muted-foreground">(pick any, or none for everything)</span>
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {vibeOptions.map((v) => {
+              const on = vibes.includes(v.value);
+              return (
+                <button
+                  key={v.value}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setVibes(on ? vibes.filter((x) => x !== v.value) : [...vibes, v.value])}
+                  className={`tap rounded-full border px-3.5 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
+                    on ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
       <input type="hidden" name="sort" value={initial.sort} />
       <div>
         <Button type="submit" size="lg">

@@ -191,7 +191,12 @@ export type DriveOption = {
   best: DriveLength | null;
   /** $ a gallon used: the average of the price at home and at the destination */
   gasPrice: number;
+  /** Hotel price for the month against the place's yearly average, and where that came from */
+  season: { factor: number; source: "gsa" | "pattern" };
 };
+/** Hotel price this month against the yearly average for a place (1 = average). */
+export type SeasonFn = (g: Getaway) => { factor: number; source: "gsa" | "pattern" };
+const FLAT: SeasonFn = () => ({ factor: 1, source: "pattern" });
 
 /** Getaways close enough that a road trip could make sense (straight line), for asking a router about. */
 export function getawaysNear(home: LatLng, maxMiles = 520) {
@@ -209,7 +214,7 @@ export function nearestState(home: LatLng) {
   return best && km < 500 ? best.state : null;
 }
 
-type PriceCtx = { cash: number; travelers: number; f: number; cars: number; rooms: number; nightsList: number[] };
+type PriceCtx = { cash: number; travelers: number; f: number; cars: number; rooms: number; nightsList: number[]; season: SeasonFn };
 
 function priceDrive(home: LatLng, g: Getaway, c: PriceCtx, gasPrices: GasInput, route: { miles: number; hours: number } | undefined, limitHours: boolean): DriveOption | null {
   const roadMiles = Math.round(route?.miles ?? distanceKm(home, g) * 0.621371 * ROAD_FACTOR);
@@ -218,17 +223,18 @@ function priceDrive(home: LatLng, g: Getaway, c: PriceCtx, gasPrices: GasInput, 
   const t = TIER[g.tier];
   const gasPrice = Math.round(((gasPrices.home + gasPrices.at(g.state)) / 2) * 1000) / 1000;
   const gas = Math.round(((roadMiles * 2) / MPG) * gasPrice * c.cars);
+  const season = c.season(g);
   const lengths = c.nightsList
     .filter((n) => !limitHours || hours <= maxHoursFor(n))
     .map((n) => {
-      const hotel = Math.round(t.hotel * c.f * c.rooms * n);
+      const hotel = Math.round(t.hotel * season.factor * c.f * c.rooms * n);
       const days = Math.round(t.day * c.f * c.travelers * (n + 1));
       const total = gas + hotel + days;
       return { nights: n, label: lengthLabel(n), gas, hotel, days, total, fits: total <= c.cash };
     });
   if (!lengths.length) return null;
   const fitting = lengths.filter((l) => l.fits);
-  return { getaway: g, roadMiles, hours, lengths, best: fitting.length ? fitting[fitting.length - 1] : null, gasPrice, routed: Boolean(route) };
+  return { getaway: g, roadMiles, hours, lengths, best: fitting.length ? fitting[fitting.length - 1] : null, gasPrice, routed: Boolean(route), season };
 }
 
 /** Longest one-way drive WRLD will price when you ask for a place by name. */
@@ -241,7 +247,7 @@ export const MAX_DRIVE_HOURS = 14;
 export function driveTo(
   home: LatLng,
   g: Getaway,
-  input: { cash: number; travelers: number; style: Style; nights?: number },
+  input: { cash: number; travelers: number; style: Style; nights?: number; season?: SeasonFn },
   gasPrices: GasInput = { home: GAS_PRICE, at: () => GAS_PRICE },
   route?: { miles: number; hours: number },
 ): DriveOption | null {
@@ -251,7 +257,7 @@ export function driveTo(
   const o = priceDrive(
     home,
     g,
-    { cash: input.cash, travelers, f: STYLES[input.style].factor, cars: Math.ceil(travelers / PEOPLE_PER_CAR), rooms: Math.ceil(travelers / PEOPLE_PER_ROOM), nightsList },
+    { cash: input.cash, travelers, f: STYLES[input.style].factor, cars: Math.ceil(travelers / PEOPLE_PER_CAR), rooms: Math.ceil(travelers / PEOPLE_PER_ROOM), nightsList, season: input.season ?? FLAT },
     gasPrices,
     route,
     false,
@@ -300,7 +306,7 @@ export function formatDrive(hours: number) {
  */
 export function driveTrips(
   home: LatLng,
-  input: { cash: number; travelers: number; style: Style; nights?: number },
+  input: { cash: number; travelers: number; style: Style; nights?: number; season?: SeasonFn },
   gasPrices: GasInput = { home: GAS_PRICE, at: () => GAS_PRICE },
   /** Real driving distances and times by getaway key (OpenRouteService), when available */
   routes?: Map<string, { miles: number; hours: number }> | null,
@@ -312,7 +318,7 @@ export function driveTrips(
   const nightsList = [...new Set([2, 3, ...(input.nights && input.nights >= 4 && input.nights <= 7 ? [input.nights] : [])])];
   const out: DriveOption[] = [];
   for (const g of GETAWAYS) {
-    const o = priceDrive(home, g, { ...input, travelers, f, cars, rooms, nightsList }, gasPrices, routes?.get(g.key), true);
+    const o = priceDrive(home, g, { ...input, travelers, f, cars, rooms, nightsList, season: input.season ?? FLAT }, gasPrices, routes?.get(g.key), true);
     if (o) out.push(o);
   }
   return out.sort(

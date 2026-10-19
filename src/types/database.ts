@@ -837,6 +837,10 @@ export type Database = {
       award_searches: TableDef<AwardSearchLog, Pick<AwardSearchLog, "user_id" | "origin" | "destinations" | "cabin" | "month" | "via">, never>;
     };
     Views: {
+      cost_gsa_season: {
+        Row: { location: string | null; state: string | null; month: number | null; lodging: number | null; factor: number | null };
+        Relationships: [];
+      };
       wallet_reachable_points: { Row: WalletReachablePoints; Relationships: [] };
       trip_planned_costs: { Row: TripPlannedCost; Relationships: [] };
       trip_budget_overview: { Row: TripBudgetOverview; Relationships: [] };

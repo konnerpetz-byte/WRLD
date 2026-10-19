@@ -16,9 +16,11 @@ import { TripCard } from "./planner-results";
 import { airportByCode, nearestAirports, searchAirports } from "@/features/places/airports";
 import { geocode } from "@/features/places/geocode";
 import { driveTo, driveTrips, type Getaway, matchGetaways, MAX_DRIVE_HOURS, nearestState } from "./drive";
-import { DriveCard, DriveResults } from "./drive-results";
+import { CardList, DriveCard, DriveResults } from "./drive-results";
 import { gasPriceFor, gasSourceNote, loadGasPrices } from "./gas-prices";
 import { flyGem } from "./gems";
+import { loadGsaSeason, seasonFn } from "./season-data";
+import { driveMeta, flyMeta, parseVibes, VIBES, vibeScore } from "./vibes";
 import { loadRoutes } from "./routes";
 
 const IATA = /^[A-Z]{3}$/;
@@ -160,24 +162,43 @@ export async function PlannerView({
       : driveToPlace
         ? [await loadGasPrices(), null]
         : [null, null];
+  // Hotels by month: GSA's monthly government rates where they exist, blended with season patterns.
+  const season = seasonFn(month, canDrive || driveToPlace ? await loadGsaSeason(month) : []);
+  const vibes = parseVibes(sp.vibe);
+  const vibeLabel = vibes.map((v) => VIBES.find((x) => x.key === v)!.label.toLowerCase()).join(", ");
   const oneDrive =
     driveToPlace && homeAirport && gas && dest.place
       ? driveTo(
           homeAirport,
           dest.place,
-          { cash: budgetSet ? cash : Infinity, travelers, style, nights },
+          { cash: budgetSet ? cash : Infinity, travelers, style, nights, season },
           { home: gasPriceFor(gas, nearestState(homeAirport)), at: (st) => gasPriceFor(gas, st) },
         )
       : null;
-  const drives =
+  const allDrives =
     canDrive && homeAirport && gas
       ? driveTrips(
           homeAirport,
-          { cash, travelers, style, nights },
+          { cash, travelers, style, nights, season },
           { home: gasPriceFor(gas, nearestState(homeAirport)), at: (st) => gasPriceFor(gas, st) },
           routes,
         )
       : [];
+  // Trip vibes: keep places with any of them, best matches first. If nothing matches, show everything and say so.
+  const byVibe = <T,>(list: T[], tags: (t: T) => readonly string[]) => {
+    if (!vibes.length) return { list, matched: true };
+    const scored = list.map((t, i) => ({ t, i, n: vibeScore(tags(t) as never, vibes) })).filter((x) => x.n > 0);
+    return scored.length
+      ? { list: scored.sort((a, b) => b.n - a.n || a.i - b.i).map((x) => x.t), matched: true }
+      : { list, matched: false };
+  };
+  const driveFilter = byVibe(allDrives, (d) => driveMeta(d.getaway.key).vibes);
+  const drives = driveFilter.list;
+  const driveNote = vibes.length
+    ? driveFilter.matched
+      ? `Showing road trips for ${vibeLabel}.`
+      : `No road trip here is tagged ${vibeLabel}, so here's everything.`
+    : null;
 
   const ready = IATA.test(home) && (budgetSet || Boolean(only)) && go !== "drive" && only !== home;
   const plan = ready
@@ -200,6 +221,8 @@ export async function PlannerView({
       )
     : null;
   const sorted = plan ? sortOptions(plan.options, sort) : [];
+  const flightFilter = only ? { list: sorted, matched: true } : byVibe(sorted, (t) => flyMeta(t.code).vibes);
+  const matchedFlights = flightFilter.list;
   if (plan && userId) {
     // Usage: does this traveler start from a budget ("where can I go") or from a trip they already have?
     const fitCount = plan.options.filter((t) => t.fit === "fits").length;
@@ -218,9 +241,9 @@ export async function PlannerView({
       );
   }
   // Hidden gems get their own list so the big cities don't crowd them out.
-  const fits = sorted.filter((t) => t.fit === "fits" && !flyGem(t.code)).slice(0, 12);
-  const gemFits = sorted.filter((t) => t.fit === "fits" && flyGem(t.code)).slice(0, 6);
-  const stretch = sorted.filter((t) => t.fit === "stretch").slice(0, 6);
+  const fits = matchedFlights.filter((t) => t.fit === "fits" && !flyGem(t.code));
+  const gemFits = matchedFlights.filter((t) => t.fit === "fits" && flyGem(t.code));
+  const stretch = matchedFlights.filter((t) => t.fit === "stretch");
   const allFits = fits.length + gemFits.length;
 
   const totalPoints = Object.values(points).reduce((s, n) => s + n, 0);
@@ -274,6 +297,7 @@ export async function PlannerView({
             region,
             sort,
             go,
+            vibes,
             to: rawTo || (only ?? ""),
             per,
           }}
@@ -283,6 +307,7 @@ export async function PlannerView({
           months={months}
           regions={Object.entries(REGIONS).map(([value, r]) => ({ value, label: r.label }))}
           styles={Object.entries(STYLES).map(([value, s]) => ({ value, label: s.label, hint: s.hint }))}
+          vibeOptions={VIBES.map((v) => ({ value: v.key, label: v.label }))}
         />
       </section>
 
@@ -308,7 +333,7 @@ export async function PlannerView({
       )}
 
       {canDrive && gas && (go === "drive" || !allFits) && (
-        <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} />
+        <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} filterNote={driveNote} />
       )}
 
       {plan && (
@@ -319,9 +344,7 @@ export async function PlannerView({
                 {only
                   ? `${dest.place ? "Or fly to" : "Your trip to"} ${AIRPORT_CITY[only] ?? airportByCode(only)?.city ?? only}`
                   : allFits
-                  ? `${allFits}${
-                      sorted.filter((t) => t.fit === "fits").length > allFits ? "+" : ""
-                    } trips fit ${budgetText}${totalPoints ? ` and ${totalPoints.toLocaleString("en-US")} points` : ""}`
+                  ? `${allFits} trips fit ${budgetText}${totalPoints ? ` and ${totalPoints.toLocaleString("en-US")} points` : ""}`
                   : `Nothing fits ${budgetText} yet`}
               </h2>
               <p className="text-sm text-muted-foreground">
@@ -388,20 +411,25 @@ export async function PlannerView({
               </p>
             )
           ) : allFits ? (
-            <ul className="grid gap-3">
-              {fits.map((t) => (
-                <TripCard
-                  key={t.code}
-                  t={t}
-                  home={home}
-                  month={month}
-                  monthLabel={monthLabel}
-                  cash={cash}
-                  travelers={travelers}
-                  nights={nights}
-                />
-              ))}
-            </ul>
+            <>
+              {vibes.length > 0 && (
+                <p className="px-1 text-sm">
+                  {flightFilter.matched ? `Showing places for ${vibeLabel}.` : `Nothing here is tagged ${vibeLabel}, so here's everything.`}
+                </p>
+              )}
+              <CardList className="grid gap-3" first={8} items={fits} render={(t) => (
+                  <TripCard
+                    key={t.code}
+                    t={t}
+                    home={home}
+                    month={month}
+                    monthLabel={monthLabel}
+                    cash={cash}
+                    travelers={travelers}
+                    nights={nights}
+                  />
+                )} />
+            </>
           ) : (
             <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
               Try fewer nights, the budget travel style, or another month. The trips just over budget are below.
@@ -410,9 +438,8 @@ export async function PlannerView({
 
           {!only && gemFits.length > 0 && (
             <>
-              <h3 className="mt-2 px-1 font-semibold">Hidden gems, many with free things to do</h3>
-              <ul className="grid gap-3">
-                {gemFits.map((t) => (
+              <h3 className="mt-2 px-1 font-semibold">Hidden gems and smaller cities, many with free things to do</h3>
+              <CardList className="grid gap-3" first={6} items={gemFits} render={(t) => (
                   <TripCard
                     key={t.code}
                     t={t}
@@ -423,16 +450,14 @@ export async function PlannerView({
                     travelers={travelers}
                     nights={nights}
                   />
-                ))}
-              </ul>
+                )} />
             </>
           )}
 
           {!only && stretch.length > 0 && (
             <>
               <h3 className="mt-2 px-1 font-semibold">A little over budget</h3>
-              <ul className="grid gap-3">
-                {stretch.map((t) => (
+              <CardList className="grid gap-3" first={4} items={stretch} render={(t) => (
                   <TripCard
                     key={t.code}
                     t={t}
@@ -443,8 +468,7 @@ export async function PlannerView({
                     travelers={travelers}
                     nights={nights}
                   />
-                ))}
-              </ul>
+                )} />
             </>
           )}
 
@@ -483,7 +507,7 @@ export async function PlannerView({
       )}
 
       {canDrive && gas && go !== "drive" && allFits > 0 && (
-        <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} />
+        <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} filterNote={driveNote} />
       )}
 
       <PointsOrCash

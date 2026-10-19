@@ -12,6 +12,8 @@ import type { requireUserId } from "@/lib/supabase/server";
 
 import { type CostBasis, groundCost, type Style, STYLES } from "./costs";
 import { FLY_GEMS } from "./gems";
+import { fareSeason, hotelSeason } from "./seasons";
+import { flyMeta } from "./vibes";
 import { type Factors, loadPerDiem, type PerDiem, type Place, placeForAirport } from "./per-diem";
 
 type Supabase = Awaited<ReturnType<typeof requireUserId>>["supabase"];
@@ -281,15 +283,23 @@ export function priceTrips(
   const options: TripOption[] = [];
   for (const { code, region } of list) {
     const d = airportByCode(code);
-    const ground = groundCost(code, input.nights, t, input.style, costs?.rates.get(code), costs?.factors);
-    if (!d || !ground) continue;
+    const month = input.dates?.start.slice(0, 7) ?? input.month;
+    const base = groundCost(code, input.nights, t, input.style, costs?.rates.get(code), costs?.factors);
+    if (!d || !base) continue;
+    // Government rates already carry their seasons; WRLD's own city estimates are yearly
+    // averages, so they follow the place's season pattern.
+    const dated = base.basis === "perdiem-city" || base.basis === "perdiem-country";
+    const hotelNow = dated ? base.hotel : Math.round(base.hotel * hotelSeason(flyMeta(code).season, month));
+    const ground = { ...base, hotel: hotelNow, total: hotelNow + base.days };
     const miles = distanceKm(o, d) / KM_PER_MILE;
     if (miles < 150) continue;
     const live = cheapest.get(code);
     const liveBack = returns
       .filter((f) => f.origin === code && f.destination === input.home)
       .reduce<number | null>((a, f) => (a == null || f.price < a ? f.price : a), null);
-    const perPerson = live != null ? Math.round(live + (liveBack ?? live)) : estimateFare(miles);
+    // No live fare for this month: the distance estimate, moved by the month's pattern for that part of the world.
+    const perPerson =
+      live != null ? Math.round(live + (liveBack ?? live)) : Math.max(150, Math.round((estimateFare(miles) * fareSeason(region, month)) / 10) * 10);
     const fareIs: TripOption["fareIs"] = live == null ? "estimate" : liveBack != null ? "live" : "half";
     const fare = perPerson * t;
 
