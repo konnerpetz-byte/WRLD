@@ -1,18 +1,17 @@
 "use client";
 
-import { Bookmark, CircleUserRound, Compass, Luggage, Wallet } from "lucide-react";
+import { Bookmark, CircleUserRound, Compass, Luggage } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * In the order people use WRLD: their trips, ideas for the next one, the points
- * that pay for it, places they've saved, and themselves. Each link also owns
+ * In the order people use WRLD: their trips, ideas for the next one, places they've saved, and
+ * themselves. Points are optional, so the wallet lives inside Explore and You, not in the tab bar. Each link also owns
  * the pages under it (`also`), so the right one stays highlighted.
  */
 const LINKS = [
   { href: "/trips", label: "Trips", short: "Trips", icon: Luggage, also: [] as string[], exact: false },
-  { href: "/points", label: "Explore", short: "Explore", icon: Compass, also: ["/points/share"], exact: true },
-  { href: "/points/wallet", label: "Wallet", short: "Wallet", icon: Wallet, also: [], exact: false },
+  { href: "/points", label: "Explore", short: "Explore", icon: Compass, also: ["/points/share", "/points/wallet"], exact: true },
   { href: "/saved", label: "Saved spots", short: "Saved", icon: Bookmark, also: [], exact: false },
   { href: "/account", label: "You", short: "You", icon: CircleUserRound, also: ["/profile"], exact: false },
 ];
@@ -31,7 +30,7 @@ export function NavLinks({ pathname = "" }: { pathname?: string }) {
   return (
     <nav
       aria-label="Main"
-      className="material-dark fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-white/10 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] lg:static lg:flex lg:flex-col lg:gap-1 lg:border-0 lg:bg-transparent lg:p-0 lg:[-webkit-backdrop-filter:none] lg:[backdrop-filter:none]"
+      className="material-dark fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-white/10 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] lg:static lg:flex lg:flex-col lg:gap-1 lg:border-0 lg:bg-transparent lg:p-0 lg:[-webkit-backdrop-filter:none] lg:[backdrop-filter:none]"
     >
       {LINKS.map(({ href, label, short, icon: Icon, also, exact }) => {
         const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);

@@ -14,8 +14,8 @@ const MESSAGES: { who: string; text: string; me?: boolean }[] = [
   { who: "Jo", text: "ok are we actually doing Nashville for Maya's 30th??" },
   { who: "Sam", text: "I'm in if it's under $1,500" },
   { who: "Ana", text: "same, rent just went up 😭" },
-  { who: "You", text: "WRLD has it at $1,381 each. And my points cover the hotel", me: true },
-  { who: "Jo", text: "wait HOW 👀" },
+  { who: "Jo", text: "put your real max in WRLD, nobody sees it" },
+  { who: "You", text: "Everyone's in. It fits at $1,381 each 🎉", me: true },
 ];
 
 const INITIAL_BG: Record<string, string> = { Jo: "#ffd5c2", Sam: "#cfe3ff", Ana: "#e3d6ff" };
@@ -25,7 +25,7 @@ export function GroupChatHero() {
     <figure className="relative mx-auto w-full max-w-md lg:mx-0 lg:ml-auto">
       <figcaption className="sr-only">
         Example at typical U.S. prices: four friends plan four nights in Nashville for $1,381 each, under everyone&rsquo;s $1,500 max: flights
-        $522, a shared hotel room $321, food $338 and plans $200. Your points cover the hotel, so each friend owes you $321.
+        $522, a shared hotel room $321, food $338 and plans $200. Each friend set a private max; WRLD only shared the lowest.
       </figcaption>
       <div aria-hidden="true" className="rounded-[2rem] border bg-card p-4 shadow-[0_40px_80px_-40px_rgb(15_61_51/0.45)] sm:p-5">
         <div className="mb-3 flex items-center gap-3 border-b pb-3">
@@ -84,8 +84,8 @@ export function GroupChatHero() {
             </div>
           </dl>
           <div className="flex items-center justify-between gap-3 bg-travel px-4 py-3 text-travel-foreground">
-            <p className="text-sm font-semibold">Your points cover the hotel. Each friend owes you $321</p>
-            <span className="shrink-0 whitespace-nowrap rounded-full bg-travel-foreground px-3 py-1 text-xs font-semibold text-travel">Settle up</span>
+            <p className="text-sm font-semibold">4 private maxes in. Nobody said a number out loud.</p>
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-travel-foreground px-3 py-1 text-xs font-semibold text-travel">Book it</span>
           </div>
         </div>
       </div>

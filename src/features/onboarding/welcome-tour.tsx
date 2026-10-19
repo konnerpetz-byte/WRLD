@@ -9,32 +9,23 @@ import { Button } from "@/components/ui/button";
 
 import { markTourSeen } from "./actions";
 
-type Path = "trip" | "explore" | "group";
+type Path = "place" | "budget";
 
 /** Each stop points at a part of the app; `target` matches a nav link's data-tour. */
 const STEPS: { title: string; body: string; target?: string }[] = [
   {
-    title: "Welcome to WRLD",
-    body: "Plan the whole trip in one place and see what your points really pay for. A quick look around takes under a minute.",
+    title: "Trips the whole group can afford",
+    body: "Most planners start with a place and hope the money works out. WRLD starts with what everyone can spend, then finds the best trip that fits.",
   },
   {
-    title: "Trips: everything for one trip",
-    body: "Each trip has tabs in the order it comes together: Overview, Itinerary, Map, Flights, Stays, Points, Budget, Group, Checklist, and Export.",
+    title: "Everyone sets a private max",
+    body: "Invite your group to a trip. Each person enters what they can spend; the group only sees the lowest number, and WRLD plans the whole trip to it. Costs split fairly at the end.",
     target: "trips",
   },
   {
-    title: "Explore: no destination yet?",
-    body: "Enter your cash and points. WRLD prices flights, hotel and days there for places that fit, then starts the trip for you in one click.",
+    title: "No place yet? Start with the budget",
+    body: "Explore shows every trip that fits: flights or a road trip, the stay and your days there. Over budget? It shows the closest options and cheaper look-alikes. Points are optional.",
     target: "explore",
-  },
-  {
-    title: "Wallet: your points, no logins",
-    body: "Add card and airline balances by hand in about two minutes. Explore and each trip's Points tab use them to show the cheapest way to pay.",
-    target: "wallet",
-  },
-  {
-    title: "Plan together, take it with you",
-    body: "Invite friends to vote and split costs. When it's set, export the trip as a PDF, calendar or spreadsheet, with tickets and confirmations in one place.",
   },
 ];
 
@@ -97,9 +88,8 @@ function Tour({ seen, replay }: { seen: boolean; replay: boolean }) {
   if (!open) return null;
   const s = STEPS[step];
   const starts: Record<Path, { href: string; label: string }> = {
-    trip: { href: "/trips/new", label: "Start my trip" },
-    explore: { href: "/points", label: "Open Explore" },
-    group: { href: "/trips/new", label: "Start the group trip" },
+    place: { href: "/trips/new", label: "Start the trip" },
+    budget: { href: "/points", label: "See what our budget fits" },
   };
 
   return (
@@ -134,9 +124,8 @@ function Tour({ seen, replay }: { seen: boolean; replay: boolean }) {
               <legend className="mb-1 text-sm font-medium">Where are you starting?</legend>
               {(
                 [
-                  ["trip", "I know where I'm going"],
-                  ["explore", "I have points. Show me where I can go"],
-                  ["group", "I'm planning with friends"],
+                  ["place", "We know where we're going"],
+                  ["budget", "We have a budget, not a place"],
                 ] as const
               ).map(([value, label]) => (
                 <label
@@ -158,18 +147,16 @@ function Tour({ seen, replay }: { seen: boolean; replay: boolean }) {
             You&rsquo;re set
           </h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {path === "explore"
-              ? "Add your points in Wallet first for the best answers, or jump straight into Explore."
-              : path === "group"
-                ? "Create the trip, then invite friends from its Group tab. Everyone can vote and add ideas."
-                : "Create the trip with where and when. WRLD sets up each day, and the Points tab shows how to pay for it."}
+            {path === "budget"
+              ? "Enter the budget, where you're leaving from and who's coming. Pick a trip that fits and WRLD starts it for you, ready to invite the group."
+              : "Create the trip with where and when, then invite the group. Everyone sets their private max on the trip's first page."}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button asChild onClick={close}>
-              <Link href={starts[path ?? "trip"].href}>{starts[path ?? "trip"].label}</Link>
+              <Link href={starts[path ?? "place"].href}>{starts[path ?? "place"].label}</Link>
             </Button>
             <Button asChild variant="outline" onClick={close}>
-              <Link href="/points/wallet">Add my points first</Link>
+              <Link href={path === "budget" ? "/trips/new" : "/points"}>{path === "budget" ? "We know the place after all" : "No place yet? Explore"}</Link>
             </Button>
           </div>
         </>

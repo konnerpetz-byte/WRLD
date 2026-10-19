@@ -367,9 +367,13 @@ export async function PlannerView({
               Where can your budget take you?
             </h2>
             <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-              WRLD prices the whole trip, getting there, hotel and days there, and shows the places you can afford. Have credit card
-              points? Add them under points? Add them under More options and watch the list grow.ldquo;Points, travel style and region.points? Add them under More options and watch the list grow.rdquo;
-              {Object.keys(wallet).length > 0 && sp.pts === undefined ? " Your points are filled in from My points." : ""}
+              Flights or a drive, the place to stay and your days there, priced for the whole group. Have credit card points? They&rsquo;re
+              optional: add them under &ldquo;Points, travel style and region&rdquo; or in your{" "}
+              <Link href="/points/wallet" className="font-medium text-primary underline underline-offset-2">
+                points wallet
+              </Link>
+              .
+              {Object.keys(wallet).length > 0 && sp.pts === undefined ? " Your points are filled in from your wallet." : ""}
             </p>
           </div>
         )}

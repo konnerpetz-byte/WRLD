@@ -69,6 +69,10 @@ async function AccountPageContent() {
               Your travel type
             </Link>{" "}
             shapes what WRLD suggests.{" "}
+            <Link href="/points/wallet" className="font-medium text-primary underline underline-offset-2">
+              Points wallet
+            </Link>{" "}
+            (optional).{" "}
             <Link href="/trips?tour=1" className="font-medium text-primary underline underline-offset-2">
               Replay the tour
             </Link>

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
+import { GroupBudgetCard } from "@/features/budget/group-budget-card";
 import { pointsOrCashUrl, tripAirport } from "@/features/onboarding/progress";
 import { type Step, StepList } from "@/features/onboarding/step-list";
 import { getTrip } from "@/features/trips/queries";
@@ -24,7 +25,7 @@ export default function TripPlanPage(props: PageProps<"/trips/[tripId]">) {
 async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
   const { tripId } = await params;
   const { supabase, userId } = await requireUserId();
-  const [{ trip, stops }, { data: profile }, flights, stays, members, invites, items] = await Promise.all([
+  const [{ trip, stops, canEdit }, { data: profile }, flights, stays, members, invites, items, comfort] = await Promise.all([
     getTrip(tripId),
     supabase.from("profiles").select("home_airport").eq("id", userId).maybeSingle(),
     supabase.from("transit_segments").select("direction, origin_code, destination_code").eq("trip_id", tripId).eq("mode", "flight"),
@@ -32,7 +33,15 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
     supabase.from("trip_members").select("user_id", { count: "exact", head: true }).eq("trip_id", tripId),
     supabase.from("trip_invites").select("id", { count: "exact", head: true }).eq("trip_id", tripId).is("revoked_at", null),
     supabase.from("itinerary_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId).neq("kind", "note"),
+    supabase.rpc("trip_budget_comfort_summary", { p_trip_id: tripId }),
   ]);
+  const c = comfort.data?.[0];
+  const comfortSummary = {
+    responses: Number(c?.responses ?? 0),
+    members: Number(c?.members ?? 1),
+    comfortable: c?.comfortable == null ? null : Number(c.comfortable),
+    mine: c?.mine == null ? null : Number(c.mine),
+  };
 
   const home = profile?.home_airport ?? null;
   const there = tripAirport(stops);
@@ -42,16 +51,36 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
   const people = members.count ?? 1;
   const base = `/trips/${tripId}`;
 
+  // In the order a group trip actually comes together: who's coming, what everyone can spend,
+  // then getting there, staying and the days, all planned to that number.
   const steps: Step[] = [
     {
+      key: "group",
+      title: "Bring your group",
+      body: "Invite everyone who's coming. Each person gets to set their own private max, vote on ideas and see who owes what. Free for everyone.",
+      done: people > 1 || Boolean(invites.count),
+      doneNote: people > 1 ? `${people} people` : "invite sent",
+      href: `${base}/group`,
+      cta: "Invite people",
+    },
+    {
+      key: "budget",
+      title: "Agree on a budget without the awkward talk",
+      body: "Everyone answers privately below. The group only sees the lowest number, and WRLD plans the whole trip to it.",
+      done: trip.budget != null,
+      doneNote: trip.budget != null ? formatMoney(Number(trip.budget), trip.currency, { cents: false }) : undefined,
+      href: "#group-budget",
+      cta: "Set my max",
+    },
+    {
       key: "flights",
-      title: "Cost this trip with your points",
-      body: `Flights ${home ?? "from your airport"} to ${there ?? trip.destination ?? "your first stop"}, the hotel and your days there, with the best way to use each point against your budget. Then add the flight you book.`,
+      title: "Price getting there",
+      body: `Flights ${home ? `from ${home}` : "from your airport"} to ${there ?? trip.destination ?? "your first stop"} in cash, or with points if anyone has them. Then add the flight you book.`,
       done: hasOut,
       doneNote: hasBack ? "both ways" : "flight there added",
       href: pointsOrCashUrl({ from: home, to: there, date: trip.start_date, tripId }),
-      cta: "Cost it with my points",
-      secondary: { href: `${base}/transit`, label: "I've already booked" },
+      cta: "Price flights",
+      secondary: { href: `${base}/transit`, label: "We've already booked" },
     },
     {
       key: "stay",
@@ -62,31 +91,13 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
       cta: "Add a stay",
     },
     {
-      key: "group",
-      title: "Bring your group",
-      body: "Invite friends to plan, vote on ideas, chat and split costs. Free for everyone.",
-      done: people > 1 || Boolean(invites.count),
-      doneNote: people > 1 ? `${people} people` : "invite sent",
-      href: `${base}/group`,
-      cta: "Invite people",
-    },
-    {
       key: "days",
       title: "Plan the days",
-      body: "Pick from ideas matched to your travel type, or add your own. Official ticket pages and times are filled in.",
+      body: "Ideas matched to how each of you likes to travel, with official ticket sites and times filled in.",
       done: Boolean(items.count),
       doneNote: items.count ? `${items.count} plans` : undefined,
       href: `${base}/itinerary`,
       cta: "Plan day 1",
-    },
-    {
-      key: "budget",
-      title: "Set the budget",
-      body: "One number for the trip. WRLD adds up flights, stays and tickets in cash and points and shows what's left each day.",
-      done: trip.budget != null,
-      doneNote: trip.budget != null ? formatMoney(Number(trip.budget), trip.currency, { cents: false }) : undefined,
-      href: `${base}/budget`,
-      cta: "Set a budget",
     },
   ];
 
@@ -98,6 +109,16 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
         intro={steps.every((s) => s.done) ? "Keep adding to the days, or check the budget as bookings come in." : "Do these in any order. The next one is highlighted."}
         steps={steps}
       />
+      <div id="group-budget" className="mt-10 scroll-mt-20">
+        <GroupBudgetCard
+          tripId={tripId}
+          currency={trip.currency}
+          partySize={trip.party_size}
+          summary={comfortSummary}
+          canEdit={canEdit}
+          currentBudget={trip.budget == null ? null : Number(trip.budget)}
+        />
+      </div>
     </div>
   );
 }
