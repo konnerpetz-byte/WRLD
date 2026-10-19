@@ -35,6 +35,7 @@ export const DRIVE_META: Record<string, Meta> = {
   "grand-rapids": m("city", "food", "culture", "city"),
   "torch-lake": m("north_summer", "water", "quiet"),
   charlevoix: m("north_summer", "water", "quiet", "historic"),
+  "suttons-bay": m("north_summer", "water", "food", "quiet"),
   "harbor-springs": m("north_summer", "water", "quiet"),
   leland: m("north_summer", "water", "food", "historic", "quiet"),
   "sleeping-bear": m("park", "outdoors", "water", "family"),

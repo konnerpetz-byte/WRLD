@@ -94,21 +94,33 @@ export async function placePhoto(title: string, search: string): Promise<Photo |
   };
 }
 
-/** The photo at the top of a destination card, with its credit. Renders nothing when there's no free photo. */
-export async function PlacePhoto({ title, search, alt, wide = false }: { title: string; search: string; alt: string; wide?: boolean }) {
+/** The photo at the top of a destination card, credit on the image. Renders a plain tile when there's no free photo. */
+export async function PlacePhoto({ title, search, alt, children }: { title: string; search: string; alt: string; children?: React.ReactNode }) {
   const p = await placePhoto(title, search);
-  if (!p) return null;
   return (
-    <figure className="-mx-5 -mt-5 mb-1 overflow-hidden rounded-t-2xl">
-      {/* eslint-disable-next-line @next/next/no-img-element -- Wikimedia's own resized file; no need to re-encode */}
-      <img src={p.src} alt={alt} width={p.width} height={p.height} loading="lazy" decoding="async" className={`w-full bg-muted object-cover ${wide ? "h-44 sm:h-56" : "aspect-[16/9]"}`} />
-      <figcaption className="px-5 pt-1.5 text-[11px] leading-tight text-muted-foreground">
-        Photo:{" "}
-        <a href={p.page} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-          {p.credit}, {p.license}
-          <span className="sr-only"> (opens Wikimedia Commons in a new tab)</span>
-        </a>
-      </figcaption>
+    <figure className="relative aspect-[16/10] overflow-hidden bg-muted">
+      {p && (
+        // eslint-disable-next-line @next/next/no-img-element -- Wikimedia's own resized file; no need to re-encode
+        <img src={p.src} alt={alt} width={p.width} height={p.height} loading="lazy" decoding="async" className="size-full object-cover" />
+      )}
+      {children}
+      {p && (
+        <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 pb-1.5 pt-5 text-right text-[10px] leading-tight text-white/90">
+          <a href={p.page} target="_blank" rel="noopener noreferrer" className="hover:underline">
+            {p.credit}, {p.license}
+            <span className="sr-only"> (photo credit, opens Wikimedia Commons in a new tab)</span>
+          </a>
+        </figcaption>
+      )}
     </figure>
+  );
+}
+
+/** Placeholder while the photo loads: same size, so nothing jumps. */
+export function PhotoSkeleton({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="relative aspect-[16/10] animate-pulse bg-muted motion-reduce:animate-none" aria-hidden="true">
+      {children}
+    </div>
   );
 }

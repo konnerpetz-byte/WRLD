@@ -2,7 +2,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { PlacePhoto } from "@/features/places/place-photo";
+import { PhotoSkeleton, PlacePhoto } from "@/features/places/place-photo";
 
 import { SOURCE_PROGRAM } from "@/features/awards/regions";
 import { airportByCode } from "@/features/places/airports";
@@ -10,7 +10,6 @@ import { BANKS } from "@/features/awards/transfers";
 
 import { flyGem } from "./gems";
 import { flyTitle } from "./photo-titles";
-import { flyMeta, VIBES } from "./vibes";
 import type { FlightPay, TripOption } from "./plan";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
@@ -72,162 +71,137 @@ export function TripCard({
   tripId?: string;
 }) {
   const left = cash == null ? 0 : cash - t.cashNeeded;
-  const who = travelers === 1 ? "" : ` for ${travelers}`;
   const gem = flyGem(t.code);
   const photo = flyTitle(t.code);
-  const vibes = flyMeta(t.code).vibes;
+  const each = travelers > 1 ? `${money(t.cashNeeded / travelers)} each` : null;
+  const badge = gem ? (
+    <span className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-1 text-xs font-medium backdrop-blur-md">Hidden gem</span>
+  ) : null;
+  const basis =
+    t.costBasis === "perdiem-city"
+      ? `Hotel and daily costs from U.S. government per diem rates for ${t.costNear}, scaled to leisure travel.`
+      : t.costBasis === "perdiem-country"
+        ? `Hotel and daily costs from the ${t.costNear}, scaled to leisure travel.`
+        : t.costBasis === "nearby"
+          ? `Hotel and daily costs estimated from ${t.costNear}.`
+          : t.costBasis === "default"
+            ? "Hotel and daily costs are a general estimate."
+            : "Hotel and daily costs are WRLD's estimate for the city.";
+  const external = "inline-flex items-center gap-1 font-medium text-primary hover:underline";
   return (
-    <li className="grid gap-4 overflow-hidden rounded-2xl border bg-card p-5">
-      <Suspense fallback={<div className="-mx-5 -mt-5 h-44 bg-muted sm:h-56" aria-hidden="true" />}>
-        <PlacePhoto title={photo.title} search={photo.search} alt={t.city} wide />
+    <li className="flex flex-col overflow-hidden rounded-2xl border bg-card">
+      <Suspense fallback={<PhotoSkeleton>{badge}</PhotoSkeleton>}>
+        <PlacePhoto title={photo.title} search={photo.search} alt={t.city}>
+          {badge}
+        </PlacePhoto>
       </Suspense>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+      <div className="flex flex-1 flex-col gap-3 p-4">
         <div>
-          <h3 className="text-lg font-semibold">
-            {t.city} <span className="font-mono text-sm font-normal text-muted-foreground">{t.code}</span>
+          <h3 className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+            {t.city}
           </h3>
-          {vibes.length > 0 && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{vibes.map((v) => VIBES.find((x) => x.key === v)?.label).join(" · ")}</p>
-          )}
-          {gem && (
-            <p className="mt-1 text-sm">
-              <span className="mr-2 inline-block rounded-full bg-travel-soft px-2 py-0.5 text-xs font-medium text-travel-ink">Hidden gem</span>
-              {gem.why}
+          <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
+            {gem ? gem.why : `${nights} nights${travelers === 1 ? "" : ` for ${travelers}`}, flights included`}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-2xl font-semibold leading-none tabular-nums tracking-[-0.02em]">{money(t.cashNeeded)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {[cash == null ? "cash needed" : "cash", each, t.pointsUsed > 0 ? `plus ${pts(t.pointsUsed)} points` : null].filter(Boolean).join(" · ")}
+          </p>
+          {cash != null && (
+            <p className={`mt-1 text-sm font-medium ${t.fit === "fits" ? "text-primary" : "text-muted-foreground"}`}>
+              {left >= 0 ? `${money(left)} to spare` : `${money(-left)} over your budget`}
             </p>
           )}
-          <p className="text-sm text-muted-foreground">
-            {nights} nights{who}. Without points: {money(t.fullPrice)}
-            {t.fareIs === "estimate" ? " (flights estimated)" : t.fareIs === "half" ? " (return flight estimated)" : ""}.
-            {t.costBasis === "perdiem-city"
-              ? ` Hotel and daily costs from U.S. government per diem rates for ${t.costNear}, scaled to leisure travel.`
-              : t.costBasis === "perdiem-country"
-              ? ` Hotel and daily costs from the ${t.costNear}, scaled to leisure travel.`
-              : t.costBasis === "nearby"
-              ? ` Hotel and daily costs estimated from ${t.costNear}.`
-              : t.costBasis === "default"
-              ? " Hotel and daily costs are a general estimate."
-              : " Hotel and daily costs are WRLD's estimate for the city."}
-          </p>
         </div>
-        <div className="text-right">
-          <p className="text-2xl font-semibold tabular-nums">{money(t.cashNeeded)}</p>
-          {travelers > 1 && <p className="text-sm tabular-nums">{money(t.cashNeeded / travelers)} each</p>}
-          <p className={`text-sm font-medium ${t.fit === "fits" ? "text-primary" : "text-muted-foreground"}`}>
-            {cash == null ? "cash needed" : left >= 0 ? `cash, ${money(left)} to spare` : `cash, ${money(-left)} over your budget`}
-          </p>
-        </div>
-      </div>
+        {gem && <p className="line-clamp-2 text-sm">Free: {gem.free[0]}</p>}
 
-      {gem && (
-        <div className="text-sm">
-          <p className="font-medium">Free to do</p>
-          <ul className="mt-0.5 list-disc pl-5 text-muted-foreground">
-            {gem.free.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <dl className="grid gap-2 text-sm sm:grid-cols-3">
-        <div className="rounded-xl bg-muted/50 px-3 py-2.5">
-          <dt className="font-medium">Flights, round trip</dt>
-          <dd className="mt-0.5 text-muted-foreground">
-            <FlightLine pay={t.pay} fare={t.fare} flightCash={t.flightCash} fareIs={t.fareIs} />
-          </dd>
-        </div>
-        <div className="rounded-xl bg-muted/50 px-3 py-2.5">
-          <dt className="font-medium">Hotel, {nights} nights</dt>
-          <dd className="mt-0.5 text-muted-foreground">
-            {money(t.hotel)}
-            {t.hyatt && (
-              <>
-                , {t.hyatt.nights === nights ? "all" : t.hyatt.nights} night{t.hyatt.nights === 1 ? "" : "s"} for about{" "}
-                {pts(t.hyatt.points)} World of Hyatt points (
-                {t.hyatt.from
-                  .map((f) => (f.key === "hyatt" ? `${pts(f.points)} of your own` : `move ${pts(f.points)} ${nameOf(f.key)}`))
-                  .join(", ")}
-                ) at a mid-range Hyatt (Hyatt Place or similar; prices vary by hotel and night).{" "}
-                <a
-                  href={`https://www.google.com/maps/search/${encodeURIComponent(`Hyatt hotels ${t.city}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-primary underline underline-offset-2"
-                >
-                  see Hyatts there<span className="sr-only"> (opens in a new tab)</span>
+        <details className="group text-sm" open={Boolean(tripId) || undefined}>
+          <summary className="tap w-fit cursor-pointer list-none text-primary [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">{t.pointsUsed > 0 ? "How to pay with points" : "What's included"}</span>
+            <span className="hidden group-open:inline">Hide details</span>
+          </summary>
+          <dl className="mt-2 grid gap-2 text-muted-foreground">
+            <div>
+              <dt className="font-medium text-foreground">Flights, round trip</dt>
+              <dd className="text-xs">
+                Into {airportByCode(t.code)?.name ?? t.city} ({t.code})
+              </dd>
+              <dd>
+                <FlightLine pay={t.pay} fare={t.fare} flightCash={t.flightCash} fareIs={t.fareIs} />
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium text-foreground">Hotel, {nights} nights</dt>
+              <dd>
+                {money(t.hotel)}
+                {t.hyatt && (
+                  <>
+                    , {t.hyatt.nights === nights ? "all" : t.hyatt.nights} night{t.hyatt.nights === 1 ? "" : "s"} for about {pts(t.hyatt.points)} World
+                    of Hyatt points (
+                    {t.hyatt.from
+                      .map((f) => (f.key === "hyatt" ? `${pts(f.points)} of your own` : `move ${pts(f.points)} ${nameOf(f.key)}`))
+                      .join(", ")}
+                    ) at a mid-range Hyatt; prices vary by hotel and night.{" "}
+                    <a href={`https://www.google.com/maps/search/${encodeURIComponent(`Hyatt hotels ${t.city}`)}`} target="_blank" rel="noopener noreferrer" className={external}>
+                      See Hyatts there<span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  </>
+                )}
+                {t.hotelCredit > 0 && (
+                  <>
+                    , {money(t.hotelCredit)} of it with{" "}
+                    {t.hotelPoints.map((h, i) => (
+                      <span key={h.key}>
+                        {i ? " and " : ""}
+                        {pts(h.points)} {nameOf(h.key)} points at {SITE[h.key]}
+                      </span>
+                    ))}
+                  </>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium text-foreground">Food, transit, sights</dt>
+              <dd>{money(t.days)}</dd>
+            </div>
+            {t.pointsUsed > 0 && t.cents != null && (
+              <p>
+                Your points are worth {t.cents.toFixed(2)}¢ each here
+                {t.cents >= 1.3 ? ", a strong use." : t.cents >= 1 ? "." : ". That's low, but it's still the way that needs the least cash."}
+              </p>
+            )}
+            <p>
+              {basis} Without points: {money(t.fullPrice)}
+              {t.fareIs === "estimate" ? " (flights estimated for the month)" : t.fareIs === "half" ? " (return flight estimated)" : ""}.
+            </p>
+            {gem && gem.free.length > 1 && <p>Also free: {gem.free.slice(1).join("; ")}.</p>}
+            <p>
+              {t.pay.kind === "award" ? (
+                <a href={seatsAeroUrl(home, t.code, month, travelers)} target="_blank" rel="noopener noreferrer" className={external}>
+                  Find the seat on Seats.aero before moving points
+                  <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                  <span className="sr-only">(opens in a new tab)</span>
                 </a>
-              </>
-            )}
-            {t.hotelCredit > 0 && (
-              <>
-                , {money(t.hotelCredit)} of it with{" "}
-                {t.hotelPoints.map((h, i) => (
-                  <span key={h.key}>
-                    {i ? " and " : ""}
-                    {pts(h.points)} {nameOf(h.key)} points at {SITE[h.key]}
-                  </span>
-                ))}
-              </>
-            )}
-          </dd>
-        </div>
-        <div className="rounded-xl bg-muted/50 px-3 py-2.5">
-          <dt className="font-medium">Food, transit, sights</dt>
-          <dd className="mt-0.5 text-muted-foreground">{money(t.days)}</dd>
-        </div>
-      </dl>
+              ) : (
+                <a href={googleFlightsUrl(home, t.code, monthLabel)} target="_blank" rel="noopener noreferrer" className={external}>
+                  See fares on Google Flights
+                  <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                  <span className="sr-only">(opens in a new tab)</span>
+                </a>
+              )}
+            </p>
+          </dl>
+        </details>
 
-      {t.pointsUsed > 0 && (
-        <p className="text-sm">
-          Uses {pts(t.pointsUsed)} points
-          {t.cents != null && (
-            <>
-              , worth <strong className="tabular-nums">{t.cents.toFixed(2)}¢</strong> each here
-              {t.cents >= 1.3 ? ": a strong use." : t.cents >= 1 ? "." : ". That's low, but it's still the way that needs the least cash."}
-            </>
-          )}
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
-        {t.pay.kind === "award" ? (
-          <>
-            <a
-              href={seatsAeroUrl(home, t.code, month, travelers)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2"
-            >
-              Find the seat on Seats.aero
-              <ArrowUpRight className="size-3.5" aria-hidden="true" />
-              <span className="sr-only">(opens in a new tab)</span>
-            </a>
-            <span className="text-muted-foreground">Check the seat is open before you move points. Live seats in WRLD: coming soon.</span>
-          </>
-        ) : (
-          <a
-            href={googleFlightsUrl(home, t.code, monthLabel)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2"
-          >
-            See fares on Google Flights
-            <ArrowUpRight className="size-3.5" aria-hidden="true" />
-            <span className="sr-only">(opens in a new tab)</span>
-          </a>
-        )}
-        {tripId ? (
-          <Link href={`/trips/${tripId}/transit`} className="font-medium text-primary underline underline-offset-2">
-            Booked it? Add the flight
-          </Link>
-        ) : (
-          <Link
-            href={startTripUrl({ t, month, nights, travelers, cash })}
-            className="font-medium text-primary underline underline-offset-2"
-          >
-            Start this trip
-          </Link>
-        )}
+        <Link
+          href={tripId ? `/trips/${tripId}/transit` : startTripUrl({ t, month, nights, travelers, cash })}
+          className="tap mt-auto inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          {tripId ? "Booked it? Add the flight" : "Start this trip"}
+        </Link>
       </div>
     </li>
   );

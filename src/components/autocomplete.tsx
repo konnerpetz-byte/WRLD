@@ -48,6 +48,8 @@ export function Autocomplete<T>({
   const [active, setActive] = useState(-1);
   const [loading, setLoading] = useState(false);
   const skipNext = useRef(false);
+  // Only search once the person types: a value filled in on page load shouldn't pop a list open.
+  const typed = useRef(false);
   const fetchRef = useRef(fetchOptions);
   useEffect(() => {
     fetchRef.current = fetchOptions;
@@ -59,7 +61,7 @@ export function Autocomplete<T>({
       return;
     }
     const q = value.trim();
-    if (q.length < minChars) return;
+    if (!typed.current || q.length < minChars) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setLoading(true);
@@ -95,7 +97,10 @@ export function Autocomplete<T>({
         id={id}
         name={name}
         value={value}
-        onChange={(e) => onValueChange(e.target.value)}
+        onChange={(e) => {
+          typed.current = true;
+          onValueChange(e.target.value);
+        }}
         onKeyDown={(e) => {
           if (!showList) return;
           if (e.key === "ArrowDown") {

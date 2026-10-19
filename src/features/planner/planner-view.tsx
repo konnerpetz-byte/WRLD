@@ -16,11 +16,27 @@ import { TripCard } from "./planner-results";
 import { airportByCode, nearestAirports, searchAirports } from "@/features/places/airports";
 import { geocode } from "@/features/places/geocode";
 import { driveTo, driveTrips, type Getaway, matchGetaways, MAX_DRIVE_HOURS, nearestState } from "./drive";
-import { CardList, DriveCard, DriveResults } from "./drive-results";
+import { DriveCard, DriveResults } from "./drive-results";
+import { SearchPanel } from "./search-panel";
+import { Shelf } from "@/components/shelf";
+import { distanceKm } from "@/lib/geo";
 import { gasPriceFor, gasSourceNote, loadGasPrices } from "./gas-prices";
 import { flyGem } from "./gems";
-import { loadGsaSeason, seasonFn } from "./season-data";
-import { driveMeta, flyMeta, parseVibes, VIBES, vibeScore } from "./vibes";
+import { guessSeason, loadGsaSeason, seasonFn } from "./season-data";
+import type { Season } from "./seasons";
+import { driveMeta, flyMeta, parseVibes, type Vibe, VIBES, vibeScore } from "./vibes";
+
+/** What a town is likely good for, from the kind of place it is (for towns not on WRLD's list). */
+const SEASON_VIBES: Record<Season, Vibe[]> = {
+  north_summer: ["water", "quiet"],
+  ski: ["snow", "outdoors"],
+  south_beach: ["water", "family"],
+  florida: ["water"],
+  desert: ["outdoors", "quiet"],
+  park: ["outdoors"],
+  fall_color: ["outdoors", "quiet"],
+  city: [],
+};
 import { loadRoutes } from "./routes";
 
 const IATA = /^[A-Z]{3}$/;
@@ -105,6 +121,9 @@ export async function PlannerView({
   const goingTo = async (): Promise<{ airport: string | null; place: Getaway | null }> => {
     if (!rawTo) return { airport: null, place: null };
     if (IATA.test(rawTo.toUpperCase()) && airportByCode(rawTo.toUpperCase())) return { airport: rawTo.toUpperCase(), place: null };
+    // A picked airport: "Traverse City (TVC)"
+    const coded = rawTo.match(/\(([A-Za-z]{3})\)\s*$/)?.[1]?.toUpperCase();
+    if (coded && airportByCode(coded)) return { airport: coded, place: null };
     const listed = matchGetaways(rawTo, 1)[0];
     if (listed) return { airport: nearestAirports(listed, 1, 200)[0]?.code ?? null, place: listed };
     const found = await geocode(rawTo);
@@ -246,6 +265,52 @@ export async function PlannerView({
   const stretch = matchedFlights.filter((t) => t.fit === "stretch");
   const allFits = fits.length + gemFits.length;
 
+  // Over budget for the place you picked? Suggest similar places that fit: same vibes and kind of
+  // place, and for road trips, nearby (Torch Lake → Leland, Charlevoix, Suttons Bay…).
+  const withBudget = budgetSet && cash > 0;
+  const gasFns = gas && homeAirport ? { home: gasPriceFor(gas, nearestState(homeAirport)), at: (st: string) => gasPriceFor(gas, st) } : undefined;
+  const driveAlts =
+    withBudget && dest.place && oneDrive && !oneDrive.best && homeAirport && gasFns
+      ? (() => {
+          const target = dest.place!;
+          const known = target.key.startsWith("place-") ? null : driveMeta(target.key);
+          const want = known?.vibes.length ? known.vibes : SEASON_VIBES[guessSeason(target)];
+          return driveTrips(homeAirport, { cash, travelers, style, nights, season }, gasFns)
+            .filter((o) => o.best && o.getaway.key !== target.key)
+            .map((o) => {
+              const km = distanceKm(target, o.getaway);
+              const shared = vibeScore(driveMeta(o.getaway.key).vibes, want);
+              return { o, score: shared * 2 + (km < 120 ? 4 : km < 250 ? 2 : km < 400 ? 1 : 0) + (o.getaway.state === target.state ? 1 : 0) };
+            })
+            .filter((x) => x.score >= 3)
+            .sort((a, b) => b.score - a.score || a.o.best!.total - b.o.best!.total)
+            .slice(0, 8)
+            .map((x) => x.o);
+        })()
+      : [];
+  const flightOver = Boolean(only && !dest.place && withBudget && sorted.length && sorted.every((t) => t.fit !== "fits"));
+  const altPlan = flightOver
+    ? await planTrips(supabase, { home, cash, points, nights, travelers, style, month, region: "anywhere", only: null, dates: null, place: null }, fx)
+    : null;
+  const flightAlts =
+    altPlan && only
+      ? altPlan.options
+          .filter((t) => t.fit === "fits" && t.code !== only)
+          .map((t) => ({ t, score: 2 * vibeScore(flyMeta(t.code).vibes, flyMeta(only).vibes) + (t.region && t.region === sorted[0]?.region ? 2 : 0) }))
+          .filter((x) => x.score >= 2)
+          .sort((a, b) => b.score - a.score || a.t.cashNeeded - b.t.cashNeeded)
+          .slice(0, 8)
+          .map((x) => x.t)
+      : [];
+  const cityOf = (code: string) => AIRPORT_CITY[code] ?? airportByCode(code)?.city ?? code;
+  const destLabel = dest.place ? dest.place.name : only ? cityOf(only) : "anywhere";
+  const showing = Boolean(plan || (canDrive && gas) || dest.place);
+  const summary = showing
+    ? [`${homeAirport?.city ?? home} to ${destLabel}`, budgetSet ? budgetText : null, monthLabel, `${nights} night${nights === 1 ? "" : "s"}`]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
   const totalPoints = Object.values(points).reduce((s, n) => s + n, 0);
   const sortHref = (s: PlanSort) => {
     const p = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string"));
@@ -253,14 +318,23 @@ export async function PlannerView({
     return `${basePath}?${p}#results`;
   };
 
+  const flightCard = (t: (typeof sorted)[number], extra: { cash: number | null; tripId?: string } = { cash }) => (
+    <TripCard key={t.code} t={t} home={home} month={month} monthLabel={monthLabel} cash={extra.cash} travelers={travelers} nights={nights} tripId={extra.tripId} />
+  );
+  const driveCard = (o: (typeof drives)[number]) => (
+    <DriveCard key={o.getaway.key} t={o} cash={budgetSet ? cash : Infinity} travelers={travelers} month={month} signedIn={Boolean(userId)} />
+  );
+
   return (
-    <div className="grid gap-8">
+    <div className="grid gap-10">
       {!fixedTrip && !publicMode && (
         <header>
-          <h1 className="text-4xl font-semibold">Explore</h1>
-          <p className="mt-1 max-w-prose text-muted-foreground">
-            Have a budget but no destination yet? See where your cash and points can take you, then start the trip in one click.
-          </p>
+          <h1 className="text-4xl font-semibold tracking-[-0.02em]">Explore</h1>
+          {!summary && (
+            <p className="mt-1 max-w-prose text-muted-foreground">
+              Have a budget but no destination yet? See where your cash and points can take you, then start the trip in one click.
+            </p>
+          )}
         </header>
       )}
       {forTrip && !fixedTrip && (
@@ -274,17 +348,18 @@ export async function PlannerView({
         </p>
       )}
 
-      <section aria-label="Your budget" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6">
-        <div className={publicMode ? "sr-only" : undefined}>
-          <h2 id="plan-h" className="text-xl font-semibold">
-            {only ? `What will ${AIRPORT_CITY[only] ?? only} cost with your points?` : "Where can your cash and points take you?"}
-          </h2>
-          <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-            Tell WRLD what you have. It prices the whole trip, flights, hotel and days there, and shows the places you can afford, with the
-            best way to use each point.
-            {Object.keys(wallet).length > 0 && sp.pts === undefined ? " Your points are filled in from My points." : ""}
-          </p>
-        </div>
+      <SearchPanel summary={summary}>
+        {!publicMode && !summary && (
+          <div className="mb-6">
+            <h2 id="plan-h" className="text-xl font-semibold tracking-[-0.01em]">
+              Where can your cash and points take you?
+            </h2>
+            <p className="mt-1 max-w-prose text-sm text-muted-foreground">
+              WRLD prices the whole trip, getting there, hotel and days there, and shows the places you can afford.
+              {Object.keys(wallet).length > 0 && sp.pts === undefined ? " Your points are filled in from My points." : ""}
+            </p>
+          </div>
+        )}
         <PlannerForm
           initial={{
             home,
@@ -309,24 +384,32 @@ export async function PlannerView({
           styles={Object.entries(STYLES).map(([value, s]) => ({ value, label: s.label, hint: s.hint }))}
           vibeOptions={VIBES.map((v) => ({ value: v.key, label: v.label }))}
         />
-      </section>
+      </SearchPanel>
 
       {dest.place && go !== "fly" && (
-        <section aria-labelledby="drive-one-h" className="grid gap-3">
-          <h2 id="drive-one-h" className="px-1 text-lg font-semibold">
-            Road trip to {dest.place.name}
-            {dest.place.state ? `, ${dest.place.state}` : ""}
-          </h2>
-          {oneDrive ? (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              <DriveCard t={oneDrive} cash={budgetSet ? cash : Infinity} travelers={travelers} month={month} signedIn={Boolean(userId)} />
-            </ul>
-          ) : (
-            <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-              {homeAirport?.country !== "US"
-                ? "Road trips are priced from U.S. starting points for now."
-                : `It's either under an hour away or more than ${MAX_DRIVE_HOURS} hours each way, so WRLD doesn't price it as a road trip.`}
-            </p>
+        <section aria-labelledby="drive-one-h" className="grid gap-6">
+          <div className="grid gap-3">
+            <h2 id="drive-one-h" className="px-1 text-xl font-semibold tracking-[-0.01em]">
+              Drive to {dest.place.name}
+              {dest.place.state ? `, ${dest.place.state}` : ""}
+            </h2>
+            {oneDrive ? (
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{driveCard(oneDrive)}</ul>
+            ) : (
+              <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+                {homeAirport?.country !== "US"
+                  ? "Road trips are priced from U.S. starting points for now."
+                  : `It's either under an hour away or more than ${MAX_DRIVE_HOURS} hours each way, so WRLD doesn't price it as a road trip.`}
+              </p>
+            )}
+          </div>
+          {driveAlts.length > 0 && (
+            <Shelf title={`Similar places that fit ${budgetText}`} subtitle={`Same feel as ${dest.place.name}, for less.`}>
+              {driveAlts.map(driveCard)}
+            </Shelf>
+          )}
+          {oneDrive && !oneDrive.best && withBudget && !driveAlts.length && (
+            <p className="px-1 text-sm text-muted-foreground">Nothing similar fits this budget. Try fewer nights or the budget travel style.</p>
           )}
           {gas && <p className="px-1 text-xs text-muted-foreground">{gasSourceNote(gas)} Drive time is estimated from distance.</p>}
         </section>
@@ -337,36 +420,36 @@ export async function PlannerView({
       )}
 
       {plan && (
-        <section id="results" aria-labelledby="results-h" className="grid scroll-mt-6 gap-4">
-          <div className="flex flex-wrap items-end justify-between gap-3 px-1">
+        <section id="results" aria-labelledby="results-h" className="grid scroll-mt-6 gap-6">
+          <div className="grid gap-3 px-1">
             <div>
-              <h2 id="results-h" className="text-lg font-semibold">
+              <h2 id="results-h" className="text-xl font-semibold tracking-[-0.01em]">
                 {only
-                  ? `${dest.place ? "Or fly to" : "Your trip to"} ${AIRPORT_CITY[only] ?? airportByCode(only)?.city ?? only}`
+                  ? `${dest.place ? "Or fly to" : "Fly to"} ${cityOf(only)}`
                   : allFits
-                  ? `${allFits} trips fit ${budgetText}${totalPoints ? ` and ${totalPoints.toLocaleString("en-US")} points` : ""}`
-                  : `Nothing fits ${budgetText} yet`}
+                    ? `${allFits} trips fit ${budgetText}${totalPoints ? ` and ${totalPoints.toLocaleString("en-US")} points` : ""}`
+                    : `Nothing fits ${budgetText} yet`}
               </h2>
               <p className="text-sm text-muted-foreground">
-                From {home}, {monthLabel}, {nights} nights, {travelers} traveler{travelers === 1 ? "" : "s"},{" "}
+                From {homeAirport?.city ?? home}, {monthLabel}, {nights} nights, {travelers} {travelers === 1 ? "person" : "people"},{" "}
                 {STYLES[style].label.toLowerCase()}.
               </p>
             </div>
-            {!only && (
-              <nav aria-label="Sort trips" className="flex flex-wrap gap-1 text-sm">
+            {!only && allFits > 1 && (
+              <nav aria-label="Sort trips" className="grid h-10 w-full max-w-md grid-cols-3 gap-1 rounded-lg bg-muted p-1 text-sm">
                 {(
                   [
                     ["most", "Biggest trip"],
-                    ["cash", "Most cash left"],
-                    ["value", "Best use of points"],
+                    ["cash", "Most left over"],
+                    ["value", "Best for points"],
                   ] as const
                 ).map(([s, label]) => (
                   <Link
                     key={s}
                     href={sortHref(s)}
                     aria-current={sort === s ? "true" : undefined}
-                    className={`rounded-full border px-3 py-1.5 ${
-                      sort === s ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+                    className={`flex items-center justify-center rounded-md px-2 font-medium transition-colors ${
+                      sort === s ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {label}
@@ -374,15 +457,18 @@ export async function PlannerView({
                 ))}
               </nav>
             )}
+            {vibes.length > 0 && !only && (
+              <p className="text-sm">{flightFilter.matched ? `Showing places for ${vibeLabel}.` : `Nothing here is tagged ${vibeLabel}, so here's everything.`}</p>
+            )}
           </div>
 
           {!plan.liveFares && (
             <p className="rounded-xl bg-travel/15 px-4 py-3 text-sm">
-              Flight prices are estimates from distance for now. Today&rsquo;s real fares are coming soon.
+              Flight prices are estimates for the month for now. Today&rsquo;s real fares are coming soon.
               {isAdmin && (
                 <>
                   {" "}
-                  <strong>Owner setup:</strong> add <code className="font-mono text-xs">TRAVELPAYOUTS_TOKEN</code> in Vercel.
+                  <strong>Owner setup:</strong> fix <code className="font-mono text-xs">TRAVELPAYOUTS_TOKEN</code> in Vercel.
                 </>
               )}
             </p>
@@ -390,86 +476,33 @@ export async function PlannerView({
 
           {only ? (
             sorted.length ? (
-              <ul className="grid gap-3">
-                {sorted.map((t) => (
-                  <TripCard
-                    key={t.code}
-                    t={t}
-                    home={home}
-                    month={month}
-                    monthLabel={monthLabel}
-                    cash={budgetSet ? cash : null}
-                    travelers={travelers}
-                    nights={nights}
-                    tripId={forTrip?.id}
-                  />
-                ))}
-              </ul>
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{sorted.map((t) => flightCard(t, { cash: budgetSet ? cash : null, tripId: forTrip?.id }))}</ul>
             ) : (
               <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-                WRLD can&rsquo;t price a flight from {home} to {only}. Check both airport codes.
+                WRLD can&rsquo;t price a flight there yet. Try the nearest big city.
               </p>
             )
-          ) : allFits ? (
+          ) : (
             <>
-              {vibes.length > 0 && (
-                <p className="px-1 text-sm">
-                  {flightFilter.matched ? `Showing places for ${vibeLabel}.` : `Nothing here is tagged ${vibeLabel}, so here's everything.`}
+              {fits.length > 0 && <Shelf title="Cities and favorites">{fits.map((t) => flightCard(t))}</Shelf>}
+              {gemFits.length > 0 && <Shelf title="Hidden gems and smaller cities">{gemFits.map((t) => flightCard(t))}</Shelf>}
+              {!allFits && (
+                <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+                  Try fewer nights, the budget travel style, or another month.{stretch.length ? " The trips just over budget are below." : ""}
                 </p>
               )}
-              <CardList className="grid gap-3" first={8} items={fits} render={(t) => (
-                  <TripCard
-                    key={t.code}
-                    t={t}
-                    home={home}
-                    month={month}
-                    monthLabel={monthLabel}
-                    cash={cash}
-                    travelers={travelers}
-                    nights={nights}
-                  />
-                )} />
-            </>
-          ) : (
-            <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-              Try fewer nights, the budget travel style, or another month. The trips just over budget are below.
-            </p>
-          )}
-
-          {!only && gemFits.length > 0 && (
-            <>
-              <h3 className="mt-2 px-1 font-semibold">Hidden gems and smaller cities, many with free things to do</h3>
-              <CardList className="grid gap-3" first={6} items={gemFits} render={(t) => (
-                  <TripCard
-                    key={t.code}
-                    t={t}
-                    home={home}
-                    month={month}
-                    monthLabel={monthLabel}
-                    cash={cash}
-                    travelers={travelers}
-                    nights={nights}
-                  />
-                )} />
+              {stretch.length > 0 && (
+                <Shelf tone="muted" title="A little over budget">
+                  {stretch.map((t) => flightCard(t))}
+                </Shelf>
+              )}
             </>
           )}
 
-          {!only && stretch.length > 0 && (
-            <>
-              <h3 className="mt-2 px-1 font-semibold">A little over budget</h3>
-              <CardList className="grid gap-3" first={4} items={stretch} render={(t) => (
-                  <TripCard
-                    key={t.code}
-                    t={t}
-                    home={home}
-                    month={month}
-                    monthLabel={monthLabel}
-                    cash={cash}
-                    travelers={travelers}
-                    nights={nights}
-                  />
-                )} />
-            </>
+          {flightAlts.length > 0 && (
+            <Shelf title={`Similar places that fit ${budgetText}`} subtitle={`Same feel as ${cityOf(only!)}, for less.`}>
+              {flightAlts.map((t) => flightCard(t))}
+            </Shelf>
           )}
 
           <details className="rounded-2xl border bg-card px-5 py-4 text-sm">
@@ -478,28 +511,26 @@ export async function PlannerView({
               <p>
                 <strong className="text-foreground">Flights:</strong> economy, round trip.{" "}
                 {plan.liveFares
-                  ? "Cash prices are the lowest recent fares travelers found: around your dates for a trip, across the month otherwise. When there's no return fare, the outbound price is used for it and the card says so."
-                  : "Cash prices are estimates from distance until live fares are on."}{" "}
+                  ? "Cash prices are the lowest recent fares travelers found, around your dates for a trip and across the month otherwise. Months without recent fares use a distance estimate adjusted for that month's season."
+                  : "Cash prices are distance estimates adjusted for the month's season until live fares are on."}{" "}
                 Points prices come from published award charts (Air Canada Aeroplan, American AAdvantage, Virgin Atlantic), counted at the
                 top of their range, and only where a partner airline flies the route.
               </p>
               <p>
                 <strong className="text-foreground">Card points:</strong> Chase, Amex, Capital One and Citi points pay 1¢ each for any
-                flight on the card&rsquo;s travel site, and 1¢ for hotels (Amex: 0.7¢). Chase and Bilt points can also move to
-                World of Hyatt, where a point typically buys about 1.65¢ of hotel (The Points Guy, October 2026); WRLD estimates Hyatt
-                nights from that, so check a real Hyatt in the city before moving points. WRLD tries each way to pay and keeps the one that
-                needs the least cash.
+                flight on the card&rsquo;s travel site, and 1¢ for hotels (Amex: 0.7¢). Chase and Bilt points can also move to World of
+                Hyatt, where a point typically buys about 1.65¢ of hotel (The Points Guy, October 2026). WRLD tries each way to pay and keeps
+                the one that needs the least cash.
               </p>
               <p>
-                <strong className="text-foreground">Hotel and days there:</strong> from U.S. government per diem rates (State Department for
-                1,000+ cities abroad, updated monthly), which are what a business traveler is reimbursed. WRLD scales them to leisure
-                travel: hotels at {plan.factors?.lodging ?? 0.55}× and food, transit and sights at {plan.factors?.day ?? 0.6}×, then by your
-                travel style. Those factors are re-measured as travelers log real costs on their trips. Rates for some cities are set high
-                for security reasons, so treat those as a ceiling. U.S. cities use WRLD&rsquo;s own estimates for now.
+                <strong className="text-foreground">Hotel and days there:</strong> from U.S. government per diem rates for the month you
+                pick (State Department abroad, GSA in the U.S.), scaled to leisure travel: hotels at {plan.factors?.lodging ?? 0.55}× and food,
+                transit and sights at {plan.factors?.day ?? 0.6}×, then by your travel style. Places without a government rate use WRLD&rsquo;s
+                estimate, adjusted for the season.
               </p>
               <p>
                 <strong className="text-foreground">Seats:</strong> award seats are limited. Find an open seat on Seats.aero before moving
-                points; transfers can&rsquo;t be undone. Live seat search inside WRLD is coming soon.
+                points; transfers can&rsquo;t be undone.
               </p>
             </div>
           </details>

@@ -1,13 +1,14 @@
 import { Car } from "lucide-react";
 import Link from "next/link";
-import { Suspense, type ReactNode } from "react";
+import { Suspense } from "react";
 
-import { PlacePhoto } from "@/features/places/place-photo";
+import { Shelf } from "@/components/shelf";
+
+import { PhotoSkeleton, PlacePhoto } from "@/features/places/place-photo";
 
 import { type DriveOption, formatDrive, MPG } from "./drive";
 import { driveTitle } from "./photo-titles";
 import { seasonWord } from "./seasons";
-import { driveMeta, VIBES } from "./vibes";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
@@ -67,7 +68,7 @@ export function DriveResults({
   const who = travelers === 1 ? "" : ` for ${travelers}`;
   const card = (t: DriveOption) => <DriveCard key={t.getaway.key} t={t} cash={cash} travelers={travelers} month={month} signedIn={signedIn} />;
   return (
-    <section aria-labelledby="drive-h" className="grid gap-4">
+    <section aria-labelledby="drive-h" className="grid gap-6">
       <div className="px-1">
         <h2 id="drive-h" className="flex items-center gap-2 text-lg font-semibold">
           <Car className="size-5 text-primary" aria-hidden="true" />
@@ -80,19 +81,16 @@ export function DriveResults({
         {filterNote && <p className="mt-1 text-sm">{filterNote}</p>}
       </div>
 
-      {popular.length > 0 && <CardList items={popular} render={card} />}
-      {gems.length > 0 && (
-        <>
-          <h3 className="mt-2 px-1 font-semibold">Hidden gems and small towns, many with free things to do</h3>
-          <CardList items={gems} render={card} />
-        </>
-      )}
+      {popular.length > 0 && <Shelf title="Popular getaways">{popular.map(card)}</Shelf>}
+      {gems.length > 0 && <Shelf title="Hidden gems and small towns">{gems.map(card)}</Shelf>}
       {close.length > 0 && (
-        <>
-          <h3 className="mt-2 px-1 font-semibold">{allFits.length ? "Just over your budget" : "Closest to your budget"}</h3>
-          {!allFits.length && <p className="px-1 text-sm">Try the budget travel style, or fewer people per room.</p>}
-          <CardList items={close} render={card} />
-        </>
+        <Shelf
+          tone="muted"
+          title={allFits.length ? "Just over your budget" : "Closest to your budget"}
+          subtitle={allFits.length ? undefined : "Try the budget travel style, or fewer people per room."}
+        >
+          {close.map(card)}
+        </Shelf>
       )}
       <p className="px-1 text-xs text-muted-foreground">
         {gasNote} {MPG} miles a gallon and one car for every four people.{" "}
@@ -109,82 +107,80 @@ export function DriveResults({
 
 export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOption; cash: number; travelers: number; month: string; signedIn: boolean }) {
   const show = t.best ?? t.lengths[0];
-  const meta = t.getaway.key.startsWith("place-") ? null : driveMeta(t.getaway.key);
+  const others = t.lengths.filter((l) => l !== show);
   const photo = driveTitle(t.getaway);
   const busy = seasonWord(t.season.factor);
+  const budget = Number.isFinite(cash);
+  const over = budget && !show.fits ? show.total - cash : 0;
+  const who = travelers === 1 ? "" : ` for ${travelers}`;
+  const badge = t.getaway.gem ? (
+    <span className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-1 text-xs font-medium backdrop-blur-md">Hidden gem</span>
+  ) : null;
   return (
-    <li className="grid content-start gap-3 overflow-hidden rounded-2xl border bg-card p-5">
-      <Suspense fallback={<div className="-mx-5 -mt-5 aspect-[16/9] bg-muted" aria-hidden="true" />}>
-        <PlacePhoto title={photo.title} search={photo.search} alt={`${t.getaway.name}, ${t.getaway.state}`} />
+    <li className="flex flex-col overflow-hidden rounded-2xl border bg-card">
+      <Suspense fallback={<PhotoSkeleton>{badge}</PhotoSkeleton>}>
+        <PlacePhoto title={photo.title} search={photo.search} alt={`${t.getaway.name}, ${t.getaway.state}`}>
+          {badge}
+        </PlacePhoto>
       </Suspense>
-      <div>
-        <h3 className="text-lg font-semibold">
-          {t.getaway.name}, {t.getaway.state}
-        </h3>
-        {t.getaway.gem && <span className="mt-1 inline-block rounded-full bg-travel-soft px-2 py-0.5 text-xs font-medium text-travel-ink">Hidden gem</span>}
-        <p className="text-sm text-muted-foreground">{t.getaway.why}</p>
-        {meta && meta.vibes.length > 0 && (
-          <p className="mt-1 text-xs text-muted-foreground">{meta.vibes.map((v) => VIBES.find((x) => x.key === v)?.label).join(" · ")}</p>
-        )}
-        <p className="mt-1 text-sm">
-          {t.routed ? "" : "About "}
-          {formatDrive(t.hours)} each way, {t.routed ? "" : "about "}
-          {t.roadMiles.toLocaleString("en-US")} miles
-        </p>
-      </div>
-      {t.getaway.free?.length ? (
-        <div className="text-sm">
-          <p className="font-medium">Free to do</p>
-          <ul className="mt-0.5 list-disc pl-5 text-muted-foreground">
-            {t.getaway.free.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div>
+          <h3 className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+            {t.getaway.name}, {t.getaway.state}
+          </h3>
+          <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
+            {t.routed ? "" : "About "}
+            {formatDrive(t.hours)} drive{t.getaway.why ? ` · ${t.getaway.why}` : ""}
+          </p>
         </div>
-      ) : null}
-      <ul className="grid gap-1 text-sm">
-        {t.lengths.map((l) => (
-          <li key={l.nights} className="flex items-baseline justify-between gap-3">
-            <span>
-              {l.label} <span className="text-muted-foreground">({l.nights} nights)</span>
-            </span>
-            <span className={`font-semibold tabular-nums ${l.fits ? "text-primary" : "text-muted-foreground"}`}>
-              {money(l.total)}
-              {!l.fits && <span className="ml-1 text-xs font-normal">({money(l.total - cash)} over)</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-        {show.label}: gas {money(show.gas)} at ${t.gasPrice.toFixed(2)}/gal, hotel {money(show.hotel)}
-        {busy ? ` (${busy} in ${monthName(month)})` : ""}, food and fun {money(show.days)}.
-      </p>
-      <Link href={startUrl(t, show.nights, travelers, cash, month, signedIn)} className="text-sm font-medium text-primary underline underline-offset-4">
-        Start this trip
-      </Link>
+
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-2xl font-semibold leading-none tabular-nums tracking-[-0.02em]">{money(show.total)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {show.label}
+              {who}
+              {travelers > 1 ? ` · ${money(show.total / travelers)} each` : ""}
+            </p>
+          </div>
+          {others.length > 0 && (
+            <ul className="text-right text-xs tabular-nums text-muted-foreground">
+              {others.map((l) => (
+                <li key={l.nights}>
+                  {l.label} {money(l.total)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {over > 0 && <p className="text-sm font-medium text-muted-foreground">{money(over)} over your budget</p>}
+        {t.getaway.free?.length ? <p className="line-clamp-2 text-sm">Free: {t.getaway.free[0]}</p> : null}
+
+        <details className="group text-sm">
+          <summary className="tap w-fit cursor-pointer list-none text-primary [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">What&rsquo;s included</span>
+            <span className="hidden group-open:inline">Hide details</span>
+          </summary>
+          <div className="mt-2 grid gap-1.5 text-muted-foreground">
+            <p>
+              {show.label}: gas {money(show.gas)} (${t.gasPrice.toFixed(2)} a gallon, {t.roadMiles.toLocaleString("en-US")} miles each way), hotel{" "}
+              {money(show.hotel)}
+              {busy ? ` (${busy} in ${monthName(month)})` : ""}, food and fun {money(show.days)}.
+            </p>
+            {t.getaway.free && t.getaway.free.length > 1 && <p>Also free: {t.getaway.free.slice(1).join("; ")}.</p>}
+          </div>
+        </details>
+
+        <Link
+          href={startUrl(t, show.nights, travelers, cash, month, signedIn)}
+          className="tap mt-auto inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          Start this trip
+        </Link>
+      </div>
     </li>
   );
 }
 
 const monthName = (month: string) =>
   new Date(`${month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-
-/** The first six cards, then the rest behind "Show more" so long lists stay scannable. */
-export function CardList<T>({ items, render, first = 6, className = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3" }: { items: T[]; render: (t: T) => ReactNode; first?: number; className?: string }) {
-  const head = items.slice(0, first);
-  const rest = items.slice(first);
-  return (
-    <>
-      <ul className={className}>{head.map(render)}</ul>
-      {rest.length > 0 && (
-        <details className="group">
-          <summary className="w-fit cursor-pointer list-none rounded-full border px-4 py-2 text-sm font-medium hover:bg-muted group-open:mb-3">
-            <span className="group-open:hidden">Show {rest.length} more</span>
-            <span className="hidden group-open:inline">Show fewer</span>
-          </summary>
-          <ul className={className}>{rest.map(render)}</ul>
-        </details>
-      )}
-    </>
-  );
-}

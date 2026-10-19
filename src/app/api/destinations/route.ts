@@ -30,9 +30,9 @@ export async function GET(request: NextRequest) {
   // With a road-trip match, show only airports whose own name or city matched, not the
   // look-alike place the airport search falls back to (there's a second Torch Lake up north).
   const flights: DestinationOption[] = airports.filter((a) => !drives.length || a.km == null).map((a) => ({
-    value: a.code,
-    label: `${a.city} (${a.code})`,
-    detail: `Fly · ${a.name}${a.km != null ? `, ${a.km} km away` : ""}`,
+    value: `${a.city} (${a.code})`,
+    label: a.city,
+    detail: `Fly into ${a.name} (${a.code})${a.km != null ? `, ${a.km} km away` : ""}`,
     kind: "airport",
   }));
   return NextResponse.json([...drives, ...places, ...flights].slice(0, 8), { headers: { "Cache-Control": "public, max-age=86400" } });
