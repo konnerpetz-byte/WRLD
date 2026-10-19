@@ -92,7 +92,7 @@ async function TripPlan({ params }: PageProps<"/trips/[tripId]">) {
     },
     {
       key: "days",
-      title: "Plan the days",
+      title: "Build the itinerary",
       body: "Ideas matched to how each of you likes to travel, with official ticket sites and times filled in.",
       done: Boolean(items.count),
       doneNote: items.count ? `${items.count} plans` : undefined,

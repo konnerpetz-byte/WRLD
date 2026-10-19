@@ -12,7 +12,7 @@ const TABS = [
   { slug: "", label: "Overview" },
   { slug: "group", label: "Group" },
   { slug: "budget", label: "Budget" },
-  { slug: "itinerary", label: "Days" },
+  { slug: "itinerary", label: "Itinerary" },
   { slug: "transit", label: "Flights" },
   { slug: "lodging", label: "Stays" },
 ];
