@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { AirportField } from "@/features/places/airport-field";
+import { DestinationField } from "./destination-field";
 
 type Option = { value: string; label: string };
 type PointKey = Option & { group: string };
@@ -85,16 +86,16 @@ export function PlannerForm({
         </div>
         <div className="grid content-start gap-1.5 text-sm font-medium">
           <label htmlFor={`${id}-to`}>Going to</label>
-          <AirportField
+          <DestinationField
             id={`${id}-to`}
             name="to"
             value={to}
             onValueChange={setTo}
-            placeholder="Anywhere, or a city"
+            placeholder="Anywhere, or a town"
             describedBy={`${id}-to-hint`}
           />
           <span id={`${id}-to-hint`} className="text-xs font-normal text-muted-foreground">
-            Leave blank to see where you can go. Pick a city to see what it costs.
+            Leave blank to see where you can go. Name a town, lake or city to see what it costs to drive or fly.
           </span>
         </div>
         <fieldset className="grid content-start gap-1.5 text-sm font-medium">

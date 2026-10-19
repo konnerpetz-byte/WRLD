@@ -209,6 +209,80 @@ export function nearestState(home: LatLng) {
   return best && km < 500 ? best.state : null;
 }
 
+type PriceCtx = { cash: number; travelers: number; f: number; cars: number; rooms: number; nightsList: number[] };
+
+function priceDrive(home: LatLng, g: Getaway, c: PriceCtx, gasPrices: GasInput, route: { miles: number; hours: number } | undefined, limitHours: boolean): DriveOption | null {
+  const roadMiles = Math.round(route?.miles ?? distanceKm(home, g) * 0.621371 * ROAD_FACTOR);
+  if (roadMiles < 60) return null;
+  const hours = route?.hours ?? roadMiles / MPH;
+  const t = TIER[g.tier];
+  const gasPrice = Math.round(((gasPrices.home + gasPrices.at(g.state)) / 2) * 1000) / 1000;
+  const gas = Math.round(((roadMiles * 2) / MPG) * gasPrice * c.cars);
+  const lengths = c.nightsList
+    .filter((n) => !limitHours || hours <= maxHoursFor(n))
+    .map((n) => {
+      const hotel = Math.round(t.hotel * c.f * c.rooms * n);
+      const days = Math.round(t.day * c.f * c.travelers * (n + 1));
+      const total = gas + hotel + days;
+      return { nights: n, label: lengthLabel(n), gas, hotel, days, total, fits: total <= c.cash };
+    });
+  if (!lengths.length) return null;
+  const fitting = lengths.filter((l) => l.fits);
+  return { getaway: g, roadMiles, hours, lengths, best: fitting.length ? fitting[fitting.length - 1] : null, gasPrice, routed: Boolean(route) };
+}
+
+/** Longest one-way drive WRLD will price when you ask for a place by name. */
+export const MAX_DRIVE_HOURS = 14;
+
+/**
+ * One place you asked for ("Torch Lake"): a road trip there for your trip length, a weekend and a
+ * long weekend, however far it is (up to MAX_DRIVE_HOURS each way). Null when it's too close or too far.
+ */
+export function driveTo(
+  home: LatLng,
+  g: Getaway,
+  input: { cash: number; travelers: number; style: Style; nights?: number },
+  gasPrices: GasInput = { home: GAS_PRICE, at: () => GAS_PRICE },
+  route?: { miles: number; hours: number },
+): DriveOption | null {
+  const travelers = Math.max(1, input.travelers);
+  const n = input.nights && input.nights >= 1 && input.nights <= 14 ? input.nights : null;
+  const nightsList = [...new Set([2, 3, ...(n ? [n] : [])])].sort((a, b) => a - b);
+  const o = priceDrive(
+    home,
+    g,
+    { cash: input.cash, travelers, f: STYLES[input.style].factor, cars: Math.ceil(travelers / PEOPLE_PER_CAR), rooms: Math.ceil(travelers / PEOPLE_PER_ROOM), nightsList },
+    gasPrices,
+    route,
+    false,
+  );
+  return o && o.hours <= MAX_DRIVE_HOURS ? o : null;
+}
+
+const foldName = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** Road-trip places matching what was typed: "torch lake", "Torch Lake, MI", "charlev". */
+export function matchGetaways(text: string, limit = 5): Getaway[] {
+  const raw = foldName(text);
+  const q = raw.replace(/ (?:[a-z]{2}|michigan|wisconsin|ohio|indiana|illinois)$/, "");
+  if (q.length < 3) return [];
+  const scored: { g: Getaway; score: number }[] = [];
+  for (const g of GETAWAYS) {
+    const name = foldName(g.name);
+    const full = `${name} ${g.state.toLowerCase()}`;
+    const score = name === q || full === raw ? 100 : name.startsWith(q) ? 60 : name.includes(q) ? 30 : 0;
+    if (score) scored.push({ g, score });
+  }
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((x) => x.g);
+}
+
 const lengthLabel = (n: number) => (n === 2 ? "Weekend" : n === 3 ? "Long weekend" : `${n} nights`);
 /** How far is a reasonable drive for a trip of this length, each way. */
 export const maxHoursFor = (nights: number) => (nights <= 2 ? 5 : nights === 3 ? 7 : 9);
@@ -238,24 +312,8 @@ export function driveTrips(
   const nightsList = [...new Set([2, 3, ...(input.nights && input.nights >= 4 && input.nights <= 7 ? [input.nights] : [])])];
   const out: DriveOption[] = [];
   for (const g of GETAWAYS) {
-    const route = routes?.get(g.key);
-    const roadMiles = Math.round(route?.miles ?? distanceKm(home, g) * 0.621371 * ROAD_FACTOR);
-    if (roadMiles < 60) continue;
-    const hours = route?.hours ?? roadMiles / MPH;
-    const t = TIER[g.tier];
-    const gasPrice = Math.round(((gasPrices.home + gasPrices.at(g.state)) / 2) * 1000) / 1000;
-    const gas = Math.round(((roadMiles * 2) / MPG) * gasPrice * cars);
-    const lengths = nightsList
-      .filter((n) => hours <= maxHoursFor(n))
-      .map((n) => {
-        const hotel = Math.round(t.hotel * f * rooms * n);
-        const days = Math.round(t.day * f * travelers * (n + 1));
-        const total = gas + hotel + days;
-        return { nights: n, label: lengthLabel(n), gas, hotel, days, total, fits: total <= input.cash };
-      });
-    if (!lengths.length) continue;
-    const fitting = lengths.filter((l) => l.fits);
-    out.push({ getaway: g, roadMiles, hours, lengths, best: fitting.length ? fitting[fitting.length - 1] : null, gasPrice, routed: Boolean(route) });
+    const o = priceDrive(home, g, { ...input, travelers, f, cars, rooms, nightsList }, gasPrices, routes?.get(g.key), true);
+    if (o) out.push(o);
   }
   return out.sort(
     (a, b) =>

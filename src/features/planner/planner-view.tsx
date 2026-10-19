@@ -13,9 +13,10 @@ import { type Style, STYLES } from "./costs";
 import { type PlanSort, parsePoints, planTrips, POINT_KEYS, type Points, sortOptions } from "./plan";
 import { PlannerForm } from "./planner-form";
 import { TripCard } from "./planner-results";
-import { airportByCode, searchAirports } from "@/features/places/airports";
-import { driveTrips, nearestState } from "./drive";
-import { DriveResults } from "./drive-results";
+import { airportByCode, nearestAirports, searchAirports } from "@/features/places/airports";
+import { geocode } from "@/features/places/geocode";
+import { driveTo, driveTrips, type Getaway, matchGetaways, MAX_DRIVE_HOURS, nearestState } from "./drive";
+import { DriveCard, DriveResults } from "./drive-results";
 import { gasPriceFor, gasSourceNote, loadGasPrices } from "./gas-prices";
 import { flyGem } from "./gems";
 import { loadRoutes } from "./routes";
@@ -96,7 +97,26 @@ export async function PlannerView({
     if (IATA.test(t.toUpperCase()) && airportByCode(t.toUpperCase())) return t.toUpperCase();
     return (await searchAirports(t.slice(0, 80), 1))[0]?.code ?? null;
   };
-  const [typedTo, typedFrom] = await Promise.all([toAirport(sp.to), toAirport(sp.from)]);
+  // "Going to" can be a road-trip spot or any town ("Torch Lake", "Bellaire, MI"): price the drive
+  // there, and flights to its nearest airport.
+  const rawTo = (sp.to ?? "").trim().slice(0, 80);
+  const goingTo = async (): Promise<{ airport: string | null; place: Getaway | null }> => {
+    if (!rawTo) return { airport: null, place: null };
+    if (IATA.test(rawTo.toUpperCase()) && airportByCode(rawTo.toUpperCase())) return { airport: rawTo.toUpperCase(), place: null };
+    const listed = matchGetaways(rawTo, 1)[0];
+    if (listed) return { airport: nearestAirports(listed, 1, 200)[0]?.code ?? null, place: listed };
+    const found = await geocode(rawTo);
+    if (!found) return { airport: await toAirport(rawTo), place: null };
+    const inUS = found.countryCode?.toUpperCase() === "US";
+    const name = found.label.split(",")[0].trim() || rawTo.split(",")[0];
+    const state = inUS ? nearestState(found) : null;
+    return {
+      airport: nearestAirports(found, 1, 250)[0]?.code ?? null,
+      place: inUS ? { key: `place-${found.latitude.toFixed(2)},${found.longitude.toFixed(2)}`, name, state: state ?? "", latitude: found.latitude, longitude: found.longitude, tier: 2, why: found.label } : null,
+    };
+  };
+  const [dest, typedFrom] = await Promise.all([goingTo(), toAirport(sp.from)]);
+  const typedTo = dest.airport;
   const only =
     typedTo
       ? typedTo
@@ -133,7 +153,22 @@ export async function PlannerView({
   const go: "any" | "drive" | "fly" = sp.go === "drive" || sp.go === "fly" ? sp.go : "any";
   const homeAirport = IATA.test(home) ? airportByCode(home) : null;
   const canDrive = !only && budgetSet && cash > 0 && go !== "fly" && homeAirport?.country === "US";
-  const [gas, routes] = canDrive && homeAirport ? await Promise.all([loadGasPrices(), loadRoutes(home, { latitude: homeAirport.latitude, longitude: homeAirport.longitude })]) : [null, null];
+  const driveToPlace = Boolean(dest.place && go !== "fly" && homeAirport?.country === "US");
+  const [gas, routes] =
+    canDrive && homeAirport
+      ? await Promise.all([loadGasPrices(), loadRoutes(home, { latitude: homeAirport.latitude, longitude: homeAirport.longitude })])
+      : driveToPlace
+        ? [await loadGasPrices(), null]
+        : [null, null];
+  const oneDrive =
+    driveToPlace && homeAirport && gas && dest.place
+      ? driveTo(
+          homeAirport,
+          dest.place,
+          { cash: budgetSet ? cash : Infinity, travelers, style, nights },
+          { home: gasPriceFor(gas, nearestState(homeAirport)), at: (st) => gasPriceFor(gas, st) },
+        )
+      : null;
   const drives =
     canDrive && homeAirport && gas
       ? driveTrips(
@@ -144,7 +179,7 @@ export async function PlannerView({
         )
       : [];
 
-  const ready = IATA.test(home) && (budgetSet || Boolean(only)) && go !== "drive";
+  const ready = IATA.test(home) && (budgetSet || Boolean(only)) && go !== "drive" && only !== home;
   const plan = ready
     ? await planTrips(
         supabase,
@@ -239,7 +274,7 @@ export async function PlannerView({
             region,
             sort,
             go,
-            to: only ?? "",
+            to: rawTo || (only ?? ""),
             per,
           }}
           keep={{ trip: fixedTrip ? undefined : forTrip?.id }}
@@ -251,6 +286,27 @@ export async function PlannerView({
         />
       </section>
 
+      {dest.place && go !== "fly" && (
+        <section aria-labelledby="drive-one-h" className="grid gap-3">
+          <h2 id="drive-one-h" className="px-1 text-lg font-semibold">
+            Road trip to {dest.place.name}
+            {dest.place.state ? `, ${dest.place.state}` : ""}
+          </h2>
+          {oneDrive ? (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              <DriveCard t={oneDrive} cash={budgetSet ? cash : Infinity} travelers={travelers} month={month} signedIn={Boolean(userId)} />
+            </ul>
+          ) : (
+            <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+              {homeAirport?.country !== "US"
+                ? "Road trips are priced from U.S. starting points for now."
+                : `It's either under an hour away or more than ${MAX_DRIVE_HOURS} hours each way, so WRLD doesn't price it as a road trip.`}
+            </p>
+          )}
+          {gas && <p className="px-1 text-xs text-muted-foreground">{gasSourceNote(gas)} Drive time is estimated from distance.</p>}
+        </section>
+      )}
+
       {canDrive && gas && (go === "drive" || !allFits) && (
         <DriveResults options={drives} cash={cash} travelers={travelers} month={month} home={homeAirport!.city} gasNote={gasSourceNote(gas)} signedIn={Boolean(userId)} />
       )}
@@ -261,7 +317,7 @@ export async function PlannerView({
             <div>
               <h2 id="results-h" className="text-lg font-semibold">
                 {only
-                  ? `Your trip to ${AIRPORT_CITY[only] ?? only}`
+                  ? `${dest.place ? "Or fly to" : "Your trip to"} ${AIRPORT_CITY[only] ?? airportByCode(only)?.city ?? only}`
                   : allFits
                   ? `${allFits}${
                       sorted.filter((t) => t.fit === "fits").length > allFits ? "+" : ""

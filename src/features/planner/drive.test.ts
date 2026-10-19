@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { driveTrips, formatDrive, GAS_PRICE, MPG, nearestState } from "./drive";
+import { driveTo, driveTrips, formatDrive, matchGetaways, GAS_PRICE, MPG, nearestState } from "./drive";
 
 const DETROIT = { latitude: 42.33, longitude: -83.05 };
 
@@ -42,5 +42,19 @@ describe("road trips", () => {
     if (firstMiss > 0) expect(trips.slice(firstMiss).every((t) => !t.best)).toBe(true);
     expect(formatDrive(3.5)).toBe("3 hr 30 min");
     expect(formatDrive(0.75)).toBe("45 min");
+  });
+});
+
+describe("road trip to a place you name", () => {
+  const DETROIT = { latitude: 42.33, longitude: -83.05 };
+  it("finds Torch Lake however it's typed", () => {
+    for (const q of ["torch lake", "Torch Lake, MI", "torch", "Torch Lake Michigan"]) expect(matchGetaways(q)[0]?.key).toBe("torch-lake");
+  });
+  it("prices the drive for the trip length you asked for", () => {
+    const g = matchGetaways("torch lake")[0];
+    const o = driveTo(DETROIT, g, { cash: Infinity, travelers: 2, style: "mid", nights: 4 })!;
+    expect(o.lengths.map((l) => l.nights)).toEqual([2, 3, 4]);
+    expect(o.hours).toBeGreaterThan(3);
+    expect(o.hours).toBeLessThan(5);
   });
 });

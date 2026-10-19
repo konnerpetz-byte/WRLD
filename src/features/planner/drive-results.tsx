@@ -25,8 +25,8 @@ function startUrl(t: DriveOption, nights: number, travelers: number, cash: numbe
     start: fridayIn(month),
     nights: String(nights),
     party: String(travelers),
-    budget: String(Math.round(cash)),
   });
+  if (Number.isFinite(cash) && cash > 0) p.set("budget", String(Math.round(cash)));
   const path = `/trips/new?${p}`;
   return signedIn ? path : `/signup?next=${encodeURIComponent(path)}`;
 }
@@ -109,7 +109,7 @@ export function DriveResults({
   );
 }
 
-function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOption; cash: number; travelers: number; month: string; signedIn: boolean }) {
+export function DriveCard({ t, cash, travelers, month, signedIn }: { t: DriveOption; cash: number; travelers: number; month: string; signedIn: boolean }) {
   const show = t.best ?? t.lengths[0];
   return (
     <li className="grid content-start gap-3 rounded-2xl border bg-card p-5">
