@@ -114,7 +114,8 @@ export function DriveCard({
   checkIn?: string;
 }) {
   const start = checkIn ?? fridayIn(month);
-  const show = t.best ?? t.lengths[0];
+  // No budget (landing pages, "Going to" without one): lead with the shortest trip, the weekend.
+  const show = Number.isFinite(cash) ? (t.best ?? t.lengths[0]) : t.lengths[0];
   const others = t.lengths.filter((l) => l !== show);
   const photo = driveTitle(t.getaway);
   const busy = seasonWord(t.season.factor);
