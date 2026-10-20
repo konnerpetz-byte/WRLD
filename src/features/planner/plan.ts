@@ -1,6 +1,6 @@
 import "server-only";
 
-import { type CashFare, cashFares, cashFaresEnabled, PORTALS } from "@/features/awards/cash-fares";
+import { type CashFare, cashFares, cashFaresEnabled, PORTALS, roundTripFares } from "@/features/awards/cash-fares";
 import { type Network, routeAwareChartPrices } from "@/features/awards/charts";
 import { estimateFees, type Fx } from "@/features/awards/fees";
 import { loadNetwork } from "@/features/awards/network";
@@ -250,13 +250,14 @@ export async function planTrips(supabase: Supabase, input: PlanInput, fx: Fx) {
     .map((c) => (input.only === c && input.place ? { key: c, ...input.place } : placeForAirport(c)))
     .filter((p): p is Place => Boolean(p));
   const costDate = input.dates?.start ?? `${input.month}-15`;
-  const [network, fares, returns, costs] = await Promise.all([
+  const [network, fares, returns, costs, roundTrips] = await Promise.all([
     loadNetwork(supabase, [input.home], codes),
     cashFares({ origins: [input.home], ...out, directOnly: false }),
     back && input.only ? cashFares({ origins: [input.only], ...back, directOnly: false }) : Promise.resolve([]),
     loadPerDiem(supabase, places, costDate),
+    roundTripFares({ origin: input.home, ...out }),
   ]);
-  return { options: priceTrips(input, network, fares, fx, returns, costs), liveFares: cashFaresEnabled(), factors: costs.factors };
+  return { options: priceTrips(input, network, fares, fx, returns, costs, roundTrips), liveFares: cashFaresEnabled(), factors: costs.factors };
 }
 
 /** The pricing itself, given the route network and this month's fares. */
@@ -266,7 +267,9 @@ export function priceTrips(
   fares: CashFare[],
   fx: Fx,
   returns: CashFare[] = [],
-  costs: { rates: Map<string, PerDiem>; factors: Factors } | null = null
+  costs: { rates: Map<string, PerDiem>; factors: Factors } | null = null,
+  /** Round-trip fares (both ways in one price), when the one-way data is missing a leg */
+  roundTrips: CashFare[] = []
 ): TripOption[] {
   const o = airportByCode(input.home);
   if (!o) return [];
@@ -297,10 +300,20 @@ export function priceTrips(
     const liveBack = returns
       .filter((f) => f.origin === code && f.destination === input.home)
       .reduce<number | null>((a, f) => (a == null || f.price < a ? f.price : a), null);
-    // No live fare for this month: the distance estimate, moved by the month's pattern for that part of the world.
+    const roundTrip = roundTrips
+      .filter((f) => f.destination === code)
+      .reduce<number | null>((a, f) => (a == null || f.price < a ? f.price : a), null);
+    // Both legs live: their sum. Otherwise a real round-trip fare beats doubling one leg. No live fare at
+    // all: the distance estimate, moved by the month's pattern for that part of the world.
     const perPerson =
-      live != null ? Math.round(live + (liveBack ?? live)) : Math.max(150, Math.round((estimateFare(miles) * fareSeason(region, month)) / 10) * 10);
-    const fareIs: TripOption["fareIs"] = live == null ? "estimate" : liveBack != null ? "live" : "half";
+      live != null && liveBack != null
+        ? Math.round(live + liveBack)
+        : roundTrip != null
+          ? Math.round(roundTrip)
+          : live != null
+            ? Math.round(live * 2)
+            : Math.max(150, Math.round((estimateFare(miles) * fareSeason(region, month)) / 10) * 10);
+    const fareIs: TripOption["fareIs"] = (live != null && liveBack != null) || roundTrip != null ? "live" : live != null ? "half" : "estimate";
     const fare = perPerson * t;
 
     // Every way to pay for the flights.

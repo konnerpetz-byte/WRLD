@@ -112,6 +112,65 @@ async function monthFares(origin: string, month: string, direct: boolean): Promi
   }
 }
 
+/**
+ * Round-trip fares (there and back on one ticket, both ways in the price) for a month, one per
+ * destination: travelers search round trips far more than one-ways, so this fills many routes
+ * the one-way data misses. Cached for an hour.
+ */
+async function monthRoundTrips(origin: string, month: string): Promise<CashFare[]> {
+  "use cache";
+  cacheLife("hours");
+  const token = env("TRAVELPAYOUTS_TOKEN");
+  if (!token) return [];
+  const u = new URL("https://api.travelpayouts.com/aviasales/v3/prices_for_dates");
+  u.search = new URLSearchParams({
+    origin,
+    departure_at: month,
+    one_way: "false",
+    direct: "false",
+    unique: "true",
+    sorting: "price",
+    currency: "usd",
+    market: "us",
+    limit: "1000",
+  }).toString();
+  try {
+    const res = await fetch(u, { headers: { "X-Access-Token": token, "Accept-Encoding": "gzip, deflate" }, signal: AbortSignal.timeout(12000) });
+    if (!res.ok) {
+      console.error(`[fares] Travelpayouts round trips ${res.status} for ${origin} ${month}`);
+      return [];
+    }
+    const body = (await res.json()) as { success?: boolean; data?: (Row & { return_at?: string })[] };
+    const out: CashFare[] = [];
+    for (const r of body.success && Array.isArray(body.data) ? body.data : []) {
+      const dest = String(r.destination_airport ?? r.destination ?? "").toUpperCase();
+      const date = String(r.departure_at ?? "").slice(0, 10);
+      const price = Number(r.price);
+      if (!IATA.test(dest) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(price) || price <= 0 || price > 30000) continue;
+      out.push({
+        origin: String(r.origin_airport ?? origin).toUpperCase(),
+        destination: dest,
+        date,
+        price,
+        airline: String(r.airline ?? "").toUpperCase().slice(0, 3),
+        flight: `${r.airline ?? ""}${r.flight_number ?? ""}`.slice(0, 10),
+        stops: Number(r.transfers) || 0,
+        durationMin: Number(r.duration_to ?? r.duration) || null,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Cheapest round trips from an origin departing in the search window: the price covers both ways. */
+export async function roundTripFares(q: { origin: string; months: string[]; start: string; end: string }): Promise<CashFare[]> {
+  if (!cashFaresEnabled()) return [];
+  const all = await Promise.all(q.months.slice(0, 3).map((m) => monthRoundTrips(q.origin, m)));
+  return all.flat().filter((f) => f.date >= q.start && f.date <= q.end);
+}
+
 /** Cheapest fares from each origin in the search window, one per destination and date. */
 export async function cashFares(q: { origins: string[]; months: string[]; start: string; end: string; directOnly: boolean }): Promise<CashFare[]> {
   if (!cashFaresEnabled()) return [];
