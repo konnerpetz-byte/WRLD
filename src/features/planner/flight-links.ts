@@ -35,14 +35,22 @@ const TRS = () => Number(env("TRAVELPAYOUTS_TRS") ?? 585101);
 
 export const affiliateFlightsReady = () => Boolean(env("TRAVELPAYOUTS_TOKEN") && MARKER() && TRS());
 
-/** The partner version of an Aviasales link, from Travelpayouts. Cached for a week. */
+/** The partner version of an Aviasales link, from Travelpayouts. Cached for a week; failures aren't cached. */
 async function partnerLink(url: string): Promise<string | null> {
+  try {
+    return await cachedPartnerLink(url);
+  } catch {
+    return null;
+  }
+}
+
+async function cachedPartnerLink(url: string): Promise<string> {
   "use cache";
   cacheLife("weeks");
   const token = env("TRAVELPAYOUTS_TOKEN");
   const marker = MARKER();
   const trs = TRS();
-  if (!token || !marker || !trs) return null;
+  if (!token || !marker || !trs) throw new Error("not set up");
   try {
     const res = await fetch("https://api.travelpayouts.com/links/v1/create", {
       method: "POST",
@@ -51,17 +59,19 @@ async function partnerLink(url: string): Promise<string | null> {
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) {
-      console.error(`[flight-links] Travelpayouts links ${res.status}: ${(await res.text()).slice(0, 200)}`);
-      return null;
+      const msg = `[flight-links] Travelpayouts links ${res.status}: ${(await res.text()).slice(0, 200)}`;
+      console.error(msg);
+      throw new Error(msg);
     }
     const raw = await res.text();
     const body = JSON.parse(raw) as { result?: { links?: { partner_url?: string; code?: string }[] } };
     const out = body.result?.links?.[0]?.partner_url;
     if (!out) console.error(`[flight-links] Travelpayouts gave no partner link: ${raw.slice(0, 300)}`);
-    return out && /^https:\/\//.test(out) ? out : null;
+    if (!out || !/^https:\/\//.test(out)) throw new Error("no partner link");
+    return out;
   } catch (e) {
     console.error(`[flight-links] Travelpayouts links failed: ${String(e).slice(0, 200)}`);
-    return null;
+    throw e;
   }
 }
 
