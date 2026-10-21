@@ -28,15 +28,20 @@ export function aviasalesSearchUrl(origin: string, destination: string, depart: 
   return `https://www.aviasales.com/search/${origin}${ddmm(depart)}${destination}${ddmm(back)}${n}`;
 }
 
-export const affiliateFlightsReady = () => Boolean(env("TRAVELPAYOUTS_TOKEN") && env("TRAVELPAYOUTS_MARKER") && env("TRAVELPAYOUTS_TRS"));
+// WRLD's Travelpayouts partner ID and project ID. Public: they appear in every affiliate link.
+// Env vars override them if the account ever changes.
+const MARKER = () => Number(env("TRAVELPAYOUTS_MARKER") ?? 789493);
+const TRS = () => Number(env("TRAVELPAYOUTS_TRS") ?? 585101);
+
+export const affiliateFlightsReady = () => Boolean(env("TRAVELPAYOUTS_TOKEN") && MARKER() && TRS());
 
 /** The partner version of an Aviasales link, from Travelpayouts. Cached for a week. */
 async function partnerLink(url: string): Promise<string | null> {
   "use cache";
   cacheLife("weeks");
   const token = env("TRAVELPAYOUTS_TOKEN");
-  const marker = Number(env("TRAVELPAYOUTS_MARKER"));
-  const trs = Number(env("TRAVELPAYOUTS_TRS"));
+  const marker = MARKER();
+  const trs = TRS();
   if (!token || !marker || !trs) return null;
   try {
     const res = await fetch("https://api.travelpayouts.com/links/v1/create", {
