@@ -30,6 +30,7 @@ export function providerOf(url: string | null | undefined): string {
     if (host.endsWith("airbnb.com")) return "airbnb";
     if (host.endsWith("booking.com")) return "booking";
     if (host.endsWith("google.com")) return "google";
+    if (host.endsWith("aviasales.com") || host.endsWith("tp.media") || host.endsWith("tp.st") || host.endsWith("avs.io")) return "aviasales";
     return "official";
   } catch {
     return "other";

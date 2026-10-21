@@ -479,6 +479,12 @@ export async function PlannerView({
             )}
           </div>
 
+          {plan.liveFares && sorted.length > 0 && sorted.filter((t) => t.fareIs === "estimate").length / sorted.length > 0.7 && (
+            <p className="rounded-xl bg-travel/15 px-4 py-3 text-sm">
+              Most flights for {monthLabel} are estimates: live fares come from what travelers searched recently, so they&rsquo;re
+              thin more than two or three months out. Each card&rsquo;s live fares links show today&rsquo;s prices.
+            </p>
+          )}
           {!plan.liveFares && (
             <p className="rounded-xl bg-travel/15 px-4 py-3 text-sm">
               Flight prices are estimates for the month for now. Today&rsquo;s real fares are coming soon.

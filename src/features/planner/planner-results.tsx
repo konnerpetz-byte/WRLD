@@ -1,4 +1,3 @@
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -11,6 +10,8 @@ import { BANKS } from "@/features/awards/transfers";
 import { flyGem } from "./gems";
 import { flyTitle } from "./photo-titles";
 import { fridayIn } from "./stay-links";
+import { flightLinks, plainFlightLinks } from "./flight-links";
+import { FlightRow } from "./flight-row";
 import { placeLabel } from "./place-label";
 import { EstMark } from "./est-mark";
 import { StayRow } from "./stay-row";
@@ -50,8 +51,11 @@ function startTripUrl({ t, month, nights, travelers, cash }: { t: TripOption; mo
   return `/trips/new?${p}`;
 }
 
-const googleFlightsUrl = (origin: string, destination: string, monthLabel: string) =>
-  `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${origin} to ${destination} in ${monthLabel}`)}`;
+
+/** Live-fare links, with the Aviasales one turned into a partner link that earns a commission. */
+async function LiveFares({ q }: { q: Parameters<typeof flightLinks>[0] }) {
+  return <FlightRow links={await flightLinks(q)} />;
+}
 
 export function TripCard({
   t,
@@ -92,6 +96,7 @@ export function TripCard({
             ? "Hotel and daily costs are a general estimate."
             : "Hotel and daily costs are WRLD's estimate for the city.";
   const label = placeLabel(t.code, t.city, airportByCode(t.code)?.country);
+  const flightQuery = { origin: home, destination: t.code, depart: t.departDate ?? fridayIn(month), nights, adults: travelers };
   const external = "inline-flex items-center gap-1 font-medium text-primary hover:underline";
   return (
     <li className="relative flex flex-col overflow-hidden rounded-2xl border bg-card">
@@ -123,6 +128,11 @@ export function TripCard({
           )}
         </div>
         {gem && <p className="line-clamp-2 text-sm">Free: {gem.free[0]}</p>}
+        {t.pay.kind !== "award" && (
+          <Suspense fallback={<FlightRow links={plainFlightLinks(flightQuery)} />}>
+            <LiveFares q={flightQuery} />
+          </Suspense>
+        )}
         <StayRow place={label} checkIn={t.departDate ?? fridayIn(month)} nights={nights} people={travelers} />
 
         <details className="group text-sm" open={Boolean(tripId) || undefined}>
@@ -193,11 +203,11 @@ export function TripCard({
               {t.pay.kind === "award" ? (
                 <span>Check the airline has an award seat on your dates before moving points. Transfers can&rsquo;t be undone.</span>
               ) : (
-                <a href={googleFlightsUrl(home, t.code, monthLabel)} target="_blank" rel="noopener noreferrer" className={external}>
-                  See fares on Google Flights
-                  <ArrowUpRight className="size-3.5" aria-hidden="true" />
-                  <span className="sr-only">(opens in a new tab)</span>
-                </a>
+                <span>
+                  {t.fareIs === "estimate"
+                    ? `No live fares for ${monthLabel} yet, so this is an estimate. The live fares links above show today's prices.`
+                    : "Fares are the lowest travelers found recently. The live fares links above show today's prices."}
+                </span>
               )}
             </p>
           </dl>
