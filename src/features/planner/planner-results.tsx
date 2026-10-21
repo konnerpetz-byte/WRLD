@@ -121,6 +121,17 @@ export function TripCard({
           <p className="mt-1 text-xs text-muted-foreground">
             {[cash == null ? "cash needed" : "cash", each, t.pointsUsed > 0 ? `plus ${pts(t.pointsUsed)} points` : null].filter(Boolean).join(" · ")}
           </p>
+          {/* Whether the flight part is a real recent fare or WRLD's estimate, on the card itself */}
+          <p className="mt-1.5">
+            {t.fareIs === "estimate" ? (
+              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Flight estimated</span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-open-soft px-2 py-0.5 text-xs font-medium text-foreground">
+                <span className="size-1.5 rounded-full bg-open" aria-hidden="true" />
+                {t.fareIs === "live" ? "Real fare found" : "Real fare one way"}
+              </span>
+            )}
+          </p>
           {cash != null && (
             <p className={`mt-1 text-sm font-medium ${t.fit === "fits" ? "text-primary" : "text-muted-foreground"}`}>
               {left >= 0 ? `${money(left)} to spare` : `${money(-left)} over your budget`}
