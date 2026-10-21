@@ -27,7 +27,7 @@ export function LegalLinks({ className }: { className?: string }) {
             href={l.href}
             aria-current={current ? "page" : undefined}
             className={cn(
-              "rounded-sm underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              "inline-block rounded-sm py-1 underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               current && "font-medium text-foreground underline decoration-primary decoration-2",
             )}
           >
