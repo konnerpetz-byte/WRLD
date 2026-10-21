@@ -74,8 +74,34 @@ const googleFlights = (q: FlightQuery): FlightLink => ({
   earns: false,
 });
 
-/** "Live fares" links for a card: Aviasales (earns when set up) first, then Google Flights. */
+/**
+ * WRLD's own live flight search: Travelpayouts White Label (Aviasales' live search, in WRLD's
+ * colors, on flights.wrldtrips.com), tied to the WRLD project so every booking earns commission.
+ * Used once the address answers over HTTPS (DNS and its certificate can take up to 48 hours).
+ */
+const WHITE_LABEL = "https://flights.wrldtrips.com";
+
+async function whiteLabelLive(): Promise<boolean> {
+  "use cache";
+  cacheLife("hours");
+  try {
+    const res = await fetch(WHITE_LABEL, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(5000) });
+    return res.status > 0 && res.status < 400;
+  } catch {
+    return false;
+  }
+}
+
+/** The same search on WRLD's White Label: flights.wrldtrips.com/flights/DTW1311BOS17112 */
+export function whiteLabelUrl(origin: string, destination: string, depart: string, nights: number, adults: number) {
+  return aviasalesSearchUrl(origin, destination, depart, nights, adults).replace("https://www.aviasales.com/search/", `${WHITE_LABEL}/flights/`);
+}
+
+/** "Live fares" links for a card: WRLD's own live search (or Aviasales) first, then Google Flights. */
 export async function flightLinks(q: FlightQuery): Promise<FlightLink[]> {
+  if (await whiteLabelLive()) {
+    return [{ label: "WRLD live fares", url: whiteLabelUrl(q.origin, q.destination, q.depart, q.nights, q.adults), earns: true }, googleFlights(q)];
+  }
   const search = aviasalesSearchUrl(q.origin, q.destination, q.depart, q.nights, q.adults);
   const partner = affiliateFlightsReady() ? await partnerLink(search) : null;
   return [
