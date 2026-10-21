@@ -54,8 +54,10 @@ async function partnerLink(url: string): Promise<string | null> {
       console.error(`[flight-links] Travelpayouts links ${res.status}: ${(await res.text()).slice(0, 200)}`);
       return null;
     }
-    const body = (await res.json()) as { result?: { links?: { partner_url?: string; code?: string }[] } };
+    const raw = await res.text();
+    const body = JSON.parse(raw) as { result?: { links?: { partner_url?: string; code?: string }[] } };
     const out = body.result?.links?.[0]?.partner_url;
+    if (!out) console.error(`[flight-links] Travelpayouts gave no partner link: ${raw.slice(0, 300)}`);
     return out && /^https:\/\//.test(out) ? out : null;
   } catch (e) {
     console.error(`[flight-links] Travelpayouts links failed: ${String(e).slice(0, 200)}`);
@@ -67,17 +69,9 @@ type FlightQuery = { origin: string; destination: string; depart: string; nights
 
 /** The same links before the partner version is ready (no commission). */
 export function plainFlightLinks(q: FlightQuery): FlightLink[] {
-  return [
-    { label: "Aviasales", url: aviasalesSearchUrl(q.origin, q.destination, q.depart, q.nights, q.adults), earns: false },
-    googleFlights(q),
-  ];
+  return [{ label: "Aviasales", url: aviasalesSearchUrl(q.origin, q.destination, q.depart, q.nights, q.adults), earns: false }];
 }
 
-const googleFlights = (q: FlightQuery): FlightLink => ({
-  label: "Google Flights",
-  url: `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${q.origin} to ${q.destination} on ${q.depart} returning ${addDays(q.depart, q.nights)}`)}`,
-  earns: false,
-});
 
 /**
  * WRLD's own live flight search: Travelpayouts White Label (Aviasales' live search, in WRLD's
@@ -102,15 +96,12 @@ export function whiteLabelUrl(origin: string, destination: string, depart: strin
   return aviasalesSearchUrl(origin, destination, depart, nights, adults).replace("https://www.aviasales.com/search/", `${WHITE_LABEL}/flights/`);
 }
 
-/** "Live fares" links for a card: WRLD's own live search (or Aviasales) first, then Google Flights. */
+/** The "Live fares" link for a card: WRLD's own live search, or Aviasales until it's reachable. Both earn commission. */
 export async function flightLinks(q: FlightQuery): Promise<FlightLink[]> {
   if (await whiteLabelLive()) {
-    return [{ label: "WRLD live fares", url: whiteLabelUrl(q.origin, q.destination, q.depart, q.nights, q.adults), earns: true }, googleFlights(q)];
+    return [{ label: "See live fares", url: whiteLabelUrl(q.origin, q.destination, q.depart, q.nights, q.adults), earns: true }];
   }
   const search = aviasalesSearchUrl(q.origin, q.destination, q.depart, q.nights, q.adults);
   const partner = affiliateFlightsReady() ? await partnerLink(search) : null;
-  return [
-    { label: "Aviasales", url: partner ?? search, earns: Boolean(partner) },
-    googleFlights(q),
-  ];
+  return [{ label: "Aviasales", url: partner ?? search, earns: Boolean(partner) }];
 }

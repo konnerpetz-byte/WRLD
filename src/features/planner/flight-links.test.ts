@@ -13,7 +13,7 @@ describe("flight links", () => {
   it("uses the same search on WRLD's White Label", () => {
     expect(whiteLabelUrl("DTW", "IST", "2027-09-10", 7, 2)).toBe("https://flights.wrldtrips.com/flights/DTW1009IST17092");
   });
-  it("offers Aviasales first, then Google Flights", () => {
-    expect(plainFlightLinks({ origin: "DTW", destination: "BOS", depart: "2026-11-13", nights: 4, adults: 2 }).map((l) => l.label)).toEqual(["Aviasales", "Google Flights"]);
+  it("links only to searches that earn commission", () => {
+    expect(plainFlightLinks({ origin: "DTW", destination: "BOS", depart: "2026-11-13", nights: 4, adults: 2 }).map((l) => l.label)).toEqual(["Aviasales"]);
   });
 });

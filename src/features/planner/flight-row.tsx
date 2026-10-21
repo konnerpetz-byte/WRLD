@@ -4,7 +4,7 @@ import { Plane } from "lucide-react";
 
 import { providerOf, track } from "@/lib/track";
 
-/** "Live fares: Aviasales · Google Flights" for this route, these dates and this group. */
+/** "Live fares: See live fares" for this route, these dates and this group. */
 export function FlightRow({ links }: { links: { label: string; url: string }[] }) {
   return (
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
